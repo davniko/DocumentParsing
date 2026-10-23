@@ -130,8 +130,10 @@ def project_handling_targets(
             (r for r in blueprint.regions if r.key == f"{NUMERIC_REGION_PREFIX}:{index}"), None
         )
         if (
-            region is None or path in seen
-            or path not in region.target_paths or path not in flat(target)
+            region is None
+            or path in seen
+            or path not in region.target_paths
+            or path not in flat(target)
         ):
             raise ValueError("handling projection requires one existing exact target owner")
         seen.add(path)
@@ -411,6 +413,7 @@ def _prepare_draw(
         plan["privatePackingRelation"] == "ON_SUPPORT"
         and counted.counted_unit_context == "discrete_article"
         and counted.tare_kg == 0
+        and "composition" not in provenance.get("numericEnvelope", {})
     )
     bulk_batches = counted.counted_unit_context == "bulk_loading_lot" and any(
         region.get("scope", {}).get("kind") == "shared_container"
@@ -665,6 +668,17 @@ def _build_scope_ledger(
     net = quantity * unit_net
     gross = quantity * unit_gross
     support: dict[str, Any] | None = None
+    from document_ocr.synthesis.independent_composed_profiles import scope_composition
+
+    native_composition = (
+        scope_composition(draw, typed_plan, quantity) if relation != "NONE" else None
+    )
+    if native_composition is not None:
+        if composition_facts is not None and (
+            composition_facts["relatedQuantity"] != native_composition["relatedQuantity"]
+        ):
+            raise ValueError("scoped composition disagrees with complete group authority")
+        composition_facts = native_composition
     if composition_facts is not None:
         related_quantity = composition_facts["relatedQuantity"]
         support = composition_facts.get("supportEnvelope")
@@ -737,23 +751,26 @@ def _build_scope_ledger(
             _require(relation == "MIXED", "mixed equation needs native component types")
             group = item.get("factGroup", "mixedAccounting")
             if group not in result["facts"]:
-                if quantity < 2:
-                    raise CandidateIncompatibility("mixed accounting needs two counted units")
-                support = support_budget(
-                    typed_plan["supportPackageType"], gross - net, quantity - 1, rng
-                )
-                outer = support["quantity"]
-                packed = outer * rng.randint(2, 6)
-                loose = quantity - outer
-                result["facts"][group] = {
-                    "supportQuantity": outer,
-                    "packedQuantity": packed,
-                    "looseQuantity": loose,
-                    "totalRelatedQuantity": packed + loose,
-                    "declaredQuantity": quantity,
-                    "supportEnvelope": support,
-                    "sourceCountRatioUsed": False,
-                }
+                if native_composition is not None:
+                    result["facts"][group] = native_composition["mixed"]
+                else:
+                    if quantity < 2:
+                        raise CandidateIncompatibility("mixed accounting needs two counted units")
+                    support = support_budget(
+                        typed_plan["supportPackageType"], gross - net, quantity - 1, rng
+                    )
+                    outer = support["quantity"]
+                    packed = outer * rng.randint(2, 6)
+                    loose = quantity - outer
+                    result["facts"][group] = {
+                        "supportQuantity": outer,
+                        "packedQuantity": packed,
+                        "looseQuantity": loose,
+                        "totalRelatedQuantity": packed + loose,
+                        "declaredQuantity": quantity,
+                        "supportEnvelope": support,
+                        "sourceCountRatioUsed": False,
+                    }
             mixed = result["facts"][group]
             outer, packed, loose = (
                 mixed["supportQuantity"],
@@ -1267,6 +1284,26 @@ class IndependentNumericCertificates:
         ):
             raise ValueError(f"certificate {source_id} has invalid ownership collections")
         constraints = certificate.get("constraints", [])
+        if (
+            "requiredPhysicalAuthority" in certificate
+            and certificate["requiredPhysicalAuthority"]
+            != "native_goods_conditioned_unit_profile_v1"
+        ):
+            raise ValueError("unknown required physical authority")
+        if "unitProfilePrecision" in certificate:
+            precision = certificate["unitProfilePrecision"]
+            if not isinstance(precision, dict) or set(precision) != {"massKg", "volumeM3"}:
+                raise ValueError("unit profile precision requires massKg and volumeM3")
+            for value in precision.values():
+                if not isinstance(value, str):
+                    raise ValueError("unit profile precision must use decimal strings")
+                quantum = Decimal(value)
+                if (
+                    not quantum.is_finite()
+                    or quantum <= 0
+                    or quantum.normalize().as_tuple().digits != (1,)
+                ):
+                    raise ValueError("unit profile precision must be a positive power of ten")
         if "cargoPresentation" in certificate:
             CargoPresentation.model_validate(certificate["cargoPresentation"])
         if not isinstance(constraints, list) or any(
@@ -1371,7 +1408,8 @@ class IndependentNumericCertificates:
             or re.fullmatch(
                 r"documentPatch\.goodsItemDetails\[\d+\]\.handlingInstructions\[\d+\]",
                 region["handlingTargetPath"],
-            ) is None
+            )
+            is None
             or not isinstance(region.get("handlingTargetSuffix", ""), str)
         ):
             raise ValueError("complete handling projection has an invalid target declaration")

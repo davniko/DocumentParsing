@@ -244,9 +244,13 @@ def _normalize(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).upper().translate(_PUNCTUATION_TRANSLATION)
     normalized = re.sub(r"(?<=\d)\s*[Xx]\s*(?=\d)", "X", normalized)
     normalized = re.sub(r"[^A-Z0-9]+", " ", normalized)
+    # Reviewed carrying-equipment aliases in the wider B/L pool. Scope TK to
+    # a complete length/type surface, never a company, cargo or parts sentence.
+    normalized = re.sub(r"^(20|40)\s*TK$", r"\1 TANK", normalized)
     # OCR can remove this word boundary. Match the complete equipment noun,
     # never a prefix such as TANKCONTAINERIZATION or another carrier code.
     if "TANK" in normalized:
+        normalized = re.sub(r"\bISO(?=TANK(?:CONTAINERS?)?\b)", "ISO ", normalized)
         # A joined length must not hide TANK and let the generic CONTAINER noun
         # select a dry-box type. This is a word boundary, not a pressure subtype.
         normalized = re.sub(r"\b(20|40|45)(?=TANK(?:CONTAINERS?)?\b)", r"\1 ", normalized)
@@ -776,6 +780,17 @@ def review_source_equipment_surface(
             "documented_40rq_high_cube_reefer",
         )
 
+    tank_group = re.fullmatch(r"(22|25|42|45|L5)\s*(KL|NH|NN)", semantic)
+    if tank_group:
+        return ReviewedEquipmentSurface(
+            printed_surface,
+            normalized,
+            "reviewed_source_grammar",
+            _ISO_SIZES[tank_group[1]],
+            _COMPACT_TYPES[tank_group[2]],
+            "not_indicated",
+            "iso_size_and_tank_type_group",
+        )
     iso = _iso_surface_parts(semantic)
     if iso:
         size, kind = _ISO_SIZES.get(iso[0]), _ISO_TYPES.get(iso[2])
@@ -915,6 +930,25 @@ def review_source_equipment_surface(
         type_category = "PLATFORM_NAMED_CARGO"
         type_rule = "reviewed_mafi_platform_surface"
     elif "TANK" in tokens or re.search(r"(?:20|40)TANK$", semantic):
+        dry_kind = (
+            "DRY_HOPPER_TANK"
+            if re.fullmatch(r"(?:20|40|45)\s*(?:FT\s*)?DRY HOPPER TANK(?: CONTAINERS?)?", semantic)
+            else "DRY_REAR_DISCHARGE_TANK"
+            if re.fullmatch(
+                r"(?:20|40|45)\s*(?:FT\s*)?DRY REAR DISCHARGE TANK(?: CONTAINERS?)?", semantic
+            )
+            else None
+        )
+        if dry_kind is not None:
+            return ReviewedEquipmentSurface(
+                printed_surface,
+                normalized,
+                "reviewed_source_grammar",
+                _ISO_SIZES[{20: "22", 40: "42", 45: "L5"}[length]],
+                dry_kind,
+                "not_indicated",
+                "explicit_dry_tank_type",
+            )
         generic_tank = bool(
             re.fullmatch(
                 r"(?:20|40|45)\s*(?:FT\s*)?(?:ISO\s*)?TANK(?:\s+CONTAINERS?(?: S)?)?",

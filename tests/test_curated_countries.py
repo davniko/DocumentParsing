@@ -133,6 +133,41 @@ def sampled(*, country="SPAIN", address="19 CALLE TEST SPAIN"):
     }
 
 
+def test_address_target_does_not_expand_salvador_in_street_to_country(registry):
+    bp = blueprint()
+    postal = replace(bp.regions[0], curated_key="postal")
+    contract = bp.contract.model_copy(
+        update={
+            "variables": [
+                *bp.contract.variables,
+                Variable(
+                    key="postal",
+                    kind="postal",
+                    value="12 RUE TEST FRANCE",
+                    meaning="Complete postal block",
+                    required_literals=[],
+                    occurrences=[
+                        Occurrence(text="12 RUE TEST FRANCE", occurrence=1, presentation="text")
+                    ],
+                ),
+            ],
+            "targets": [
+                *bp.contract.targets,
+                TargetBinding(path=ROLE + ".addressLine", expression="{postal}"),
+            ],
+        }
+    )
+    bp = replace(bp, regions=(postal,), contract=contract)
+    address = "Km 3 Carretera de San Salvador\nEdificio 2\nCUSCATANCINGO\nEL SALVADOR"
+    target = sampled(country="EL SALVADOR", address=" ".join(address.upper().split()))
+    projected = plan(bp, target, registry, protected={ROLE: "CUSCATANCINGO"}).apply_regions(
+        [(postal, address)],
+        variable_values={"postal": address},
+    )
+    assert projected.target_values[ROLE + ".addressLine"] == " ".join(address.upper().split())
+    assert "SAN EL SALVADOR" not in projected.target_values[ROLE + ".addressLine"]
+
+
 def unowned_postal_alias(*, country="ETHIOPIA", address="12 MAIN ROAD (ET)"):
     bp = blueprint(country=country, address=address)
     return replace(

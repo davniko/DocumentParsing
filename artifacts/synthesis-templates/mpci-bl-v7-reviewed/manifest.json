@@ -2329,6 +2329,16 @@
       "doc_27e75cc82b67666232bebbf1a02758707ead92c60859283ba7600fbb02ed0515"
     ]
   },
+  "cargoBoundaryRepair20261022": {
+    "evidence": "/mnt/d/projects/documentparsing/docs/analysis/r28-tank-and-cargo-closure-20261022/description-staging-proof.json",
+    "sources": [
+      "doc_3eaf543b196aad14637946c0599dd00b0d7285e92b18b62a747d5025f4f30cb8",
+      "doc_49feedabd4f29115ea2c3a89d4f2da0afe4db074d6c88fd027ca3d55b76c2885",
+      "doc_7937adb618d0caefcc12bb1bdead60a7dc2aeb3784a54e36f9ddf2e2accb6ee7",
+      "doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046"
+    ],
+    "status": "four_active_sources_repaired_and_freshly_revalidated"
+  },
   "cases": {
     "doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900": {
       "capability": {
@@ -5971,15 +5981,15 @@
       },
       "files": {
         "alignment.json": "4617932e20a3b687bf6dd0c40c751558f7ec911b5f779bb252f0dd35a4b48748",
-        "contract.json": "44c9fce283c98fd111f58e8a5e4b33fff282bb2939788623dedda625b549efdd",
+        "contract.json": "0f298e034c02c3192a49b3138652f1dfb16c12f00b0bdcda964d33278d544a7a",
         "source-positioned.txt": "fc00a83d5bafbe79de137f2cbd243c9d6b8153864c5ec48744ff0ac8e2d5aa0a",
         "source.txt": "f74babcc79e3b97668a605ca39e232cb7fdb79b6f79e91136f3de9f490a93af7",
-        "target.json": "4e570563f00800fdb80503479cd086410224d3564b745a12e80900afd8c6f416",
+        "target.json": "d1af8f717a35bd8bff0944bd8bde00e0a585e87d3558320672a7b268601df986",
         "template.json": "f8f12b164fb2496a059752d88b7d553f34611fb7eea80a58c1b2193b8ee9e824"
       },
       "sourceInputSha256": "f74babcc79e3b97668a605ca39e232cb7fdb79b6f79e91136f3de9f490a93af7",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "b97729da000f003c907f76ef537ce996a9aabf305df3c19e21bf1793d98706a9"
+      "targetSha256": "2b6cbdbc6b70008d195f8cb5bd446119571f84eae861c8b40c8c0213a9460dc8"
     },
     "doc_3f4147c451242bb624a4ee573b62e03986f059853e11091ba2877a60fe9aed43": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion60-r27-batch01-validation-attempt02-v1",
@@ -6448,15 +6458,15 @@
       },
       "files": {
         "alignment.json": "eda3faafdb2fc0aa163fbb8ef076f88e809a778e805a2f67f36b6053f9d67600",
-        "contract.json": "166d8b15dc2c0023c8b1317648efb65960b33ae4f51076940542090f16f275af",
+        "contract.json": "bf831b385a4a2c6d3239bae9e0b461ca91bbda8891012283b591ade4c54255ef",
         "source-positioned.txt": "adf203acd09b656afcae445d375ff3c7146c2ee67b606e9a13726dbbe7858039",
         "source.txt": "256ee985ea24bc5f7fa152d73805e668439142cfcc42ca301c8adbc2b5709519",
-        "target.json": "c5914127d247875b3c37132b1a7787c60ff0bafcddb02f6a9e15f4cde9002ba9",
+        "target.json": "64bf94f2d3eaaa383a4f082a8a4a53c126a51405f4b376111cbf0acf1ef5563c",
         "template.json": "e015b86e18f2a17a6fd90371b828496d9e2da02e67a7d1d1348e6346188a743f"
       },
       "sourceInputSha256": "256ee985ea24bc5f7fa152d73805e668439142cfcc42ca301c8adbc2b5709519",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "6184c49154abc3e72bf9387395b6f0fb0cedc63373842f1dcd2bf906379cd7d1"
+      "targetSha256": "548ebc9f037e843916c1f5811cb995517d510881a2080911b3108d3ec617b8d7"
     },
     "doc_4a18b9d465d1c3683bc362482e4f31a503d26249099307ad633fcb0c61eec157": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -9640,17 +9650,17 @@
       "cohort": "template-expansion60-r27-batch01-20261016",
       "files": {
         "alignment.json": "3e8ce3d85c3c6190aee5348ebe90e367c6c83493fc17b4732e07b26947d126e8",
-        "contract.json": "137681e8c28f20ff02f57e39d98d59f76ef1fb62917531bd66060d65a648f5c6",
+        "contract.json": "6f38ddd7725b3facc2169bde5c37b2e30540a48c7710b94e00e7aa97dd4efc34",
         "source-positioned.txt": "6cd262e744bc6547aaaf06b4991a46046671704e27d800250baaf6f6fec1bb27",
         "source.txt": "e3a9b7df9148bf4874efe4bfaf6a9244008b7e8802d8516618b2a8444a748e4e",
-        "target.json": "4cef1fa784d31322b9503645c480ab187a746dd15640d1f36f304d8817aa8e02",
+        "target.json": "0ccdbcd341eaf6e0a0d7eec297a25fe399202920d759c665f99073a0724cc536",
         "template.json": "28c3541ff23d6ac7d6981a45824696c6ccdb9a6a194008b01dae1e0d843007e6"
       },
       "group": "ambient",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/template-expansion60-r27-batch01-20261016/real704",
       "sourceInputSha256": "e3a9b7df9148bf4874efe4bfaf6a9244008b7e8802d8516618b2a8444a748e4e",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "692ee4d772f569122e2e415836c6a9d2468dd6f79b1a1d59d954a9468cd0d8fa"
+      "targetSha256": "12f99f58c860756e7ac0c14cfac72c503a347ad7f76e4cca0664158ed67db6df"
     },
     "doc_7a4ac5baceefaa5b42414ed9a71775c326716147567fdc76807b84e915ee9a38": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -9926,10 +9936,10 @@
       },
       "files": {
         "alignment.json": "6663cc55bc730b4d2d8e1b084c807293ecbc9f518d939e556b519d3b4d864c73",
-        "contract.json": "cec31531768c0154829636fdfe9008827ce3e848a185a2e11491ef0583d9eab3",
+        "contract.json": "44948bf8d5e438081f26a464bdf80c6b391826c24f992ea7dad06a945140e5b1",
         "source-positioned.txt": "3af9a4a58eb929389c4b6596a548e7866ad3f31338abd112074397fe215d0ffe",
         "source.txt": "66f419d7abd4e0a733817ae655f29d77074c80fa49a991d69b66aa2ced312c19",
-        "target.json": "e62dde4848e88391e7d7d7b27846ffecd3e642432b60c4ccc8d2001dc2c55163",
+        "target.json": "db7f1569b74d0a0c33c8fdb9251e1b95ce7c42bfe304cbc247a798675f4ca1c7",
         "template.json": "b840f4cccf8e2af3e27b81399d08ad906df16ba737db18c8b93abbd569b8fc48"
       },
       "reaudit": {
@@ -9941,7 +9951,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/issue-role-closure-20261020/source-dataset",
       "sourceInputSha256": "66f419d7abd4e0a733817ae655f29d77074c80fa49a991d69b66aa2ced312c19",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "6e0384192237132dada6766a93a966565ff6e768d7bee1cc5bea1f62e85491fc"
+      "targetSha256": "22cbe834da05b3519dbb88c3c3c6fc5d5d923df85c47ffc91bb8bf321291a868"
     },
     "doc_84b8376f8ea1378bb5f300f820a1d5eedd628fdbd0fc8f15b5557b5a5d1b6cc5": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -13215,16 +13225,16 @@
       },
       "files": {
         "alignment.json": "0fc4b287e6afa1758bb0f9fb6b94e373678772aee101bf9c4d0940c430fb6528",
-        "contract.json": "9fffe5217ff621db55a0c71e28889819ce7d2d8cb897cbc5415d235bd084011f",
+        "contract.json": "baff7fcf13d65cc5939a2b98a7ae00ff0901c4e3c686c7a80f05f2d8a5a1151e",
         "source-positioned.txt": "1ea499097dba00af0f07c27c0c9ed1ae72ff925775c184a308e0c0d149c54013",
         "source.txt": "5cdb8573d93b5b4f9d9318d6cf914bc704d94f9d8c293adb4e8f3eb62730bcbd",
-        "target.json": "34389f6c75245dcf468987fea4a7b39e2aa589746fb218e83ddef46310dbcf27",
+        "target.json": "c52a073adc939f6f61f6c3661545d9b5c0c372bd7434d6961cf0f89189c60481",
         "template.json": "f1bd9265a38739c8fccca04c3d7eed4d8437c2d56361fe39c15df4e25dbb62a8"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "5cdb8573d93b5b4f9d9318d6cf914bc704d94f9d8c293adb4e8f3eb62730bcbd",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "749a307b5f3e345eee5cf84b758b1624b1ee57fcf2b55ec3cb6296674a3cfa94"
+      "targetSha256": "88db4e91c3ca5d98e25981456811416562122e7a56366130cd00ce57c76ecdfb"
     },
     "doc_c06401a677f42b76ab61d5dd870c30329ce1b361a12fd38db34390a82f651555": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -16290,6 +16300,14 @@
     "report": "docs/kie-synthesis-followup-integrity-2026-10-08.md",
     "source": "doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04"
   },
+  "goodsConditionedUnitProfiles20261022": {
+    "evidence": {
+      "path": "docs/analysis/r28-unit-profile-scale-20261022/final-results.json",
+      "sha256": "535474a5aae38a20ea14dde7d391dce42b50e7e9ffe6c32c4345eb4a066fd88c"
+    },
+    "report": "docs/analysis/r28-unit-profile-scale-20261022/REPORT.md",
+    "scope": "20 tested uncomposed sources; mandatory for wheel, optional for the other19. Nested numeric composition is not promoted."
+  },
   "handlingForwardingAliasClosure20261021": {
     "caseSourceTargetContractUnchanged": true,
     "date": "2026-10-21",
@@ -16324,13 +16342,13 @@
   "independentFlatFullRegistryAcceptance20261021": {
     "acceptanceIndex": {
       "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/independent-flat-full-registry-20261021/acceptance-index.json",
-      "sha256": "2f969f5df04315bc30c1516eef183824562a5981768995babc0cb2a0a50fdfa4"
+      "sha256": "a62563d6d9a2c2daf1740688ca293210c03e2c6b25a58d7427e1240a7c31621c"
     },
-    "acceptedSources": 449,
+    "acceptedSources": 451,
     "inspectionOnly": true,
-    "remainingSources": 4,
+    "remainingSources": 2,
     "report": "/mnt/d/projects/documentparsing/docs/analysis/r28-donor-free-full-registry-20261021/PLAN.md",
-    "sourceOwnershipSha256": "267e03c4e0cf5999ceb5ab44f2bdc46c8d9678c4e748a451358c823ecd4f368b"
+    "sourceOwnershipSha256": "1c2a5927919fea36255331159acd4d5192a74f598163d12d8faa3eb915cf8936"
   },
   "invoicePartyPrivacyClosure20261019": {
     "afterOwnershipSha256": "3098022df16dee3e8cd319918d41e2835bb1c230cf5418239f74b6aeea66a0fd",
@@ -17592,7 +17610,7 @@
   "schemaVersion": 1,
   "sharedFiles": {
     "auxiliary.yaml": "758229682adf8e5a81c595f39e39adb55e2bb48f2652bb066c255fd54a2222b8",
-    "ownership.yaml": "267e03c4e0cf5999ceb5ab44f2bdc46c8d9678c4e748a451358c823ecd4f368b",
+    "ownership.yaml": "1c2a5927919fea36255331159acd4d5192a74f598163d12d8faa3eb915cf8936",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513",
     "task-constraints.json": "a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77"
@@ -17611,7 +17629,7 @@
     "doc_0ede63c2a7f139dd6a7a443d919dfc38df7d0f471bf149c330d0b810de04356d": {
       "configurationRule": "Use the corrected source authority/current contracts. Leading package declarations remain rendered but are outside the approved product-description span.",
       "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
-      "datasetManifestSha256": "752aff10971c7cb6ae62be88026a557683eae6da4125f1f5df460a81a68e95d5",
+      "datasetManifestSha256": "46b8a3583e42507e0a29c9220bb5adaeb597152071f0be7c1831623a67ed4814",
       "reason": "Existing main-product-block policy: remove the independently owned leading count/type introduction; preserve OCR, coordinates and every other target.",
       "revisionReceipt": "docs/analysis/r28-donor-free-full-registry-20261021/description-boundary-correction/final-results.json",
       "revisionReceiptSha256": "bb457f5bafa29f43b551038de2fd445f48bb073c5a38bf0831e6c2df5779ac41",
@@ -17637,7 +17655,7 @@
     "doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb": {
       "configurationRule": "Use the corrected source authority/current contracts. Leading package declarations remain rendered but are outside the approved product-description span.",
       "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
-      "datasetManifestSha256": "752aff10971c7cb6ae62be88026a557683eae6da4125f1f5df460a81a68e95d5",
+      "datasetManifestSha256": "46b8a3583e42507e0a29c9220bb5adaeb597152071f0be7c1831623a67ed4814",
       "reason": "Existing main-product-block policy: remove the independently owned leading count/type introduction; preserve OCR, coordinates and every other target.",
       "revisionReceipt": "docs/analysis/r28-donor-free-full-registry-20261021/description-boundary-correction/final-results.json",
       "revisionReceiptSha256": "bb457f5bafa29f43b551038de2fd445f48bb073c5a38bf0831e6c2df5779ac41",
@@ -17756,6 +17774,36 @@
     "reason": "Restore independently printed C/S second seals without changing original OCR.",
     "receipt": "docs/analysis/synthesis-refresh900-20261014/f256-source-rebase/source-revision.json",
     "sourceDocumentId": "doc_f256749bd9718a0bae20e7cdd8fe6942a7b1e3759f3089b86a23d7524f5638f0"
+  },
+  "tankAndCargoClosure20261022": {
+    "evidence": {
+      "path": "docs/analysis/r28-tank-and-cargo-closure-20261022/final-results.json",
+      "sha256": "c95d870aebe8329f9bd71ad262832e786fadd4d3c02e61ae00087b0df1e859b7"
+    },
+    "heldVehicleBoundaryRepairedWithoutAcceptance": "bef02d48",
+    "report": "docs/analysis/r28-tank-and-cargo-closure-20261022/REPORT.md",
+    "tankEquipmentAliases": {
+      "path": "artifacts/sampling-registries/equipment-aliases-tanks-20261022.json",
+      "sha256": "f3842fe82a3f368ea910d6b6b30a2a95a5f1178589b9416a2df1ac2c5ec4dd54"
+    }
+  },
+  "variableNumericalPlanning20261023": {
+    "evidence": {
+      "path": "docs/analysis/r28-numeric-dg-integration-20261023/final-results.json",
+      "sha256": "5b32e35e85ec9cccdc009ba28552acb1bea7b2ce3548013d579cef09e399ce12"
+    },
+    "freshCertifiedDescendants": 106,
+    "freshCertifiedSources": 51,
+    "newPreparationUsesNativeProfilesByDefault": true,
+    "r28NumericalValuesBulkResampled": false,
+    "remainingDgVehicleHolds": 2,
+    "report": "docs/analysis/r28-numeric-dg-integration-20261023/REPORT.md",
+    "sourcePrerequisitesPassing": 451,
+    "validationSamplesInspectionOnly": true,
+    "workingConfig": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/independent-flat-full-registry-20261021/working-config.json",
+      "sha256": "1724fe93eb549c27b24682985244c354aa4474d15e658c04e7d91f1e515cd48d"
+    }
   },
   "vehicleBoundaryAndChassisClosure20261022": {
     "evidence": "docs/analysis/r28-donor-free-full-registry-20261021/description-boundary-correction/final-results.json",

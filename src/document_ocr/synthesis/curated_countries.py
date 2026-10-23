@@ -37,6 +37,35 @@ def _phrase(value: str) -> re.Pattern[str]:
     return re.compile(r"(?<!\w)" + r"\s+".join(map(re.escape, value.split())) + r"(?!\w)", re.I)
 
 
+def _flat_owned_country_span(
+    address_variable: str, source: str, edit: Mapping[str, Any], *, uppercase: bool
+) -> tuple[int, int]:
+    """Map the already-owned country occurrence, not another alias in a street."""
+    lead = len(source) - len(source.lstrip())
+    text = source.strip()
+    start, end = edit["start"] - lead, edit["end"] - lead
+    if not 0 <= start < end <= len(text):
+        raise ValueError("owned country offsets escape the postal variable")
+
+    def pattern(fragment: str) -> str:
+        return "".join(
+            r"\s+" if part.isspace() else re.escape(part.upper() if uppercase else part)
+            for part in re.split(r"(\s+)", fragment)
+        )
+
+    expression = (
+        pattern(text[:start])
+        + "(?P<country>"
+        + pattern(text[start:end])
+        + ")"
+        + pattern(text[end:])
+    )
+    match = re.fullmatch(expression, address_variable, re.I)
+    if match is None:
+        raise ValueError("owned postal country cannot be mapped into its address target variable")
+    return match.span("country")
+
+
 def _fold_with_offsets(text: str) -> tuple[str, list[tuple[int, int]]]:
     parts, positions = [], []
     for match in re.finditer(r"\s+|\S+", text):
@@ -663,7 +692,10 @@ class CountryRenderPlan:
             for variable in re.findall(r"\{([^{}]+)\}", expression):
                 if variable not in variable_values:
                     raise ValueError(f"address expression lacks its canonical variable: {variable}")
-                match = _phrase(variable_values[variable]).search(value, cursor)
+                source_value = variable_values[variable]
+                if target_casing == "uppercase":
+                    source_value = source_value.upper()
+                match = _phrase(source_value).search(value, cursor)
                 if match is not None:
                     variable_ranges.append((match.start(), match.end(), variable))
                     cursor = match.end()
@@ -676,6 +708,7 @@ class CountryRenderPlan:
                     if role + ".country" in owner.country_paths
                 ]
             replacements, split_frames = [], []
+            owner_texts = {(r["key"], r["occurrence"]): r["before"] for r in records}
             for start, end, before in spans:
                 variable = next(
                     (key for lo, hi, key in variable_ranges if lo <= start and end <= hi), None
@@ -685,6 +718,23 @@ class CountryRenderPlan:
                     for owner, edit in own
                     if variable is None or owner.variable_key == variable
                 ]
+                if variable is not None and eligible:
+                    low, high, _ = next(
+                        r
+                        for r in variable_ranges
+                        if r[2] == variable and r[0] <= start and end <= r[1]
+                    )
+                    owned = [
+                        _flat_owned_country_span(
+                            value[low:high],
+                            owner_texts[owner.key, owner.occurrence],
+                            edit,
+                            uppercase=target_casing == "uppercase",
+                        )
+                        for owner, edit in eligible
+                    ]
+                    if (start - low, end - low) not in owned:
+                        continue
                 exact = [
                     (owner, edit)
                     for owner, edit in eligible

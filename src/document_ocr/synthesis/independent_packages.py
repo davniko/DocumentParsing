@@ -28,6 +28,11 @@ from pydantic import (
 
 from document_ocr.synthesis.independent_envelopes import PACKAGE_COUNTING_CONTEXTS
 from document_ocr.synthesis.package_aliases import PACKAGE_ALIASES
+from document_ocr.synthesis.tank_equipment import (
+    LIQUID_TANK_TYPE,
+    TANK_COUNTED_PACKAGE_TYPES,
+    TANK_TYPES,
+)
 
 PACKAGE_TYPES = tuple(sorted(PACKAGE_ALIASES))
 _PACKAGE_TYPES = frozenset(PACKAGE_TYPES)
@@ -100,6 +105,7 @@ class PackageChoiceRequest(PackageGoodsContext):
     """The optional candidate is independently judged, never a forced choice."""
 
     requiredCategory: PackageType | None = None
+    installedTank: bool = Field(default=False, exclude_if=lambda value: not value)
     allowedPackageTypes: list[PackageType] | None = Field(
         default=None, min_length=1, exclude_if=lambda value: value is None
     )
@@ -130,6 +136,22 @@ def equipment_choice_brief(slots: Sequence[Mapping[str, str]]) -> str:
         raise ValueError("carrying hardware rows require explicit size and type categories")
     if not slots:
         return "Maritime shipment with no printed carrying containers; do not invent equipment."
+    kinds = {slot["typeCategory"] for slot in slots}
+    if kinds & TANK_TYPES:
+        if len(kinds) != 1 or not kinds <= TANK_TYPES:
+            raise ValueError("tank briefing requires one explicitly owned tank family")
+        form = "liquids or gases" if kinds == {LIQUID_TANK_TYPE} else "dry powders or granules"
+        return (
+            "Fixed installed tank carrying equipment: "
+            + json.dumps(list(slots), sort_keys=True)
+            + ". Contents are loaded into the tank itself, not through dry-box doors and not "
+            "into drums, bags, flexitanks or inner boxes. Hardware is suitable for "
+            + form
+            + ". Use PACKAGE_PACKAGE or PACKAGE_LOT with declaredUnitContext=tank_loading_lot "
+            "only when the goods have a compatible bulk form. This is a counted contents "
+            "lot, not a claim that a freight container is packaging. Do not invent pressure, "
+            "heating, cooling, tank approval, temperature settings or a physical-form change."
+        )
     if {slot["typeCategory"] for slot in slots} == {"PLATFORM"}:
         return (
             "Fixed sampled carrying platforms: "
@@ -189,10 +211,18 @@ Genuine supplied sets can still have carton/pallet alternatives. No quotas are s
 """
 
 
-def _alternative_types(categories: Sequence[str] = PACKAGE_TYPES) -> tuple[type[BaseModel], ...]:
+def _alternative_types(
+    categories: Sequence[str] = PACKAGE_TYPES, *, tank: bool = False
+) -> tuple[type[BaseModel], ...]:
     groups: dict[tuple[str, ...], list[str]] = {}
     for category in categories:
-        contexts = tuple(sorted(PACKAGE_COUNTING_CONTEXTS.get(category, ())))
+        if tank and category not in TANK_COUNTED_PACKAGE_TYPES:
+            raise ValueError("installed-tank choice requires a counted contents-lot category")
+        contexts = (
+            ("tank_loading_lot",)
+            if tank
+            else tuple(sorted(PACKAGE_COUNTING_CONTEXTS.get(category, ())))
+        )
         groups.setdefault(contexts, []).append(category)
     return tuple(
         create_model(
@@ -271,6 +301,9 @@ def package_choice_output_type(
 ) -> type[PackageChoice]:
     """Expose known candidate-presence constraints to native decoding itself."""
     value = _request(request)
+    if value.installedTank:
+        categories = tuple(value.allowedPackageTypes or sorted(TANK_COUNTED_PACKAGE_TYPES))
+        return _scoped_choice_type(categories, value.requiredCategory is not None, tank=True)
     if value.allowedPackageTypes is not None:
         return _scoped_choice_type(
             tuple(value.allowedPackageTypes), value.requiredCategory is not None
@@ -279,10 +312,13 @@ def package_choice_output_type(
 
 
 @lru_cache(maxsize=48)
-def _scoped_choice_type(categories: tuple[str, ...], candidate: bool) -> type[PackageChoice]:
+def _scoped_choice_type(
+    categories: tuple[str, ...], candidate: bool, *, tank: bool = False
+) -> type[PackageChoice]:
     """Expose the reviewed domain and its cardinality to constrained decoding."""
-    alternative = Union.__getitem__(_alternative_types(categories))
-    identity = hashlib.sha256(json.dumps([categories, candidate]).encode()).hexdigest()[:12]
+    alternative = Union.__getitem__(_alternative_types(categories, tank=tank))
+    identity_data = [categories, candidate] + (["installed_tank"] if tank else [])
+    identity = hashlib.sha256(json.dumps(identity_data).encode()).hexdigest()[:12]
     return create_model(
         "ScopedIndependentPackageChoice" + identity,
         __base__=_ChoiceWithCandidate if candidate else _ChoiceWithoutCandidate,
@@ -300,7 +336,7 @@ def _category_prompt() -> str:
             "Sensitive categories and their permitted counting contexts:",
             json.dumps(
                 {
-                    category: sorted(values)
+                    category: sorted(values, key=str)
                     for category, values in PACKAGE_COUNTING_CONTEXTS.items()
                     if values
                 },
@@ -320,6 +356,12 @@ def package_choice_prompt(
     if any(goods.hs6 not in hs_codes for goods in value.goods):
         raise ValueError("package-choice goods must belong to the supplied HS registry")
     lines = ["Complete shared goods group:"]
+    if value.installedTank:
+        lines.append(
+            "Installed-tank contents: use the supplied compatible bulk form; PACKAGE_PACKAGE "
+            "or PACKAGE_LOT alternatives require declaredUnitContext=tank_loading_lot. "
+            "No inner receptacles, pressure or temperature settings are supplied."
+        )
     lines.extend(f"- HS {goods.hs6}: {goods.description}" for goods in value.goods)
     lines.extend(
         ["Transport: maritime", "Regime: " + value.regime, "Equipment: " + value.equipment]
@@ -399,6 +441,8 @@ def verify_native_choice_evidence(
             raise ValueError("frozen carrying hardware must be an explicit list")
         if data["equipment"] != equipment_choice_brief(slots):
             raise ValueError("native choice equipment differs from frozen carrying hardware")
+        if request.installedTank != any(slot["typeCategory"] in TANK_TYPES for slot in slots):
+            raise ValueError("native choice tank context differs from frozen carrying hardware")
     output = verify_native_evidence(
         root,
         evidence,

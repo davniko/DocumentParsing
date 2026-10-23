@@ -37,6 +37,12 @@ from document_ocr.synthesis.independent_envelopes import (
     package_envelope,
 )
 from document_ocr.synthesis.independent_packages import package_material
+from document_ocr.synthesis.independent_unit_profiles import (
+    UnitProfileRequest,
+    sample_unit_profile,
+    validate_profile,
+)
+from document_ocr.synthesis.tank_equipment import TANK_SIZES, TANK_TYPES
 from document_ocr.synthesis.template_compiler.dangerous_goods_packaging import profile
 from document_ocr.synthesis.thermal_goods import classify_thermal_descriptions
 
@@ -188,10 +194,22 @@ def sample_equipment(
                 and item["typeCategory"] == "REFRIGERATED"
                 and item["sizeCategory"] in _REEFER_SIZES
             )
+            or (
+                regime in {"ambient", "dg"}
+                and item["typeCategory"] in TANK_TYPES
+                and item["sizeCategory"] in TANK_SIZES
+            )
         )
         for item in domain
     ):
         raise ValueError("equipment domain is incompatible with independent cargo regime")
+    tank_types = {item["typeCategory"] for item in domain if item["typeCategory"] in TANK_TYPES}
+    if tank_types and (
+        len(tank_types) != 1 or any(item["typeCategory"] not in tank_types for item in domain)
+    ):
+        raise ValueError(
+            "tank domain requires one explicit tank family, not a dry-box substitution"
+        )
     if any(item["typeCategory"] == "OPEN_TOP" for item in domain) and any(
         item["typeCategory"] != "OPEN_TOP" for item in domain
     ):
@@ -541,6 +559,7 @@ class IndependentSampler:
         equipment_domain: Sequence[Mapping[str, str]] | None = None,
         equipment_slots: Sequence[Mapping[str, str]] | None = None,
         row_capacities: Sequence[Mapping[str, Any]] | None = None,
+        unit_profile_precision: Mapping[str, str] | None = None,
     ) -> dict[str, Any]:
         """Draw quantities and equipment against an independently chosen package."""
         self.validate_request(request)
@@ -571,6 +590,13 @@ class IndependentSampler:
             equipment_domain=equipment_domain,
             equipment_slots=equipment_slots,
         )
+        if any(item["typeCategory"] in TANK_TYPES for item in equipment):
+            if counted_unit_context != "tank_loading_lot":
+                raise ValueError(
+                    "installed tank requires explicit tank_loading_lot counting context"
+                )
+        elif counted_unit_context == "tank_loading_lot":
+            raise ValueError("tank_loading_lot requires installed tank carrying equipment")
         rows = max(container_count, 1)
         if row_capacities is not None and len(row_capacities) != rows:
             raise ValueError("row capacities do not match independent load rows")
@@ -596,37 +622,98 @@ class IndependentSampler:
             for payload, cube in capacities
         ):
             raise ValueError("row capacities must be positive finite decimals")
+        variable_unit = request.get("nativeUnitProfileEvidence")
+        composed_unit = request.get("nativeComposedProfileEvidence")
+        if variable_unit is not None and composed_unit is not None:
+            raise ValueError("one physical planning authority is required")
+        native_unit = variable_unit is not None or composed_unit is not None
+        if native_unit and row_capacities is None:
+            raise ValueError("native unit profiles require explicit current planning capacities")
         # Explicit row limits can tighten the synthetic envelope, never loosen
         # its common bound or turn a carrier-specific rating into a new default.
-        capacities = tuple(
-            (min(payload, DEFAULT_ROW_PAYLOAD_KG), min(cube, DEFAULT_ROW_VOLUME_M3))
-            for payload, cube in capacities
-        )
-        unit_net = _integer(*envelope.net_kg, stream.derive("unit-net-kg"))
-        unit_gross = unit_net + envelope.tare_kg
-        unit_cube = envelope.cube_m3
+        if not native_unit:
+            capacities = tuple(
+                (min(payload, DEFAULT_ROW_PAYLOAD_KG), min(cube, DEFAULT_ROW_VOLUME_M3))
+                for payload, cube in capacities
+            )
+            unit_net = _integer(*envelope.net_kg, stream.derive("unit-net-kg"))
+            unit_gross = unit_net + envelope.tare_kg
+            unit_cube = envelope.cube_m3
+            numeric_authority = envelope.receipt()
+        else:
+            if unit_profile_precision is None or set(unit_profile_precision) != {
+                "massKg",
+                "volumeM3",
+            }:
+                raise ValueError("native unit profile requires reviewed source numeric precision")
+            precision = dict(
+                mass_quantum_kg=Decimal(unit_profile_precision["massKg"]),
+                volume_quantum_m3=Decimal(unit_profile_precision["volumeM3"]),
+            )
+            if composed_unit is not None:
+                from document_ocr.synthesis.independent_composed_profiles import (
+                    ComposedRequest,
+                    sample_composed_profile,
+                )
+
+                unit_net, unit_gross, unit_cube, numeric_authority = sample_composed_profile(
+                    ComposedRequest.model_validate(composed_unit["request"]),
+                    composed_unit["output"],
+                    capacities,
+                    stream,
+                    **precision,
+                )
+            else:
+                unit_request = UnitProfileRequest.model_validate(variable_unit["request"])
+                unit_net, unit_gross, unit_cube, numeric_authority = sample_unit_profile(
+                    unit_request,
+                    validate_profile(unit_request, variable_unit["output"]),
+                    capacities,
+                    stream,
+                    **precision,
+                )
+        if not native_unit and envelope.cube_range_m3 is not None:
+            low_cube, high_cube = envelope.cube_range_m3
+            unit_cube = (
+                Decimal(
+                    _integer(
+                        int(low_cube * 100),
+                        int(high_cube * 100),
+                        stream.derive("unit-cube-centim3"),
+                    )
+                )
+                / 100
+            )
         maxima = tuple(
-            maximum_units_per_row(
+            min(int(payload // unit_gross), int(cube // unit_cube))
+            if native_unit
+            else maximum_units_per_row(
                 envelope,
                 unit_net_kg=unit_net,
+                unit_cube_m3=unit_cube,
                 payload_kg=payload,
                 volume_m3=cube,
             )
             for payload, cube in capacities
         )
+        count_step = numeric_authority.get("quantityMultiple", 1)
+        if fixed_quantity is not None and fixed_quantity % (multiple * count_step):
+            raise ValueError("fixed quantity violates the source precision count lattice")
+        maxima = tuple(value // count_step for value in maxima)
         if any(value < 1 for value in maxima):
             raise ValueError("independent unit cannot fit every requested load row")
         low = (rows + multiple - 1) // multiple
         high = sum(maxima) // multiple
-        quantity = (
+        quantity_groups = (
             _integer(low, high, stream.derive("declared-quantity")) * multiple
             if fixed_quantity is None
-            else fixed_quantity
+            else fixed_quantity // count_step
         )
-        if quantity < rows or quantity > sum(maxima):
+        if quantity_groups < rows or quantity_groups > sum(maxima):
             raise ValueError("fixed quantity exceeds independent load envelope")
+        quantity = quantity_groups * count_step
         allocations = []
-        remaining = quantity
+        remaining = quantity_groups
         for row, maximum in enumerate(maxima):
             later_maximum = sum(maxima[row + 1 :])
             later_rows = rows - row - 1
@@ -636,6 +723,7 @@ class IndependentSampler:
                 stream.derive(f"row-quantity-{row}"),
             )
             remaining -= count
+            count *= count_step
             allocations.append(
                 {
                     "row": row,
@@ -723,13 +811,13 @@ class IndependentSampler:
                 "selectedFlatCategory": selected_category,
                 "countedUnitContext": counted_unit_context,
                 "equipmentSlotsFixed": equipment_slots is not None,
-                "quantityMultiple": multiple,
+                "quantityMultiple": multiple * count_step,
                 "fixedQuantity": fixed_quantity,
                 "rowCapacities": [
                     {"payloadKg": str(payload), "volumeM3": str(cube)}
                     for payload, cube in capacities
                 ],
-                "numericEnvelope": envelope.receipt(),
+                "numericEnvelope": numeric_authority,
             },
         }
 

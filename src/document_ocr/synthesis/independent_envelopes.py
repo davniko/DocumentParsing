@@ -17,6 +17,7 @@ from types import MappingProxyType
 from typing import Any
 
 from document_ocr.synthesis.package_aliases import PACKAGE_ALIASES
+from document_ocr.synthesis.tank_equipment import TANK_COUNTED_PACKAGE_TYPES
 
 DEFAULT_ROW_PAYLOAD_KG = Decimal("16000")
 DEFAULT_ROW_VOLUME_M3 = Decimal("24")
@@ -84,18 +85,14 @@ PACKAGE_COUNTING_CONTEXTS: Mapping[str, frozenset[str]] = MappingProxyType(
         "PACKAGE_FLEXITANK": frozenset({"non_dg_liquid_system"}),
         "PACKAGE_VEHICLE": frozenset({"vehicle"}),
         "PACKAGE_UNPACKED_OR_UNPACKAGED": frozenset({"vehicle", "discrete_article"}),
-        "PACKAGE_UNPACKED_OR_UNPACKAGED_SINGLE_UNIT": frozenset(
-            {"vehicle", "discrete_article"}
-        ),
+        "PACKAGE_UNPACKED_OR_UNPACKAGED_SINGLE_UNIT": frozenset({"vehicle", "discrete_article"}),
     }
 )
 
 # family -> (minimum net kg, maximum net kg, tare kg, occupied cubic metres,
 # authority kind).  These conservative scales are intentionally disclosed
 # synthetic planning bounds.  They do not encode commodity compatibility.
-_FAMILY_ENVELOPES: Mapping[
-    str, tuple[int, int, int, str, str]
-] = MappingProxyType(
+_FAMILY_ENVELOPES: Mapping[str, tuple[int, int, int, str, str]] = MappingProxyType(
     {
         "PACKAGE": (10, 30, 1, "0.08", "established_independent_planning_scale"),
         "CARTON": (8, 24, 1, "0.08", "established_independent_planning_scale"),
@@ -131,6 +128,7 @@ _COUNTED_UNIT_ENVELOPES: Mapping[str, tuple[int, int, int, str, str]] = MappingP
     {
         "vehicle": (500, 1800, 0, "12.0", "bounded_vehicle_unit_domain"),
         "discrete_article": (100, 600, 0, "1.50", "bounded_discrete_article_domain"),
+        "tank_loading_lot": (8000, 15000, 0, "20.0", "bounded_installed_tank_contents_lot"),
     }
 )
 
@@ -146,6 +144,7 @@ class PackageEnvelope:
     tare_kg: int
     cube_m3: Decimal
     authority: str
+    cube_range_m3: tuple[Decimal, Decimal] | None = None
 
     def catalog_envelope(self) -> dict[str, Any]:
         return {
@@ -156,7 +155,7 @@ class PackageEnvelope:
         }
 
     def receipt(self) -> dict[str, Any]:
-        return {
+        result = {
             "category": self.category,
             "family": self.family,
             "countedUnitContext": self.counted_unit_context,
@@ -166,6 +165,9 @@ class PackageEnvelope:
             "physicalApproval": False,
             "publicCountOrAllocationInferred": False,
         }
+        if self.cube_range_m3 is not None:
+            result["volumeRangeM3"] = [str(value) for value in self.cube_range_m3]
+        return result
 
 
 def package_categories() -> tuple[str, ...]:
@@ -182,24 +184,23 @@ def package_family(category: str) -> str:
 
 
 @lru_cache(maxsize=64)
-def package_envelope(
-    category: str, *, counted_unit_context: str | None = None
-) -> PackageEnvelope:
+def package_envelope(category: str, *, counted_unit_context: str | None = None) -> PackageEnvelope:
     """Resolve one envelope without inferring an ambiguous counting unit."""
 
     family = package_family(category)
     allowed_contexts = PACKAGE_COUNTING_CONTEXTS[category]
     if allowed_contexts and counted_unit_context not in allowed_contexts:
         raise ValueError(
-            f"{category} requires counted_unit_context from {sorted(allowed_contexts)}; "
+            f"{category} requires counted_unit_context from {sorted(allowed_contexts, key=str)}; "
             f"received {counted_unit_context!r}"
         )
-    if not allowed_contexts and counted_unit_context is not None:
+    tank_lot = category in TANK_COUNTED_PACKAGE_TYPES and counted_unit_context == "tank_loading_lot"
+    if not allowed_contexts and counted_unit_context is not None and not tank_lot:
         raise ValueError(f"ordinary package {category} does not accept a counting context")
     context = counted_unit_context or "declared_package"
     values = (
         _COUNTED_UNIT_ENVELOPES[context]
-        if family in {"VEHICLE", "UNPACKED", "UNPACKED_SINGLE_UNIT"}
+        if context in _COUNTED_UNIT_ENVELOPES
         else _FAMILY_ENVELOPES[family]
     )
     low, high, tare, cube_text, authority = values
@@ -214,13 +215,23 @@ def package_envelope(
         or cube > DEFAULT_ROW_VOLUME_M3
     ):
         raise ValueError(f"invalid independent numeric envelope for {category}")
-    return PackageEnvelope(category, family, context, (low, high), tare, cube, authority)
+    return PackageEnvelope(
+        category,
+        family,
+        context,
+        (low, high),
+        tare,
+        cube,
+        authority,
+        (Decimal("14"), Decimal("20")) if context == "tank_loading_lot" else None,
+    )
 
 
 def maximum_units_per_row(
     envelope: PackageEnvelope,
     *,
     unit_net_kg: int | Decimal,
+    unit_cube_m3: Decimal | None = None,
     payload_kg: Decimal = DEFAULT_ROW_PAYLOAD_KG,
     volume_m3: Decimal | None = DEFAULT_ROW_VOLUME_M3,
 ) -> int:
@@ -239,7 +250,11 @@ def maximum_units_per_row(
         volume = Decimal(volume_m3)
         if not volume.is_finite() or volume <= 0:
             raise ValueError("row volume must be positive and finite when supplied")
-        by_volume = int(volume // envelope.cube_m3)
+        cube = envelope.cube_m3 if unit_cube_m3 is None else Decimal(unit_cube_m3)
+        low_cube, high_cube = envelope.cube_range_m3 or (envelope.cube_m3, envelope.cube_m3)
+        if not cube.is_finite() or not low_cube <= cube <= high_cube:
+            raise ValueError("unit cube is outside its independent package envelope")
+        by_volume = int(volume // cube)
     maximum = min(by_mass, by_volume)
     if maximum < 1:
         raise ValueError("one counted unit does not fit the explicit row capacity")
@@ -274,17 +289,13 @@ def configure_sampler(
         previous = by_family.get(contract.family)
         if previous is not None:
             if previous.category != contract.category:
-                raise ValueError(
-                    "one legacy sampler family cannot encode multiple flat categories"
-                )
+                raise ValueError("one legacy sampler family cannot encode multiple flat categories")
             if (
                 previous.net_kg,
                 previous.tare_kg,
                 previous.cube_m3,
             ) != (contract.net_kg, contract.tare_kg, contract.cube_m3):
-                raise ValueError(
-                    "selected categories disagree about their shared numeric envelope"
-                )
+                raise ValueError("selected categories disagree about their shared numeric envelope")
         by_family[contract.family] = contract
         catalog["packageEnvelopes"][contract.family] = contract.catalog_envelope()
     sampler.catalog = catalog

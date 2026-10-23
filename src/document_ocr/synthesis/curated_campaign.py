@@ -229,8 +229,7 @@ def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
             or not isinstance(declaration, dict)
             or "relationship" not in declaration
             or (context_party is None) == (context_carrier is None)
-            or set(declaration)
-            - {"context_party", "context_carrier", "relationship", "location"}
+            or set(declaration) - {"context_party", "context_carrier", "relationship", "location"}
             or declaration["relationship"]
             not in {
                 "on_behalf",
@@ -255,8 +254,7 @@ def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
                 or not isinstance(context_carrier, dict)
                 or set(context_carrier) != {"binding", "source_name"}
                 or not all(
-                    isinstance(context_carrier[field], str)
-                    and context_carrier[field].strip()
+                    isinstance(context_carrier[field], str) and context_carrier[field].strip()
                     for field in ("binding", "source_name")
                 )
             ):
@@ -269,13 +267,9 @@ def related_actor_contexts(blueprint: SamplingBlueprint) -> dict[str, dict]:
                 carrier_binding is None
                 or carrier_binding.get("render_mode") != "carrier_static"
                 or carrier_binding.get("value_kind") != "organization"
-                or carrier_binding.get("target_paths")
-                != ["documentPatch.parties.carrier.name"]
+                or carrier_binding.get("target_paths") != ["documentPatch.parties.carrier.name"]
                 or not carrier_binding.get("occurrences")
-                or {
-                    occurrence.get("source_text")
-                    for occurrence in carrier_binding["occurrences"]
-                }
+                or {occurrence.get("source_text") for occurrence in carrier_binding["occurrences"]}
                 != {context_carrier["source_name"]}
             ):
                 raise ValueError(
@@ -2085,9 +2079,7 @@ class Campaign:
         )
         failures = []
         for index, request in enumerate(requests):
-            diagnostics = self._generated_wording_diagnostics(
-                request, values[request.sample_id]
-            )
+            diagnostics = self._generated_wording_diagnostics(request, values[request.sample_id])
             if diagnostics:
                 failures.append(
                     {
@@ -2140,8 +2132,7 @@ class Campaign:
                     {
                         "sample_id": request.sample_id,
                         "values": [
-                            {"key": key, "text": text}
-                            for key, text in payload[f"s{index}"].items()
+                            {"key": key, "text": text} for key, text in payload[f"s{index}"].items()
                         ],
                     }
                     for index, request in enumerate(requests)
@@ -2176,9 +2167,7 @@ class Campaign:
             # provider-native string remains safe to inspect, including a value
             # rejected for script, caption, source-copy or content semantics.
             diagnostics = (
-                self._generated_wording_diagnostics(request, values)
-                if all(values.values())
-                else {}
+                self._generated_wording_diagnostics(request, values) if all(values.values()) else {}
             )
             if diagnostics:
                 failure.update(diagnostics)
@@ -2963,6 +2952,7 @@ def main() -> None:
         choices=(
             "inventory-independent",
             "prepare-independent",
+            "prepare-unit-profiles",
             "generate",
             "contacts",
             "correct-postal",
@@ -3050,6 +3040,35 @@ def main() -> None:
                         "spentBeforeUsd",
                         "spentAfterUsd",
                     )
+                },
+                indent=2,
+            )
+        )
+        if report["readySlots"] != report["plannedSlots"]:
+            raise SystemExit(1)
+        return
+    if args.stage == "prepare-unit-profiles":
+        from document_ocr.synthesis.independent_preparation import _output_directory
+        from document_ocr.synthesis.independent_unit_preparation import prepare_unit_profiles
+
+        output = _output_directory(root, config)
+        output.mkdir(parents=True, exist_ok=True)
+        with (output / "native-stage.lock").open("a+b") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            report = asyncio.run(
+                prepare_unit_profiles(
+                    root,
+                    config,
+                    retry_rate_limited=args.retry_rate_limited,
+                    retry_invalid_output=args.retry_invalid_output,
+                    retry_failed_receipt_sha256s=args.retry_failed_receipt_sha256,
+                )
+            )
+        print(
+            json.dumps(
+                {
+                    key: report[key]
+                    for key in ("preparedConfig", "readySources", "readySlots", "plannedSlots")
                 },
                 indent=2,
             )

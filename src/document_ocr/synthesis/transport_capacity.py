@@ -26,6 +26,7 @@ from document_ocr.label_schemas.bill_of_lading_v5 import (
     CONTAINER_SIZE_CATEGORIES,
     CONTAINER_TYPE_CATEGORIES,
 )
+from document_ocr.synthesis.tank_equipment import TANK_TYPES, tank_capacity
 
 EquipmentFamily = Literal[
     "twenty_standard",
@@ -39,6 +40,9 @@ EquipmentFamily = Literal[
     "forty_standard_reefer",
     "forty_high_cube_reefer",
     "unsupported_reefer",
+    "twenty_tank",
+    "forty_tank",
+    "unsupported_tank",
     "out_of_gauge",
     "unclassified",
 ]
@@ -245,6 +249,11 @@ def _semantic_equipment_family(container: Mapping[str, Any]) -> EquipmentFamily 
     type_category = container.get("typeCategory")
     if size is None and type_category is None:
         return None
+    if type_category in TANK_TYPES:
+        return {
+            "TWENTY_FOOT_STANDARD_HEIGHT": "twenty_tank",
+            "FORTY_FOOT_STANDARD_HEIGHT": "forty_tank",
+        }.get(size, "unsupported_tank")
     if (
         isinstance(type_category, str)
         and type_category in _REFRIGERATED_SEMANTIC_TYPES
@@ -304,6 +313,10 @@ def classify_equipment(container: Mapping[str, Any]) -> EquipmentFamily:
     if code is None:
         return "unclassified"
     length_code, height_code, type_code = code[0], code[1], code[2]
+    if type_code in {"K", "N"}:
+        if height_code in {"0", "2"}:
+            return {"2": "twenty_tank", "4": "forty_tank"}.get(length_code, "unsupported_tank")
+        return "unsupported_tank"
     if type_code == "P":
         return "out_of_gauge"
     if type_code == "U":
@@ -363,6 +376,16 @@ def equipment_capacity(
     container: Mapping[str, Any], limits: TransportCapacityLimits
 ) -> EquipmentCapacity:
     family = classify_equipment(container)
+    if family == "unsupported_tank":
+        raise ValueError("tank size/type pair has no reviewed synthesis capacity contract")
+    if family in {"twenty_tank", "forty_tank"}:
+        size = (
+            "TWENTY_FOOT_STANDARD_HEIGHT"
+            if family == "twenty_tank"
+            else "FORTY_FOOT_STANDARD_HEIGHT"
+        )
+        payload, volume = tank_capacity(size)
+        return EquipmentCapacity(family=family, payload_kg=payload, volume_m3=volume)
     if family == "unsupported_reefer":
         raise ValueError("reefer size/type pair has no source-supported capacity contract")
     reefer_pair = _REEFER_PUBLISHED_LIMITS.get(family)

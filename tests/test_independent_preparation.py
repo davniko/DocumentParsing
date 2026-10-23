@@ -334,10 +334,24 @@ def setup_preparation(tmp_path, monkeypatch):
     state.config, state.root = config, tmp_path
     state.run = lambda **kw: asyncio.run(
         preparation.prepare_campaign(
-            tmp_path, copy.deepcopy(config), package_targets={"PACKAGE_BALE": 6}, **kw
+            tmp_path,
+            copy.deepcopy(config),
+            package_targets={"PACKAGE_BALE": 6},
+            **({"unit_profile_source_ids": (), **kw}),
         )
     )
     return state
+
+
+def test_new_preparation_defaults_to_native_profiles_for_all_selected_sources():
+    import inspect
+
+    assert (
+        inspect.signature(preparation.prepare_campaign)
+        .parameters["unit_profile_source_ids"]
+        .default
+        is None
+    )
 
 
 def test_reviewed_cargo_domain_reaches_sampler_native_schema_and_frozen_request(setup_preparation):

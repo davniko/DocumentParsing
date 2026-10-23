@@ -17,6 +17,7 @@ import time
 from collections import Counter, defaultdict
 from collections.abc import Callable, Collection, Mapping, Sequence, Set
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Never, cast
 
@@ -88,6 +89,7 @@ from document_ocr.synthesis.independent_wording import (
     load_certificates,
     prepare_blueprint,
 )
+from document_ocr.synthesis.tank_equipment import TANK_TYPES
 
 type JsonObject = dict[str, Any]
 type NativeJob = tuple[
@@ -538,6 +540,7 @@ async def prepare_campaign(
     mixed_source_ids: Collection[str] = (),
     mixed_probability: float = 0.5,
     accepted_counts: Mapping[str, int] | None = None,
+    unit_profile_source_ids: Collection[str] | None = None,
     retry_rate_limited: bool = False,
     retry_invalid_output: bool = False,
     retry_failed_receipt_sha256s: Collection[str] = (),
@@ -561,6 +564,11 @@ async def prepare_campaign(
     accepted_counts = {} if accepted_counts is None else dict(accepted_counts)
     package_coverage(package_targets, accepted_counts)
     mixed = _validate_mixed_scope(config, mixed_source_ids)
+    profile_sources = frozenset(
+        config["source_ids"] if unit_profile_source_ids is None else unit_profile_source_ids
+    )
+    if not profile_sources <= set(config["source_ids"]):
+        raise ValueError("unit-profile sources must belong to the selected campaign")
     if (
         type(mixed_probability) not in {int, float}
         or not math.isfinite(mixed_probability)
@@ -585,6 +593,7 @@ async def prepare_campaign(
             retry_rate_limited=retry_rate_limited,
             retry_invalid_output=retry_invalid_output,
             retry_failed_receipt_sha256s=frozenset(retry_failed_receipt_sha256s),
+            unit_profile_source_ids=profile_sources,
         )
 
 
@@ -600,6 +609,7 @@ async def _prepare_locked(
     retry_rate_limited: bool,
     retry_invalid_output: bool,
     retry_failed_receipt_sha256s: frozenset[str],
+    unit_profile_source_ids: frozenset[str],
 ) -> JsonObject:
     directory = output / "preparation" / str(time.time_ns())
     authorities = _load_source_context(root, config)
@@ -612,6 +622,16 @@ async def _prepare_locked(
     source.calls.retry_rate_limited = retry_rate_limited
     source.calls.retry_invalid_output = retry_invalid_output
     source.calls.retry_failed_receipt_sha256s = retry_failed_receipt_sha256s
+    required = {
+        sid
+        for sid in source.source_ids
+        if sid in authorities.certificates
+        and authorities.certificates[sid].get("requiredPhysicalAuthority") is not None
+    }
+    if not required <= unit_profile_source_ids:
+        raise ValueError(
+            "source requires native unit-profile preparation: " + str(sorted(required))
+        )
     atomic_publish_json(directory / "authority.json", {"config": config, "inputPins": pins})
     inventory: dict[str, JsonObject] = {}
     requests: dict[str, JsonObject] = {}
@@ -678,6 +698,8 @@ async def _prepare_locked(
                     "form": request["goodsForm"],
                     "dangerousGoods": request["dangerousGoods"],
                 }
+                if any(row["typeCategory"] in TANK_TYPES for row in request["equipmentSlots"]):
+                    context["installedTank"] = True
                 if regime == "dg":
                     context["packingContext"] = (
                         "Registry physical state: "
@@ -851,6 +873,25 @@ async def _prepare_locked(
         row["status"] = "ready"
     groups = _complete_groups(source.variant_counts, inventory)
     runnable = _runnable_config(root, config, groups, requests, plans, output)
+    if runnable is not None and (profile_scope := set(groups) & unit_profile_source_ids):
+        from document_ocr.synthesis.independent_unit_preparation import prepare_unit_profiles
+
+        profile_report = await prepare_unit_profiles(
+            root,
+            runnable,
+            source_ids=profile_scope,
+            retry_rate_limited=retry_rate_limited,
+            retry_invalid_output=retry_invalid_output,
+            retry_failed_receipt_sha256s=retry_failed_receipt_sha256s,
+        )
+        source.calls.spent = Decimal(profile_report["spentAfterUsd"])
+        for key, row in profile_report["inventory"].items():
+            if row["status"] != "ready":
+                inventory[key].update(row)
+        runnable = profile_report["config"]
+        if runnable is not None:
+            requests.update(_load_pin(root, runnable["independent"]["requests"]))
+        groups = _complete_groups(source.variant_counts, inventory)
     if runnable is not None:
         campaign = IndependentCampaign(root, runnable)
         for sid in tuple(groups):

@@ -51,6 +51,7 @@ from document_ocr.synthesis.curated_templates import SamplingBlueprint
 from document_ocr.synthesis.curated_wording import WordingRequest
 from document_ocr.synthesis.generators import DeterministicStream
 from document_ocr.synthesis.independent_cargo_presentation import validate_cargo_presentation
+from document_ocr.synthesis.independent_composed_profiles import verify_composed_evidence
 from document_ocr.synthesis.independent_envelopes import DEFAULT_ROW_VOLUME_M3
 from document_ocr.synthesis.independent_geography import (
     IndependentGeographyGate,
@@ -78,7 +79,11 @@ from document_ocr.synthesis.independent_relationships import (
     validate_packing_direction,
     verify_native_plan_evidence,
 )
-from document_ocr.synthesis.independent_sampling import IndependentSampler
+from document_ocr.synthesis.independent_sampling import IndependentSampler, sample_equipment
+from document_ocr.synthesis.independent_unit_profiles import (
+    source_unit_profile_precision,
+    verify_profile_evidence,
+)
 from document_ocr.synthesis.independent_wording import (
     load_certificates as load_wording_certificates,
 )
@@ -91,6 +96,7 @@ from document_ocr.synthesis.independent_wording import (
 from document_ocr.synthesis.independent_wording import (
     prepare_request as prepare_wording_request,
 )
+from document_ocr.synthesis.tank_equipment import TANK_SIZES, TANK_TYPES
 from document_ocr.synthesis.transport_capacity import equipment_capacity
 
 _MASS_FACTORS = {
@@ -212,9 +218,10 @@ def _equipment_authority(
     required_type = "REFRIGERATED" if regime in {"chilled", "frozen"} else "GENERAL_PURPOSE"
     source_domain = None
     if (
-        regime == "ambient"
+        regime in {"ambient", "dg"}
         and rows
-        and rows[0].get("typeCategory") in {"OPEN_TOP", "PLATFORM"}
+        and rows[0].get("typeCategory")
+        in (TANK_TYPES | ({"OPEN_TOP", "PLATFORM"} if regime == "ambient" else set()))
         and all(row.get("typeCategory") == rows[0]["typeCategory"] for row in rows)
     ):
         # Keep the actual printed special hardware. This enables new cargo,
@@ -223,6 +230,10 @@ def _equipment_authority(
         if any("sizeCategory" not in row for row in rows):
             raise ValueError("unenclosed source requires explicit equipment size ownership")
         source_domain = {row["sizeCategory"] + "|" + required_type for row in rows}
+        if required_type in TANK_TYPES:
+            if any(row["sizeCategory"] not in TANK_SIZES for row in rows):
+                raise ValueError("tank source size has no reviewed independent capacity contract")
+            source_domain = {size + "|" + required_type for size in TANK_SIZES}
     elif (
         regime == "ambient"
         and rows
@@ -258,12 +269,14 @@ def _equipment_authority(
         # individual presentations must jointly cover it, never a partial guess.
         individual = {r["owner"] for r in retained_tares if "owner" in r}
         aggregates = [r for r in retained_tares if "owner" not in r]
-        if not retained_tares or (
-            individual and individual != owners
-        ) or any(
-            set(r.get("owners", ())) != owners
-            or r.get("ownershipBasis") != "explicit_aggregate_or_declared_sum"
-            for r in aggregates
+        if (
+            not retained_tares
+            or (individual and individual != owners)
+            or any(
+                set(r.get("owners", ())) != owners
+                or r.get("ownershipBasis") != "explicit_aggregate_or_declared_sum"
+                for r in aggregates
+            )
         ):
             raise ValueError("untyped tare lacks complete certified hardware ownership")
         tare_domain = None
@@ -338,6 +351,27 @@ def source_equipment_readiness(
         ):
             raise ValueError("source-certified equipment mix lacks a regime-compatible domain")
     return domain, retained_tares, slots
+
+
+def unit_profile_capacities(
+    equipment: Sequence[Mapping[str, str]], limits: Any
+) -> list[dict[str, str]]:
+    """Use selected hardware; unenclosed/unprinted rows retain explicit budgets.
+
+    A private planning row with no printed container is not a public container.
+    Open equipment has no enclosed cube rating: its existing conservative 24 m3
+    planning budget is named explicitly, never presented as a hardware capacity.
+    """
+    if not equipment:
+        return [{"payloadKg": "16000", "volumeM3": str(DEFAULT_ROW_VOLUME_M3)}]
+    capacities = [equipment_capacity(row, limits) for row in equipment]
+    return [
+        {
+            "payloadKg": str(cap.payload_kg),
+            "volumeM3": str(cap.volume_m3 if cap.volume_m3 is not None else DEFAULT_ROW_VOLUME_M3),
+        }
+        for cap in capacities
+    ]
 
 
 def _validate_row_capacity(
@@ -484,6 +518,42 @@ class IndependentCampaign(Campaign):
                 hs_codes=self.sampler.phrases,
             )
             private = self.private_plans[key]
+            if "unitProfilePrecision" in request:
+                expected_precision = self.numeric.certificate(sid).get("unitProfilePrecision")
+                if expected_precision is None:
+                    expected_precision = source_unit_profile_precision(
+                        self.blueprint(sid), self.numeric.certificate(sid)["regions"]
+                    )
+                if request["unitProfilePrecision"] != expected_precision:
+                    raise ValueError("native numeric precision differs from source owners")
+            if "nativeComposedProfileEvidence" in request:
+                if "nativeUnitProfileEvidence" in request:
+                    raise ValueError("one native physical authority is required")
+                verify_composed_evidence(
+                    root,
+                    request,
+                    private,
+                    provider=self.calls.config["provider"],
+                    physical_states=self.sampler.hmt_states,
+                )
+            required_authority = self.numeric.certificate(sid).get("requiredPhysicalAuthority")
+            if required_authority is not None and (
+                required_authority != "native_goods_conditioned_unit_profile_v1"
+                or "nativeUnitProfileEvidence" not in request
+            ):
+                raise ValueError("source requires its certified native unit-profile authority")
+            if "nativeUnitProfileEvidence" in request:
+                verify_profile_evidence(
+                    root,
+                    request,
+                    provider=self.calls.config["provider"],
+                    physical_states=self.sampler.hmt_states,
+                )
+                if private["privatePackingRelation"] != "NONE":
+                    raise ValueError(
+                        "unit-profile planning requires an uncomposed counted unit; "
+                        "nested/mixed packing needs a separate composed-unit profile"
+                    )
             operative = verify_native_plan_evidence(
                 root,
                 request,
@@ -850,6 +920,23 @@ class IndependentCampaign(Campaign):
             )
             failures: Counter[str] = Counter()
             for attempt in range(self.catalog.config.maximum_candidates):
+                row_capacities = None
+                if (
+                    "nativeUnitProfileEvidence" in request
+                    or "nativeComposedProfileEvidence" in request
+                ):
+                    equipment = sample_equipment(
+                        regime=regime,
+                        equipment_mode=request["equipmentMode"],
+                        seed=self.config["seed"],
+                        draw_key=f"{sid}:{variant}:{attempt}",
+                        container_count=len(
+                            blueprint.target["documentPatch"].get("containerInformation", [])
+                        ),
+                        equipment_domain=equipment_domain,
+                        equipment_slots=equipment_slots,
+                    )
+                    row_capacities = unit_profile_capacities(equipment, self.catalog.limits)
                 draw = self.sampler.draw(
                     request=request,
                     seed=self.config["seed"],
@@ -862,6 +949,15 @@ class IndependentCampaign(Campaign):
                     quantity_multiple=capability.quantity_multiple,
                     equipment_domain=equipment_domain,
                     equipment_slots=equipment_slots,
+                    row_capacities=row_capacities,
+                    unit_profile_precision=(
+                        self.numeric.certificate(sid).get(
+                            "unitProfilePrecision", request.get("unitProfilePrecision")
+                        )
+                        if "nativeUnitProfileEvidence" in request
+                        or "nativeComposedProfileEvidence" in request
+                        else None
+                    ),
                 )
                 try:
                     if capability.quantity_multiple > 1:
@@ -1008,7 +1104,8 @@ class IndependentCampaign(Campaign):
                     "sameTarget": result.target == base.target,
                     **(
                         {"completeHandlingTargetChanges": handling_changes}
-                        if handling_changes else {}
+                        if handling_changes
+                        else {}
                     ),
                     "sameVariables": True,
                     "sameNonpackingSurfaces": True,
@@ -1045,6 +1142,19 @@ class IndependentCampaign(Campaign):
             "product details and the source-conditioned description scope.\n"
             + self.numeric.wording_context(ledger),
         )
+        if any(row["typeCategory"] in TANK_TYPES for row in draw["equipment"]):
+            request = replace(
+                request,
+                context=request.context
+                + (
+                    "\nINSTALLED TANK WORDING: PRESSURIZED_TANK is the legacy KL family "
+                    "name, not a supplied pressure setting or a claim that the shipment is "
+                    "pressurized. Do not turn this enum into product wording. The loading lot "
+                    "is private planning context. Do not add tank/equipment, ambient-storage "
+                    "or pressure claims to a source product block that does not contain them. "
+                    "Generate the sampled product itself, matching that block's short scope.\n"
+                ),
+            )
         if blueprint.document_id in self.wording_certificates:
             request = prepare_wording_request(
                 request,
@@ -1174,7 +1284,7 @@ class IndependentCampaign(Campaign):
             private_evidence = private["sourceCertificateSha256"]
         else:
             raise ValueError("review private packing has unknown plan authority")
-        return {
+        context = {
             "authority": "reviewed independent numeric ledger and verified frozen package plans",
             "sampleId": sample_id,
             "declaredCountedUnit": {
@@ -1194,6 +1304,41 @@ class IndependentCampaign(Campaign):
                 "privatePlanAuthoritySha256": private_evidence,
             },
         }
+        numeric_evidence = request.get(
+            "nativeUnitProfileEvidence", request.get("nativeComposedProfileEvidence")
+        )
+        if numeric_evidence is not None:
+            context["unitPlanningReview"] = {
+                "status": "approximate model proposals, not certified engineering measurements",
+                "instruction": (
+                    "Check that examples and realized loads describe ONE counted unit, not a "
+                    "container's combined packages. Check compatibility with the supplied DG "
+                    "physical state and carrying-hardware explanation. Internal basis/example "
+                    "contradictions and clear whole-container/per-package substitutions require "
+                    "review; private planning facts do not authorize extra target labels."
+                ),
+                "request": numeric_evidence["request"],
+                "proposal": numeric_evidence["output"],
+                "realizedUnit": {
+                    key: draw_value
+                    for key, draw_value in scenario.provenance["independentDraw"][
+                        "physical"
+                    ].items()
+                    if key.startswith("unit")
+                },
+            }
+            if "nativeComposedProfileEvidence" in request:
+                context["unitPlanningReview"]["instruction"] = (
+                    "These examples describe ONE COMPLETE PLANNING GROUP, not one public "
+                    "package. Read its independent topology coefficients and host-derived "
+                    "public/inner/support counts together. Support tare is already inside "
+                    "group gross mass. Check that all scoped counts use whole groups, "
+                    "physical form matches DG/product facts, and no carton total replaces "
+                    "the mixed support-plus-loose public package total. Realized per-count "
+                    "averages do not assert identical contents in every mixed public unit. "
+                    "Private estimates do not authorize new public labels."
+                )
+        return context
 
     def render(self, sid: str, variant: int, *, persist: bool = True) -> dict[str, Any]:
         candidate = Campaign.render(self, sid, variant, persist=False)

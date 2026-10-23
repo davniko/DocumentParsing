@@ -1579,3 +1579,183 @@ the six final boundary-corrected wording generations. The
 [integrity readback](analysis/r28-donor-free-full-registry-20261021/final-449-integrity.json)
 verifies the union and current authority/case/certificate pins; it does not claim
 fresh full-registry regeneration.
+
+### Narrow cargo-policy follow-up
+
+The [UNIT/allocation/tank diagnosis](analysis/r28-donor-free-full-registry-20261021/cargo-policy-followup-20261022/REPORT.md)
+clarifies that internal planning families do not change public categories.
+The current UNIT→SET numeric scale is a shared lookup, not a separate sampler
+or regulatory weight limit. A vehicle-counted UNIT context is currently absent;
+the wheel template's unowned private-mass repeats are the explicit readiness hold.
+Tank selection, tank-aware capacity and the native equipment brief all need
+support; simply permitting its existing public enum would still use dry-box
+planning and a closed-box brief.
+
+The allocation check agrees across all453source certificate masks,1,380saved
+inspection records and registered R28current/sidecar rows. Explicit sole-container
+shipment declarations already support the public allocation without a repeated
+table cell. Three uncounted real single-container records genuinely lack package
+counts, rather than violating that rule.
+
+A narrow description re-audit identified four remaining source/contract boundary
+repairs:3eaf543b,49feedab,7937adb6,819af5e4. It flags67unique R28records/71physical
+copies, not every descendant of those sources. These are documented unchanged
+pending repair/revalidation; no all-clean policy certificate is implied by the
+historical449-source acceptance count. Four source-PDF cargo presentations were
+opened; ten other numeric-prefix candidates are valid product wording.
+Actual-container allocation/envelope controls:25passes. No generation, dataset
+change, default promotion or new version was made in this explanatory pass.
+
+### Tank and description closure, 2026-10-22
+
+The [implementation and measured-defaults report](analysis/r28-tank-and-cargo-closure-20261022/REPORT.md)
+supersedes the preceding pending diagnosis. Tank selection, type-aware capacity,
+native contents-lot context and aliases now support 20/40-foot standard hardware without
+dry-box substitution. The newly accepted tank source raises the union to 450/453;
+the three separate UNIT/DG-vehicle integration holds remain explicit.
+
+Four active description boundaries and an additional held vehicle boundary are
+repaired at source/case/contract/ownership/R28 levels: 128 unique R28 identities,
+166 physical copies, including 104 current synthetic, 5 real, 38 previous-UAE and 19 retained
+addition rows. Exact inverse proofs preserve OCR, coordinates and all other targets.
+Fifteen fresh descendants, 27 coordinate pages, exact replay and 637 actual-container
+tests pass. The held vehicle has three controlled source-render checks, not a
+claim of completed independent DG-vehicle synthesis. No inspection data enters training.
+
+The defaults concern is real but bounded: ordinary unit net mass varies, while
+family packing tare and cube are fixed. The 1,380 independent inspection draws and
+R28's older generation distributions are measured separately. The broader
+numerical-variability improvement remains scheduled; these choices are not
+shipping rules or grounds for retaining commodity donors. Pressure fields,
+NP submission semantics and unverified 45-foot dimensions are not invented.
+
+### Goods-aware numerical variability probe, 2026-10-22
+
+The [probe and remaining-hold breakdown](analysis/r28-numeric-variability-probe-20261022/REPORT.md)
+audits all 48 categories and their 30 family labels: ordinary tare/cube remain
+fixed, UNIT/PIECE/LOT share the small SET scale, jumbo bags share small-sack
+numbers, and the 16 t / 24 m³ shadow ceiling additionally narrows generation.
+These are planning restrictions, not extraction-policy or shipping requirements.
+
+The contained native experiment compares simple jitter, goods/package-aware
+complete numeric examples, and combining that proposal with package choice.
+It covers 80 initial and 30 follow-up numeric calls, 12 paired choice calls and
+four combined controls. Host validation exercises 10,700 feasible seeded draws;
+140 tests pass in the actual synthesis container. All 126 native attempts cost
+USD 0.02640109. Prompt-only capacity compliance is not assumed.
+
+Three complete wheel-source renders pass with coherent new tonne-scale masses,
+all repeated occurrences, quantity/allocation 1, no invented mass label, exact
+replay and source-coordinate transfer. Basic wheel mass/count bindings already
+exist; the missing authority is the independent numeric handoff/certificate.
+The private solution is tested, but production remains at 450/453 until the new
+numeric path and the separate DG-vehicle/component interfaces are integrated.
+R28, its templates and production defaults are unchanged by this experiment.
+
+The broader tank audit corrects the previous screen: eight actual tank documents
+exist in the 1,918-source pool, seven outside the current 660. These include
+`20'TK`, joined `ISO TANKCONTAINER`, a two-tank document and a UN3082/PG III example.
+They supply three additional layout families, not seven distinct layouts. No
+concrete pressure/thermal setting is found; these candidates are not admitted
+templates and do not change the current 22 synthetic / 1 real / 0 validation
+tank-target counts. The inventory distinguishes tank cargo, IBCs, flexitanks,
+tanker vessels and legal/tariff mentions from carrying tank equipment.
+
+### Goods-conditioned numeric integration and wheel certification, 2026-10-22
+
+The [expanded test and implementation report](analysis/r28-unit-profile-scale-20261022/REPORT.md)
+records 20 sources/60 final descendants across ambient machinery, thermal goods,
+chemical DGs, multi-container loads and installed tanks. All final draws pass
+capacity/arithmetic/public-field/replay checks and full-text native review, with
+explicit adjudication of three duplicate-product boundary claims. Coordinate
+validation covers 114 pages: 5,036→5,132 known anchors, none lost. 513 targeted tests
+pass in the rebuilt synthesis container; all calls, failed attempts, superseded
+proposals and scoped manual inspection corrections are retained.
+
+Production now accepts an optional native goods/package/equipment-conditioned
+three-example numeric authority, with actual capacity limits in the strict output
+schema and deterministic interpolation/counts/allocations. No unknown/infeasible
+proposal falls back to old defaults. The wheel-loader source owns all three mass
+repetitions, requires this authority, and passes three fresh combined-path samples
+(14,164/4,883/9,826kg), without adding unsupported public weight fields. Acceptance
+becomes 451/453. The other 19 tested sources have reviewed precision metadata for
+opt-in use; the rest are not silently migrated to the new numeric mode.
+
+Composition-first support planning passes 18 native proposals/1,800 arithmetic
+controls, but its complete-group count coefficients and nested bindings still
+need end-to-end production integration before removing the old support-headroom
+and post-hoc-tare branches. This limitation is explicit, not a claimed completion.
+
+The full HMT registry has 2,934 records, including vehicles/articles. The independent
+sampler's reused ordinary-chemical profile plus exact HS join reaches 384 identities;
+this implementation restriction is not an extraction-policy rule. `bef02d48` and
+`fdbc7d94` remain held for the DG-article/HS-absence and counted-set/component paths.
+Observed joined ISO-tank/TK aliases and supported 40-foot counterparts pass six
+alias/twelve owned-occurrence render controls. Wider DG/dual-tank layouts remain
+candidates for a separate template expansion, not newly admitted sources here.
+
+A separate country-projection regression is fixed at its owned-occurrence layer:
+`San Salvador` in a street cannot become `San El Salvador` in the target. The
+31,115-address screen's four unique candidates are false positives on role review.
+Complete inline ownership is also repaired for source `015c845e`; one related R28
+synthetic row is corrected to one printed `HONG KONG` and one locality-name target.
+R28 membership remains 6,900 synthetic + 600 anonymized real; validation 60. No new dataset
+version, inspection-data admission or training launch occurs.
+
+### Variable numerical production default and wider DG investigation, 2026-10-23
+
+The [integration, dependency inventory and DG findings](analysis/r28-numeric-dg-integration-20261023/REPORT.md)
+supersede the preceding wheel-only numeric opt-in. New independent preparation now
+defaults to native goods/package-conditioned physical examples for all selected
+eligible sources. The active working config matches; a fresh ordinary CLI test
+with no profile option prepares two native-backed slots. No failed/UNKNOWN profile
+falls back to fixed-family numbers.
+
+Nested/mixed planning now freezes an independently proposed package topology
+before estimating complete-group mass, packing fraction, support share and cube.
+Host code owns interpolation, precision, counts, allocations, conservation and
+capacity. The expanded test caught whole-container/per-pallet confusion that the
+earlier arithmetic-only composition test did not establish as correct. Focused
+unit prompts, explicit group definitions and rounding guards address those
+failures; original rejected evidence remains preserved.
+
+Final certification covers **51 templates / 106 descendants**, including all 37
+composition-capable presentations, 40 flat categories and four partial/unprinted
+allocation controls. Fifteen sampled descendants use non-NONE relations; this is
+not a Cartesian-product certificate for every template/package combination.
+Exact replay, poisoned-old-default controls, rendered review/root adjudication and
+publication pass. Geometry covers **242 pages**, with **10,116→10,374** known anchors
+and none lost relative to the same-text source-transfer baseline. **854 tests**
+pass in the rebuilt production synthesis container. Inspection data is not admitted
+to training and no training/model loading is launched.
+
+Two legacy ownership issues are repaired: complete repeated locality frames in
+`23a49094`, and an obsolete machine-model caption in `a1c2da82`. The latter also
+affects seven unique R28 synthetic records / 15 physical copies; its non-target
+caption is blanked in place, with exact whole-file inverse proofs. Every other
+line/coordinate, target, real/validation byte and membership remains unchanged.
+The seven separate inspection product-wording corrections are documented distinctly;
+five use accepted native regeneration and two use explicit minimal manual correction
+after rejected DG retries. Passing artifacts are post-review certificates, not a
+claim of perfect first-pass generation. R28 weights/volumes are not bulk-resampled.
+
+The [37-source dependency inventory](analysis/r28-numeric-dg-integration-20261023/nested-dependencies.json)
+identifies the older explicitly fixed prepared campaigns that still require the
+old support-budget/post-hoc branches. New native draws bypass those branches;
+globally deleting them requires retiring/repreparing those old configurations,
+not inventing another commodity-specific workaround.
+
+The pinned DG registry has 2,934 rows; ordinary chemical profiles accept 1,449 and
+the exact HS join narrows independent reach to 384. There are 1,065 ordinary
+unjoined rows, plus 84 exactly joined rows excluded by the chemical filter.
+Eighteen paired HS/wording probes and six focused HS-only controls support using
+plausible synthetic HS as private context, without promoting it to a verified
+ECICS join or renaming DG identities. Special chemical sections, gases and articles
+need explicit physical/presentation context instead of blind filter deletion.
+
+The two held vehicle interpretations are now PDF-grounded and six component-ledger
+controls pass: one unpackaged vehicle without public HS, and three SETS containing
+four physical articles with only three printed VIN occurrences. These are not yet
+full source-render certificates. Article-aware identity/optional-HS and heterogeneous
+component integration remain the next bounded DG work; acceptance stays 451/453.
+No package factorization or unverified DG enrichment is silently promoted.

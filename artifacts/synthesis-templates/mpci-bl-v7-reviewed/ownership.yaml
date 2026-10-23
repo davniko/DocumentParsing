@@ -1262,7 +1262,7 @@ sources:
       fields:
       - path: documentPatch.goodsItemDetails[0].description
         spans:
-        - text: 3 PCS USED UNIVERSAL 650 TRACTORS /10200 KOS
+        - text: USED UNIVERSAL 650 TRACTORS
           occurrence: 1
     bindings:
       agent:acid_number:
@@ -1488,7 +1488,7 @@ sources:
       fields:
       - path: documentPatch.goodsItemDetails[0].description
         spans:
-        - text: 01 UNIT NEW RANGE ROVER AUTOBIOGRAPHY
+        - text: NEW RANGE ROVER AUTOBIOGRAPHY
           occurrence: 1
     identifier_privacy:
       agent:carrier:scac: public
@@ -3416,7 +3416,7 @@ sources:
       - path: documentPatch.goodsItemDetails[0].description
         spans:
         - occurrence: 1
-          text: '6 FORKLIFT AND ACCESSORIES
+          text: 'FORKLIFT AND ACCESSORIES
 
             Model no 2ET4000 SN: FN549564
 
@@ -19201,7 +19201,7 @@ sources:
       fields:
       - path: documentPatch.goodsItemDetails[0].description
         spans:
-        - text: '1800 CARTON(S) X 13.61 KGS OF IQF WILD
+        - text: 'IQF WILD
 
             BLUEBERRIES FROZEN'
           occurrence: 1
@@ -24153,6 +24153,42 @@ sources:
         both scalars and punctuation.
   doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc:
     add:
+    - key: reviewed:locality_frame:receipt
+      kind: location
+      paths:
+      - documentPatch.route.placeOfReceipt.name
+      - documentPatch.route.placeOfReceipt.country
+      occurrences:
+      - text: SAINT-FONS, FRANCE
+        occurrence: 1
+      - text: SAINT-FONS, FRANCE
+        occurrence: 2
+      - text: SAINT-FONS, FRANCE
+        occurrence: 3
+    - key: reviewed:locality_frame:loading
+      kind: location
+      paths:
+      - documentPatch.route.portOfLoading.name
+      - documentPatch.route.portOfLoading.country
+      occurrences:
+      - text: FOS-SUR-MER, FRANCE
+        occurrence: 1
+      - text: FOS-SUR-MER, FRANCE
+        occurrence: 2
+      - text: FOS-SUR-MER, FRANCE
+        occurrence: 3
+    - key: reviewed:locality_frame:discharge
+      kind: location
+      paths:
+      - documentPatch.route.portOfDischarge.name
+      - documentPatch.route.portOfDischarge.country
+      occurrences:
+      - text: EL DEKHEILA, EGYPT
+        occurrence: 1
+      - text: EL DEKHEILA, EGYPT
+        occurrence: 2
+      - text: EL DEKHEILA, EGYPT
+        occurrence: 3
     - key: wrapper_noun:agent:derived:package_number_words
       kind: package
       occurrences:
@@ -24216,6 +24252,13 @@ sources:
         - occurrence: 1
           text: '9000041596'
         paths: []
+    surfaces:
+      reviewed:locality_frame:receipt:
+        expression: '{documentPatch.route.placeOfReceipt.name}, {documentPatch.route.placeOfReceipt.country}'
+      reviewed:locality_frame:loading:
+        expression: '{documentPatch.route.portOfLoading.name}, {documentPatch.route.portOfLoading.country}'
+      reviewed:locality_frame:discharge:
+        expression: '{documentPatch.route.portOfDischarge.name}, {documentPatch.route.portOfDischarge.country}'
     delete:
       anchor:documentPatch.cargoGroups[0].additionalInformation[0]: Reviewed obsolete
         standalone private packing/capacity claim; synthetic-only removal preserves
@@ -24245,6 +24288,12 @@ sources:
       documentPatch.parties.consignee.contactDetails.phoneNumbers: The sole phone
         occurrence belongs to the goods area, not the consignee block.
     retire:
+      anchor:documentPatch.route.placeOfReceipt.name: Complete repeated inline frame owns both scalars and punctuation, including sampled homonyms.
+      anchor:documentPatch.route.placeOfReceipt.country: Complete repeated inline frame owns both scalars and punctuation, including sampled homonyms.
+      anchor:documentPatch.route.portOfLoading.name: Complete repeated inline frame owns both scalars and punctuation, including sampled homonyms.
+      anchor:documentPatch.route.portOfLoading.country: Complete repeated inline frame owns both scalars and punctuation, including sampled homonyms.
+      anchor:documentPatch.route.portOfDischarge.name: Complete repeated inline frame owns both scalars and punctuation, including sampled homonyms.
+      anchor:documentPatch.route.portOfDischarge.country: Complete repeated inline frame owns both scalars and punctuation, including sampled homonyms.
       agent:auxiliary:container_receipt_variant_0: The separately printed one-container
         size receipt must share the sampled equipment categories.
       agent:derived:package_number_words: Current exact scalar owners supersede this
@@ -31168,6 +31217,12 @@ sources:
       agent:customs:foreign_exporter_registration_type: dependent
       agent:aux:foreign_exporter_id: private
   doc_a1c2da82b26b8a5233b463c09015345690f2f1e925f27559dfab75fa12935cc1:
+    omit:
+    - key: reviewed:obsolete_source_model_caption
+      source_sha256: 6195671c4765c614e191f250fe2c3cb9a1e3eef3d029fc6c87e682012f438d32
+      quote: 'MODEL : SI-HCM 1650'
+      count: 1
+      reason: Source-only machine-model caption is not in the settled main description target and contradicts independently sampled non-machine goods; omit the complete obsolete caption, not product wording.
     add:
     - key: reviewed:locality_frame:route.portOfLoading.country:0
       kind: location
@@ -31194,6 +31249,12 @@ sources:
       - text: SOKHNA,EGYPT
         occurrence: 2
     bindings:
+      anchor:documentPatch.cargoGroups[0].description:
+        paths:
+        - documentPatch.goodsItemDetails[0].description
+        occurrences:
+        - text: INDUSTRIAL CLEANING MACHINE
+          occurrence: 1
       agent:cargo:0:stc_package_quantity:
         paths:
         - documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].packageQuantity
@@ -32377,6 +32438,14 @@ sources:
         expression: '{documentPatch.placeOfIssue.name}, {documentPatch.placeOfIssue.country}'
   doc_015c845e2f76bb3969df161bc93a9674f7d7dde2c9f0b31a24ee54c8e301efd0:
     retire:
+      anchor:documentPatch.route.portOfLoading.name: Complete reviewed inline locality/country
+        frame owns both scalars and punctuation, including sampled homonyms.
+      anchor:documentPatch.route.portOfLoading.country: Complete reviewed inline locality/country
+        frame owns both scalars and punctuation, including sampled homonyms.
+      anchor:documentPatch.route.portOfDischarge.name: Complete reviewed inline locality/country
+        frame owns both scalars and punctuation, including sampled homonyms.
+      anchor:documentPatch.route.portOfDischarge.country: Complete reviewed inline locality/country
+        frame owns both scalars and punctuation, including sampled homonyms.
       anchor:documentPatch.parties.shipper.country: Exact current core(s) supersede
         the old wrapper; static punctuation/unit/order framing remains in source.
         Package noun, when present, has its own current category owner.
@@ -32417,9 +32486,29 @@ sources:
         - text: PLSTONE BRAND TYRES AND TUBES
           occurrence: 1
     surfaces:
+      reviewed:locality_frame:route.portOfLoading.country:0:
+        expression: '{documentPatch.route.portOfLoading.name}, {documentPatch.route.portOfLoading.country}'
+      reviewed:locality_frame:route.portOfDischarge.country:0:
+        expression: '{documentPatch.route.portOfDischarge.name}, {documentPatch.route.portOfDischarge.country}'
       anchor:documentPatch.transport.vesselName:
         expression: '{documentPatch.transport.vesselName} V.'
     add:
+    - key: reviewed:locality_frame:route.portOfLoading.country:0
+      kind: location
+      paths:
+      - documentPatch.route.portOfLoading.name
+      - documentPatch.route.portOfLoading.country
+      occurrences:
+      - text: NHAVA SHEVA, INDIA
+        occurrence: 1
+    - key: reviewed:locality_frame:route.portOfDischarge.country:0
+      kind: location
+      paths:
+      - documentPatch.route.portOfDischarge.name
+      - documentPatch.route.portOfDischarge.country
+      occurrences:
+      - text: SOKHNA PORT, EGYPT
+        occurrence: 1
     - key: reviewed:package_total_footer
       kind: integer
       paths:
@@ -37841,11 +37930,9 @@ sources:
       - path: documentPatch.goodsItemDetails[0].description
         spans:
         - occurrence: 1
-          text: '80 HMHDPE DRUMS OF 210 KGS NET
+          text: 'POLY SORBATE 60
 
-            POLY SORBATE 60
-
-            (P.S. 60) - 16800 KGS'
+            (P.S. 60)'
       source_sha256: e3a9b7df9148bf4874efe4bfaf6a9244008b7e8802d8516618b2a8444a748e4e
     identifier_privacy:
       reference_0: private

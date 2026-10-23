@@ -43,7 +43,7 @@ class BlueprintFixture:
 
 def test_hardware_owner_rejects_unavailable_regime_envelope() -> None:
     for source_type, regime in (
-        ("PRESSURIZED_TANK", "ambient"),
+        ("PRESSURIZED_TANK", "chilled"),
         ("GENERAL_PURPOSE", "chilled"),
     ):
         blueprint = BlueprintFixture(
