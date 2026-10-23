@@ -50,8 +50,10 @@ from document_ocr.synthesis.curated_scenarios import (
 from document_ocr.synthesis.curated_templates import SamplingBlueprint
 from document_ocr.synthesis.curated_wording import WordingRequest
 from document_ocr.synthesis.generators import DeterministicStream
+from document_ocr.synthesis.independent_article_profiles import verify_article_evidence
 from document_ocr.synthesis.independent_cargo_presentation import validate_cargo_presentation
 from document_ocr.synthesis.independent_composed_profiles import verify_composed_evidence
+from document_ocr.synthesis.independent_dg_context import physical_form, verify_dg_context_evidence
 from document_ocr.synthesis.independent_envelopes import DEFAULT_ROW_VOLUME_M3
 from document_ocr.synthesis.independent_geography import (
     IndependentGeographyGate,
@@ -508,6 +510,15 @@ class IndependentCampaign(Campaign):
             if request.get("planningStage") != "native_package_choice_accepted":
                 raise ValueError("independent package choice lacks accepted native stage: " + key)
             self.sampler.validate_request(request)
+            if request["regime"] == "dg":
+                verify_dg_context_evidence(
+                    root,
+                    request,
+                    provider=self.calls.config["provider"],
+                    known_states=self.sampler.hmt_states,
+                    hs_codes=self.sampler.phrases,
+                    hs_links=self.sampler.hs_links,
+                )
             validate_cargo_presentation(
                 self.numeric.certificate(sid).get("cargoPresentation"), request
             )
@@ -527,7 +538,10 @@ class IndependentCampaign(Campaign):
                 if request["unitProfilePrecision"] != expected_precision:
                     raise ValueError("native numeric precision differs from source owners")
             if "nativeComposedProfileEvidence" in request:
-                if "nativeUnitProfileEvidence" in request:
+                if (
+                    "nativeUnitProfileEvidence" in request
+                    or "nativeArticleProfileEvidence" in request
+                ):
                     raise ValueError("one native physical authority is required")
                 verify_composed_evidence(
                     root,
@@ -537,11 +551,29 @@ class IndependentCampaign(Campaign):
                     physical_states=self.sampler.hmt_states,
                 )
             required_authority = self.numeric.certificate(sid).get("requiredPhysicalAuthority")
-            if required_authority is not None and (
-                required_authority != "native_goods_conditioned_unit_profile_v1"
-                or "nativeUnitProfileEvidence" not in request
+            required_key = {
+                "native_goods_conditioned_unit_profile_v1": "nativeUnitProfileEvidence",
+                "native_article_component_profiles_v1": "nativeArticleProfileEvidence",
+            }
+            if (
+                required_authority is not None
+                and required_key.get(required_authority) not in request
             ):
                 raise ValueError("source requires its certified native unit-profile authority")
+            if "nativeArticleProfileEvidence" in request:
+                if (
+                    "nativeUnitProfileEvidence" in request
+                    or private["privatePackingRelation"] != "NONE"
+                ):
+                    raise ValueError(
+                        "bare article components require one uncomposed numeric authority"
+                    )
+                verify_article_evidence(
+                    root,
+                    request,
+                    provider=self.calls.config["provider"],
+                    physical_states=self.sampler.hmt_states,
+                )
             if "nativeUnitProfileEvidence" in request:
                 verify_profile_evidence(
                     root,
@@ -924,6 +956,7 @@ class IndependentCampaign(Campaign):
                 if (
                     "nativeUnitProfileEvidence" in request
                     or "nativeComposedProfileEvidence" in request
+                    or "nativeArticleProfileEvidence" in request
                 ):
                     equipment = sample_equipment(
                         regime=regime,
@@ -947,6 +980,11 @@ class IndependentCampaign(Campaign):
                     selected_category=request["selectedCategory"],
                     counted_unit_context=request["countedUnitContext"],
                     quantity_multiple=capability.quantity_multiple,
+                    fixed_quantity=(
+                        len(request["cargoPresentation"]["articleGroups"])
+                        if request.get("cargoPresentation", {}).get("articleGroups") is not None
+                        else None
+                    ),
                     equipment_domain=equipment_domain,
                     equipment_slots=equipment_slots,
                     row_capacities=row_capacities,
@@ -956,6 +994,7 @@ class IndependentCampaign(Campaign):
                         )
                         if "nativeUnitProfileEvidence" in request
                         or "nativeComposedProfileEvidence" in request
+                        or "nativeArticleProfileEvidence" in request
                         else None
                     ),
                 )
@@ -1129,6 +1168,28 @@ class IndependentCampaign(Campaign):
             "packageQuantity": draw["package"]["packageQuantity"],
             "privatePacking": semantic_private_packing(ledger),
         }
+        frozen = self.requests[f"{blueprint.document_id}:{scenario.variant}"]
+        if frozen["regime"] == "dg":
+            facts["dangerousGoodsPhysicalForm"] = physical_form(frozen, self.sampler.hmt_states)
+            facts["hsContextAuthority"] = (
+                "unverified synthetic HS proposal; DG identity and form override "
+                "classification context"
+                if "nativeDgHsEvidence" in frozen
+                else "exact pinned registry join"
+            )
+        article_groups = (
+            self.requests[f"{blueprint.document_id}:{scenario.variant}"]
+            .get("cargoPresentation", {})
+            .get("articleGroups")
+        )
+        if article_groups is not None:
+            facts["declaredArticleGroups"] = article_groups
+            facts["physicalArticleCount"] = sum(map(len, article_groups))
+            facts["articleAuthority"] = (
+                "Every group is one accounting unit, not one vehicle. Keep all car/motorbike "
+                "roles and sampled DG propulsion. The host owns detached counts and model/VIN "
+                "slots. Do not add those counts or VINs to product prose."
+            )
         request = replace(
             request,
             context=request.context
@@ -1305,7 +1366,10 @@ class IndependentCampaign(Campaign):
             },
         }
         numeric_evidence = request.get(
-            "nativeUnitProfileEvidence", request.get("nativeComposedProfileEvidence")
+            "nativeUnitProfileEvidence",
+            request.get(
+                "nativeComposedProfileEvidence", request.get("nativeArticleProfileEvidence")
+            ),
         )
         if numeric_evidence is not None:
             context["unitPlanningReview"] = {
@@ -1337,6 +1401,14 @@ class IndependentCampaign(Campaign):
                     "the mixed support-plus-loose public package total. Realized per-count "
                     "averages do not assert identical contents in every mixed public unit. "
                     "Private estimates do not authorize new public labels."
+                )
+            elif "nativeArticleProfileEvidence" in request:
+                context["unitPlanningReview"]["instruction"] = (
+                    "Each named example component is ONE physical car or motorbike. Code "
+                    "sums every component into the exact declared manifest, then divides by "
+                    "accounting group count for conservation. Three SETS may contain FOUR "
+                    "vehicles. Per-count averages do not assert equal individual masses. "
+                    "Verify full manifest counts, component scales and summed carrying limits."
                 )
         return context
 

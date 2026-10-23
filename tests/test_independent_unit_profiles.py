@@ -104,6 +104,72 @@ def answer():
     }
 
 
+def test_vehicle_manifest_profiles_count_sets_without_equating_them_to_articles():
+    groups = [["passenger car", "motorbike"], ["passenger car"], ["passenger car"]]
+    req = request(
+        regime="dg",
+        selectedCategory="PACKAGE_SET",
+        countedUnitContext=None,
+        dangerousGoods={"recordId": "vehicle", "unNumber": "3171"},
+        physicalState="article",
+        equipment=[{"sizeCategory": "FORTY_FOOT_HIGH_CUBE", "typeCategory": "GENERAL_PURPOSE"}],
+        articleGroups=groups,
+    )
+    value = answer()
+    value["examples"] = [
+        {"grossKg": mass, "packagingTareFraction": 0.0, "occupiedVolumeM3": cube}
+        for mass, cube in [(5300.0, 45.0), (6400.0, 54.0), (7300.0, 65.0)]
+    ]
+    profile = validate_profile(req, value)
+    assert len(groups) == 3 and sum(map(len, groups)) == 4
+    totals = set()
+    for seed in range(100):
+        net, gross, cube, authority = sample_unit_profile(
+            req,
+            profile,
+            [(Decimal("28000"), Decimal("76.4"))],
+            DeterministicStream(seed, "vehicle-manifest", "3sets4articles"),
+            mass_quantum_kg=Decimal("0.001"),
+            volume_quantum_m3=Decimal("0.001"),
+        )
+        assert net == gross
+        assert Decimal("5299") < gross * 3 <= 7300
+        assert Decimal("44.99") < cube * 3 <= 65
+        assert authority["request"]["articleGroups"] == groups
+        totals.add(gross * 3)
+    assert len(totals) > 90
+    invalid = deepcopy(value)
+    invalid["examples"][0]["packagingTareFraction"] = 0.1
+    with pytest.raises(ValidationError):
+        validate_profile(req, invalid)
+
+
+@pytest.mark.parametrize("bad_groups", [[[]], [["chemical"]]])
+def test_vehicle_manifest_rejects_unknown_or_missing_article_roles(bad_groups):
+    with pytest.raises(ValidationError, match="article roles"):
+        request(
+            regime="dg",
+            dangerousGoods={"recordId": "vehicle"},
+            physicalState="article",
+            articleGroups=bad_groups,
+        )
+
+
+def test_gas_receptacle_packing_mass_is_not_silently_zero():
+    req = request(regime="dg", dangerousGoods={"recordId": "gas"}, physicalState="gas")
+    value = answer()
+    value["examples"][0]["packagingTareFraction"] = 0.0
+    with pytest.raises(ValidationError):
+        validate_profile(req, value)
+    with pytest.raises(ValidationError, match="contained receptacles"):
+        request(
+            regime="dg",
+            dangerousGoods={"recordId": "gas"},
+            physicalState="gas",
+            countedUnitContext="discrete_article",
+        )
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -130,6 +196,33 @@ def test_capacity_limits_reach_json_schema_not_just_prompt():
     assert fields["grossKg"]["maximum"] == 28000
     assert fields["occupiedVolumeM3"]["maximum"] == 76.4
     assert fields["packagingTareFraction"]["exclusiveMaximum"] == 1
+
+
+@pytest.mark.parametrize("form", ["liquid", "solid", "gas", "article"])
+def test_dg_numeric_context_accepts_explicit_nonchemical_physical_forms(form):
+    dg = {
+        "recordId": "hmt_test",
+        "unNumber": "3480",
+        "properShippingName": "Test DG",
+        "class": "9",
+        "packingGroup": None,
+        "subsidiaryHazards": [],
+    }
+    value = request(regime="dg", dangerousGoods=dg, physicalState=form)
+    assert value.physicalState == form
+    assert value.dangerousGoods == dg
+
+
+def test_dg_numeric_context_does_not_guess_missing_or_unsupported_form():
+    dg = {"recordId": "hmt_test", "unNumber": "3480"}
+    with pytest.raises(ValidationError, match="physical state"):
+        request(regime="dg", dangerousGoods=dg)
+    with pytest.raises(ValidationError):
+        request(regime="dg", dangerousGoods=dg, physicalState="unknown")
+    with pytest.raises(ValidationError, match="authoritative tuple"):
+        request(regime="dg", physicalState="gas")
+    with pytest.raises(ValidationError, match="non-DG"):
+        request(regime="ambient", dangerousGoods=dg, physicalState="article")
 
 
 def test_semantic_zero_is_enforced_by_schema():

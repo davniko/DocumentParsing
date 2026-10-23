@@ -14,8 +14,10 @@ from pathlib import Path
 from typing import Any
 
 from document_ocr.atomic import atomic_publish_json
+from document_ocr.synthesis import independent_article_profiles as articles
 from document_ocr.synthesis import independent_composed_profiles as composed
 from document_ocr.synthesis.independent_campaign import IndependentCampaign, unit_profile_capacities
+from document_ocr.synthesis.independent_dg_context import physical_form
 from document_ocr.synthesis.independent_preparation import (
     _complete_groups,
     _evidence,
@@ -92,7 +94,14 @@ async def prepare_unit_profiles(
                 "status": "ready",
             }
             continue
-        if "nativeUnitProfileEvidence" in frozen or "nativeComposedProfileEvidence" in frozen:
+        if any(
+            k in frozen
+            for k in (
+                "nativeUnitProfileEvidence",
+                "nativeComposedProfileEvidence",
+                "nativeArticleProfileEvidence",
+            )
+        ):
             raise ValueError("unit profiles are already prepared")
         sid = frozen["sourceDocumentId"]
         # Preflight all precision owners before any paid request. Explicit
@@ -107,6 +116,11 @@ async def prepare_unit_profiles(
         minimum_groups = minimum_groups_per_load(
             context.certificates[sid], plans[key]["privatePackingRelation"]
         )
+        if frozen.get("cargoPresentation", {}).get("articleGroups") is not None:
+            # The native example estimates the whole explicit manifest, not
+            # each component. Reserving each component again would divide the
+            # carrying capacity twice.
+            minimum_groups = 1
         values = dict(
             goods=frozen["goods"],
             regime=frozen["regime"],
@@ -127,11 +141,14 @@ async def prepare_unit_profiles(
             ),
             dangerousGoods=frozen.get("dangerousGoods"),
             physicalState=(
-                context.sampler.hmt_states[frozen["dangerousGoods"]["recordId"]]
+                physical_form(frozen, context.sampler.hmt_states)
                 if frozen["regime"] == "dg"
                 else None
             ),
         )
+        article_groups = frozen.get("cargoPresentation", {}).get("articleGroups")
+        if article_groups is not None:
+            values["articleGroups"] = article_groups
         if minimum_groups > 1:
             values["volumeBasis"] += (
                 f"; per-group ceiling reserves {minimum_groups} counted groups for "
@@ -155,13 +172,20 @@ async def prepare_unit_profiles(
             )
         else:
             request = UnitProfileRequest(**values)
-            model = unit_profile_output_type(request)
+            is_article = request.articleGroups is not None
+            model = (
+                articles.article_output_type(request)
+                if is_article
+                else unit_profile_output_type(request)
+            )
             jobs[key] = (
-                STAGE,
+                articles.STAGE if is_article else STAGE,
                 model,
-                SYSTEM,
-                unit_profile_prompt(request),
-                model.model_validate,
+                articles.SYSTEM if is_article else SYSTEM,
+                articles.article_prompt(request) if is_article else unit_profile_prompt(request),
+                (lambda value, req=request: articles.normalize_article_profile(req, value))
+                if is_article
+                else model.model_validate,
                 request.model_dump(mode="json"),
             )
         inventory[key] = {
@@ -213,7 +237,11 @@ async def prepare_unit_profiles(
                 composed.ComposedRequest if is_composed else UnitProfileRequest
             ).model_validate(jobs[key][-1])
             evidence_key = (
-                "nativeComposedProfileEvidence" if is_composed else "nativeUnitProfileEvidence"
+                "nativeComposedProfileEvidence"
+                if is_composed
+                else "nativeArticleProfileEvidence"
+                if request.articleGroups is not None
+                else "nativeUnitProfileEvidence"
             )
             requests[key][evidence_key] = _evidence(request, result)
             inventory[key]["status"] = "ready"

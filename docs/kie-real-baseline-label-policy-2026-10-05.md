@@ -764,6 +764,44 @@ outside the block may repeat generated wording without expanding the target boun
 The earlier host-owned DG-description shortcut was an implementation defect, not
 an approved policy. See [the correction and validation report](kie-dg-llm-wording-repair-2026-10-15.md).
 
+## Independent DG context and explicit vehicle groups — 2026-10-23
+
+The ordinary liquid/solid chemical-packaging helper is not a global DG extraction
+or synthesis eligibility rule. Named maritime entries may include special
+substances, gases and manufactured articles. The pinned HMT tuple remains the
+authority for identity, qualifiers, UN number, class, packing group and subsidiary
+hazards. Unresolved N.O.S./technical-name entries require an independently resolved
+composition; do not invent that authority merely to increase coverage.
+
+An exact eligible ECICS/HS join takes precedence. If it is absent, an HS-only
+native proposal may supply a plausible six-digit code as explicitly **unverified
+synthetic context**. It does not rename the product, enrich ECICS or establish
+customs classification. Validate its format and membership in the pinned HS
+vocabulary; rejected/unknown outputs cannot silently become random codes or old
+donor goods. Only source-owned printed HS slots receive rendered codes/targets;
+absence in the source remains absence in the public target. Existing source-shape
+extension and punctuation rules still apply.
+
+Physical planning context distinguishes liquid, solid, gas and article. Use an
+explicit known section/form where available; otherwise retain a separately
+received, reviewed native form proposal. A hazard category alone does not make a
+material liquid or solid. These private facts are not packaging approval and do
+not authorize adding temperatures, pressures, materials or regulated declarations.
+Flash-point templates still require the existing pinned property authority.
+
+Vehicle cargo remains restricted to reviewed vehicle presentations. Preserve the
+source's counted groups separately from physical articles: `[car + motorbike],
+[car], [car]` is three declared SETS containing four articles. Estimate each
+explicit physical article and sum it in code; a free-form whole-manifest estimate
+does not prove that every article was counted. The resulting complete-manifest
+facts may be divided across declared units for conservation;
+that average is not a claim of equal individual vehicle mass. Preserve repeated
+component counts and declarations, source allocation visibility, detached models
+and source-owned VIN occurrences. Marks-owned VINs do not enter goods descriptions.
+No new item/HS/VIN field may be inferred from private planning context alone.
+
+See [the DG expansion investigation and validation](analysis/r28-dg-expansion-20261023/REPORT.md).
+
 ## Country identity and printed country presentation — 2026-10-16
 
 Party and locality country targets now share one contract: establish the country

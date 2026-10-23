@@ -354,6 +354,17 @@ def test_new_preparation_defaults_to_native_profiles_for_all_selected_sources():
     )
 
 
+def test_three_variants_keep_inventory_identity_and_unique_exclusion_set(setup_preparation):
+    state = setup_preparation
+    result = state.run()
+    assert result["readySlots"] == 6
+    for key, row in result["inventory"].items():
+        assert row["variant"] == int(key.rsplit(":", 1)[1])
+    for request in state.goods_prepared:
+        excluded = request["excluded_identifiers"]
+        assert len(excluded) == len(set(excluded))
+
+
 def test_reviewed_cargo_domain_reaches_sampler_native_schema_and_frozen_request(setup_preparation):
     state = setup_preparation
     domain = {"hsHeadings": ["5201"], "excludedHs6": [], "packageTypes": ["PACKAGE_BALE"]}

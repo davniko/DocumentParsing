@@ -420,6 +420,9 @@ sources:
         text: DANGEROUS GOODS Documentation Fee - Origin
   doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f:
     bindings:
+      agent:cargo:g1:emergency_phone:
+        phone: source
+        country_code: GB
       agent:party:shipper:tax_identifier:
         identifier: exporter
         format: source

@@ -1,12 +1,28 @@
 # R27 package vocabulary and free-text fallback audit
 
-Active continuation: [complete 453-template rollout in separately certified batches](analysis/r28-donor-free-full-registry-20261021/PLAN.md).
+Latest closure, 2026-10-23: **453/453 templates accepted**. The
+[DG expansion and vehicle closure](analysis/r28-dg-expansion-20261023/REPORT.md)
+integrates HS-only proposals, broader named DG forms and per-article vehicle
+planning.83 inspection samples/26 sources pass full production/text/coordinate
+validation;766 maintained tests pass in the rebuilt image. The two radioactive
+HS-proposal controls remain explicitly held. R28 membership and all targets are
+unchanged; one legacy source-only emergency phone is anonymized in60 unique
+synthetic records/94 copies, with exact inverse proofs.
+
+The [package-alias audit](analysis/r28-package-alias-audit-20261023/REPORT.md) is
+complete. It confirms39/48 categories have one form per count and compound owners
+do not all use the common alias picker. Unified configurable alias expansion,
+including the deferred natural WOODEN BOX/BOXES cleanup, is the next distinct
+presentation task; it is **not yet implemented**. Package factorization remains
+separate. Older dated readiness statements below are historical snapshots.
+
+Completed rollout: [453 templates in separately certified batches](analysis/r28-donor-free-full-registry-20261021/PLAN.md).
 The earlier [three-batch work and deferred package-alias review](analysis/r28-production-integration-20261021/PLAN.md#current-continuation-batches-0204) remain linked for provenance.
 The user prefers natural `WOODEN BOX/BOXES` wording to the technical `ORDINARY`
 prefix. The complete alias audit is a separate scheduled task, not package
 factorization and not an unreviewed relabeling of existing samples.
 
-Current completed work: [accounting migration and fixed first 20-source production batch](analysis/r28-donor-free-batch01-20261021/REPORT.md).
+Earlier milestone: [accounting migration and fixed first 20-source production batch](analysis/r28-donor-free-batch01-20261021/REPORT.md).
 All 20 sources and all 60 original descendant slots pass the actual production
 path, text/target review and coordinate audit. Mixed/additive/container-scoped
 accounting gaps are closed; 2,642 maintained tests pass. R28 training membership

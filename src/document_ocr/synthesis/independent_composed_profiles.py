@@ -322,9 +322,9 @@ def verify_composed_evidence(
             raise ValueError("composed profile changed frozen " + key)
     if request.equipment != frozen["equipmentSlots"]:
         raise ValueError("composed profile changed frozen equipment")
-    expected_state = (
-        physical_states[frozen["dangerousGoods"]["recordId"]] if frozen["regime"] == "dg" else None
-    )
+    from document_ocr.synthesis.independent_dg_context import physical_form
+
+    expected_state = physical_form(frozen, physical_states)
     if request.physicalState != expected_state:
         raise ValueError("composed profile changed DG physical authority")
     topology_request = TopologyRequest.model_validate(

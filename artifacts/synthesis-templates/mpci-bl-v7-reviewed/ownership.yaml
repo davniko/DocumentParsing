@@ -1456,7 +1456,7 @@ sources:
         occurrence: 1
         presentation: text
     expressions:
-      documentPatch.goodsItemDetails[0].description: 01 UNIT {vehicle_description}
+      documentPatch.goodsItemDetails[0].description: '{vehicle_description}'
     retire:
       agent:cargo:g1:unpackaged_status: Current count owns its numeric core; unpackaged
         remains the vehicle handling condition.
@@ -1496,6 +1496,7 @@ sources:
       agent:booking_reference: private
       agent:cargo:g1:acid: private
       agent:cargo:g1:vat_reference: private
+      agent:cargo:g1:emergency_phone: private
       agent:document:issue_office_code: public
   doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373:
     constants:

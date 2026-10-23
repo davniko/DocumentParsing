@@ -88,10 +88,18 @@ def test_entire_hs_registry_and_exact_joined_dg_are_eligible(sampler):
     assert support["registryHs6"] == 5612
     assert sum(support["hs6ByRegime"].values()) == 5612
     assert set().union(*(set(codes) for codes in sampler.pools.values())) == set(sampler.phrases)
-    assert support["joinedDgRecords"] == 384
-    assert support["joinedDgLinkRows"] == 386
-    assert support["joinedDgPairs"] == 384
-    assert support["joinedDgHs6"] == 138
+    assert support["joinedDgRecords"] == 468
+    assert support["joinedDgLinkRows"] == 470
+    assert support["joinedDgPairs"] == 468
+    assert support["joinedDgHs6"] == 152
+    assert support["hmtRegistryRecords"] == 2934
+    assert support["hmtUsableRecords"] == 2195
+    assert len(sampler._dg_pool({})) == 2192
+    assert len(sampler._dg_pool({}, include_vehicles=True)) == 2195
+    assert all(
+        row.maritime_eligible and not row.nos_entry and not row.technical_name_required
+        for row in sampler.hmt.values()
+    )
     assert support["sourceCargoAccess"] is False
 
 
@@ -147,6 +155,7 @@ def test_reviewed_dg_domain_keeps_exact_join_and_printed_field_requirements(samp
         regime="dg",
         identity_count=1,
         seed=20261021,
+        dg_requirements={"flashPoint": True},
     )
     domain = {
         "hsHeadings": [initial["goods"][0]["hs6"][:4]],
@@ -161,6 +170,7 @@ def test_reviewed_dg_domain_keeps_exact_join_and_printed_field_requirements(samp
             identity_count=1,
             seed=20261021,
             cargo_presentation=domain,
+            dg_requirements={"flashPoint": True},
         )
         sampler.validate_request(request)
         assert request["goods"][0]["hs6"][:4] in domain["hsHeadings"]
@@ -196,7 +206,11 @@ def test_goods_first_request_is_deterministic_and_has_no_source_cargo_input(samp
 
 
 def test_exhausted_dg_reuse_is_explicit_in_request_receipt(sampler):
-    eligible = sampler._dg_pool({})
+    eligible = tuple(
+        record_id
+        for record_id in sampler._dg_pool({})
+        if sampler.hmt[record_id].un_number not in {"3166", "3171"}
+    )
     request = sampler.prepare_request(
         source_document_id="exhausted-dg-presentation",
         variant=1,
@@ -397,6 +411,176 @@ def test_dg_request_is_exact_registry_join_and_retains_required_flash(sampler):
             container_count=1,
             selected_category="PACKAGE_DRUM_STEEL",
         )
+
+
+def unjoined_dg_request(sampler):
+    eligible = tuple(
+        record_id
+        for record_id in sampler._dg_pool({})
+        if sampler.hmt[record_id].un_number not in {"3166", "3171"}
+    )
+    selected = next(
+        record_id
+        for record_id in eligible
+        if record_id not in sampler.hs_links and record_id in sampler.hmt_states
+    )
+    return sampler.prepare_request(
+        source_document_id="unjoined-context-test",
+        variant=1,
+        regime="dg",
+        identity_count=1,
+        seed=8,
+        excluded_identifiers=[record_id for record_id in eligible if record_id != selected],
+    )
+
+
+def test_unjoined_pending_request_keeps_none_and_cannot_draw(sampler):
+    request = unjoined_dg_request(sampler)
+    assert request["goods"][0]["hs6"] is None
+    assert request["dangerousGoods"]["recordId"] not in sampler.hs_links
+    sampler.validate_request(request, require_context=False)
+    request = frozen_package(request, "PACKAGE_DRUM")
+    with pytest.raises((ValueError, KeyError)):
+        sampler.draw(
+            request=request,
+            seed=8,
+            draw_key="pending-unjoined",
+            container_count=1,
+            selected_category="PACKAGE_DRUM",
+        )
+    request["goods"][0]["hs6"] = "850760"
+    with pytest.raises(ValueError, match="cannot invent"):
+        sampler.validate_request(request, require_context=False)
+
+
+def test_unjoined_native_hs_must_exist_match_output_and_leave_hmt_unchanged(sampler):
+    request = unjoined_dg_request(sampler)
+    request["goods"][0]["hs6"] = "850760"
+    with pytest.raises((ValueError, KeyError)):
+        sampler.validate_request(request)
+    request["nativeDgHsEvidence"] = {"output": {"hs6": "850760"}}
+    # This sampler guard checks frozen facts; full packet/receipt validation is
+    # independently required by IndependentCampaign and tested in DG context tests.
+    sampler.validate_request(request)
+    tampered = deepcopy(request)
+    tampered["goods"][0]["hs6"] = "850650"
+    with pytest.raises(ValueError, match="received native"):
+        sampler.validate_request(tampered)
+    tampered = deepcopy(request)
+    tampered["nativeDgHsEvidence"]["output"]["hs6"] = "999999"
+    with pytest.raises(ValueError, match="pinned HS6"):
+        sampler.validate_request(tampered)
+    for key, value in (
+        ("unNumber", "9999"),
+        ("class", "9"),
+        ("properShippingName", "Renamed item"),
+        ("subsidiaryHazards", ["2.1"]),
+    ):
+        tampered = deepcopy(request)
+        if tampered["dangerousGoods"][key] == value:
+            value = "8" if key == "class" else "different"
+        tampered["dangerousGoods"][key] = value
+        with pytest.raises(ValueError, match="authoritative registry tuple"):
+            sampler.validate_request(tampered)
+
+
+def test_exact_join_cannot_be_replaced_by_native_hs_context(sampler):
+    request = sampler.prepare_request(
+        source_document_id="exact-joined-context",
+        variant=1,
+        regime="dg",
+        identity_count=1,
+        seed=1,
+        dg_requirements={"flashPoint": True},
+    )
+    sampler.validate_request(request)
+    request["nativeDgHsEvidence"] = {"output": {"hs6": request["goods"][0]["hs6"]}}
+    with pytest.raises(ValueError, match="exact joined HS cannot be replaced"):
+        sampler.validate_request(request)
+
+
+def test_unjoined_article_requires_explicit_native_physical_context(sampler):
+    eligible = tuple(
+        record_id
+        for record_id in sampler._dg_pool({})
+        if sampler.hmt[record_id].un_number not in {"3166", "3171"}
+    )
+    selected = next(
+        record_id for record_id in eligible if sampler.hmt[record_id].un_number == "3480"
+    )
+    assert selected not in sampler.hs_links and selected not in sampler.hmt_states
+    request = sampler.prepare_request(
+        source_document_id="unjoined-lithium-article",
+        variant=1,
+        regime="dg",
+        identity_count=1,
+        seed=4,
+        excluded_identifiers=[record_id for record_id in eligible if record_id != selected],
+    )
+    sampler.validate_request(request, require_context=False)
+    request["goods"][0]["hs6"] = "850760"
+    request["nativeDgHsEvidence"] = {"output": {"hs6": "850760"}}
+    with pytest.raises(ValueError, match="physical form"):
+        sampler.validate_request(request)
+    request["nativeDgPhysicalEvidence"] = {"output": {"form": "article"}}
+    sampler.validate_request(request)
+    request["nativeDgPhysicalEvidence"]["output"]["form"] = None
+    with pytest.raises(ValueError, match="UNKNOWN"):
+        sampler.validate_request(request)
+
+
+def test_dg_vehicle_identities_require_explicit_vehicle_source_presentation(sampler):
+    for variant in range(1, 80):
+        request = sampler.prepare_request(
+            source_document_id="ordinary-dg-layout",
+            variant=variant,
+            regime="dg",
+            identity_count=1,
+            seed=4,
+        )
+        sampler.validate_request(request, require_context=False)
+        assert request["dangerousGoods"]["unNumber"] not in {"3166", "3171"}
+        assert request["registrySelection"]["eligibleIdentities"] == 2192
+    for un_number in ("3166", "3171"):
+        presentation = {
+            "hsHeadings": ["8703"],
+            "excludedHs6": [],
+            "packageTypes": ["PACKAGE_UNPACKED_OR_UNPACKAGED"],
+            "dgUnNumbers": [un_number],
+        }
+        request = sampler.prepare_request(
+            source_document_id="explicit-vehicle-layout",
+            variant=1,
+            regime="dg",
+            identity_count=1,
+            seed=4,
+            cargo_presentation=presentation,
+        )
+        sampler.validate_request(request, require_context=False)
+        assert request["dangerousGoods"]["unNumber"] == un_number
+        assert request["goods"][0]["hs6"] is None
+        assert request["cargoPresentation"]["dgUnNumbers"] == [un_number]
+
+
+def test_vehicle_request_cannot_drop_its_reviewed_source_presentation(sampler):
+    request = sampler.prepare_request(
+        source_document_id="vehicle-presentation-tamper",
+        variant=1,
+        regime="dg",
+        identity_count=1,
+        seed=4,
+        cargo_presentation={
+            "hsHeadings": ["8703"],
+            "excludedHs6": [],
+            "packageTypes": ["PACKAGE_UNPACKED_OR_UNPACKAGED"],
+            "dgUnNumbers": ["3166"],
+        },
+    )
+    request["goods"][0]["hs6"] = "870323"
+    request["nativeDgHsEvidence"] = {"output": {"hs6": "870323"}}
+    request.pop("cargoPresentation")
+    with pytest.raises(ValueError, match=r"vehicle|presentation"):
+        sampler.validate_request(request)
 
 
 def test_non_dg_phrase_or_thermal_ancestry_tamper_is_rejected(sampler):

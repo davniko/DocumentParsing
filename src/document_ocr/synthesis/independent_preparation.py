@@ -30,6 +30,7 @@ from document_ocr.atomic import (
     read_regular_file_bytes,
 )
 from document_ocr.hashing import sha256_file
+from document_ocr.synthesis import independent_dg_context as dg_context
 from document_ocr.synthesis.curated import Runner, digest
 from document_ocr.synthesis.curated_auxiliary import validate_identifier_privacy
 from document_ocr.synthesis.curated_campaign import Campaign
@@ -637,6 +638,9 @@ async def _prepare_locked(
     requests: dict[str, JsonObject] = {}
     native_requests: dict[str, PackageChoiceRequest] = {}
     jobs: dict[str, NativeJob] = {}
+    dg_jobs: dict[str, NativeJob] = {}
+    dg_native_requests: dict[str, BaseModel] = {}
+    compiled_sources: dict[str, _CompiledSource] = {}
     proposed: Counter[str] = Counter()
     spent_before = source.calls.spent
     for sid in source.source_ids:
@@ -644,6 +648,7 @@ async def _prepare_locked(
         compiled, failure = _source_readiness(authorities, sid, mixed)
         error = None if failure is None else failure["reason"]
         if compiled is not None:
+            compiled_sources[sid] = compiled
             cap, regime = compiled.capability, compiled.regime
             relations, fixed_mix = compiled.relations, compiled.fixed_mix
             requirements = compiled.dg_requirements
@@ -676,7 +681,12 @@ async def _prepare_locked(
                     excluded_identifiers=excluded,
                     cargo_presentation=authorities.certificates[sid].get("cargoPresentation"),
                 )
-                sampler.validate_request(request)
+                # Unjoined HS and nonchemical form are explicit pending native
+                # decisions. They cannot reach package/numeric planning yet.
+                if regime == "dg":
+                    sampler.validate_request(request, require_context=False)
+                else:
+                    sampler.validate_request(request)
                 request["equipmentSlots"] = sample_equipment(
                     regime=regime,
                     equipment_mode=request["equipmentMode"],
@@ -686,75 +696,180 @@ async def _prepare_locked(
                     equipment_domain=compiled.equipment_domain,
                     equipment_slots=compiled.equipment_slots,
                 )
-                excluded.extend(
+                previous_identities = (
                     [request["dangerousGoods"]["recordId"]]
                     if regime == "dg"
                     else [g["hs6"] for g in request["goods"]]
                 )
-                context: JsonObject = {
-                    "goods": request["goods"],
-                    "regime": regime,
-                    "equipment": equipment_choice_brief(request["equipmentSlots"]),
-                    "form": request["goodsForm"],
-                    "dangerousGoods": request["dangerousGoods"],
-                }
-                if any(row["typeCategory"] in TANK_TYPES for row in request["equipmentSlots"]):
-                    context["installedTank"] = True
+                # Small explicit domains (one battery-vehicle tuple) can be
+                # exhausted before the third variant. Reuse is recorded by
+                # the sampler, but the exclusion set must remain a set.
+                excluded.extend(item for item in previous_identities if item not in excluded)
+                requests[key] = request
+                inventory[key].update(status="identity_prepared", sourceRelations=list(relations))
                 if regime == "dg":
-                    context["packingContext"] = (
-                        "Registry physical state: "
-                        + sampler.hmt_states[request["dangerousGoods"]["recordId"]]
-                    )
-                if relations == ("MIXED",):
-                    context["packingContext"] = (
-                        (context.get("packingContext", "") + "\n")
-                        + "Source presentation counts supports plus loose packages as generic "
-                        "PACKAGE_PACKAGE. A later semantic planner selects compatible support "
-                        "and loose-package types; no source cargo or ratios are retained."
-                    )
-                candidates = [
-                    category
-                    for category, target in targets.items()
-                    if target > accepted.get(category, 0) + proposed[category]
-                ]
-                presentation = request.get("cargoPresentation")
-                if presentation is not None:
-                    context["allowedPackageTypes"] = presentation["packageTypes"]
-                    candidates = [c for c in candidates if c in presentation["packageTypes"]]
-                if relations == ("MIXED",):
-                    context["requiredCategory"] = "PACKAGE_PACKAGE"
-                elif candidates:
-                    candidate = min(
-                        candidates,
-                        key=lambda c: (
-                            -(targets[c] - accepted.get(c, 0) - proposed[c]),
-                            digest([config["seed"], key, c]),
+                    record_id = request["dangerousGoods"]["recordId"]
+                    for (
+                        suffix,
+                        needed,
+                        request_factory,
+                        model,
+                        system,
+                        prompt_factory,
+                        validator,
+                        stage,
+                    ) in (
+                        (
+                            "hs",
+                            record_id not in sampler.hs_links,
+                            dg_context.hs_request,
+                            dg_context.hs_output_type(request, sampler.phrases),
+                            dg_context.HS_SYSTEM,
+                            dg_context.hs_prompt,
+                            lambda output, frozen=request: dg_context.validate_hs(
+                                frozen, output, sampler.phrases
+                            ),
+                            dg_context.HS_STAGE,
                         ),
-                    )
-                    context["requiredCategory"] = candidate
-                    proposed[candidate] += 1
-                package_request = PackageChoiceRequest.model_validate(context)
-                prompt = package_choice_prompt(package_request, hs_codes=sampler.phrases)
-                native_requests[key], requests[key] = package_request, request
-                jobs[key] = (
-                    "independent-package-choice",
-                    package_choice_output_type(package_request),
-                    PACKAGE_CHOICE_SYSTEM,
-                    prompt,
-                    _package_validator(package_request),
-                    package_request.model_dump(mode="json"),
-                )
-                inventory[key] = {
-                    "sourceDocumentId": sid,
-                    "variant": variant,
-                    "status": "goods_prepared",
-                    "sourceRelations": list(relations),
-                }
+                        (
+                            "form",
+                            record_id not in sampler.hmt_states,
+                            dg_context.form_request,
+                            dg_context.PhysicalProposal,
+                            dg_context.FORM_SYSTEM,
+                            dg_context.form_prompt,
+                            lambda output, frozen=request: dg_context.validate_form(
+                                frozen, output, sampler.hmt_states
+                            ),
+                            dg_context.FORM_STAGE,
+                        ),
+                    ):
+                        if needed:
+                            native_request = request_factory(request)
+                            job_key = key + ":" + suffix
+                            dg_native_requests[job_key] = native_request
+                            dg_jobs[job_key] = (
+                                stage,
+                                model,
+                                system,
+                                prompt_factory(native_request),
+                                validator,
+                                native_request.model_dump(mode="json"),
+                            )
             except Exception as exception:
                 inventory[key].update(
                     status="held_goods_preparation",
                     reason=f"{type(exception).__name__}: {exception}",
                 )
+    dg_answers = await _native_batch(source.calls, dg_jobs, directory / "dg-context")
+    if retry_invalid_output:
+        rejected_hs = {
+            key: dg_jobs[key]
+            for key, answer in dg_answers.items()
+            if key.endswith(":hs")
+            and str(answer["error"]).startswith(
+                ("UnexpectedModelBehavior:", "RuntimeError: UnexpectedModelBehavior:")
+            )
+        }
+        if rejected_hs:
+            # One authorized new wire attempt, fully receipted. Explicit
+            # UNKNOWN/null is a successful answer and is never retried here.
+            dg_answers.update(
+                await _native_batch(
+                    source.calls, rejected_hs, directory / "dg-context-validation-retry"
+                )
+            )
+    _verify_pins(pins)
+    for job_key, answer in dg_answers.items():
+        key, suffix = job_key.rsplit(":", 1)
+        if answer["error"] is not None:
+            inventory[key].update(status="held_dg_context", reason=answer["error"])
+            continue
+        evidence = _evidence(dg_native_requests[job_key], answer)
+        if suffix == "hs":
+            requests[key]["goods"][0]["hs6"] = answer["output"]["hs6"]
+            requests[key]["nativeDgHsEvidence"] = evidence
+        else:
+            requests[key]["nativeDgPhysicalEvidence"] = evidence
+    for key, request in requests.items():
+        if inventory[key]["status"] != "identity_prepared":
+            continue
+        sid, regime = request["sourceDocumentId"], request["regime"]
+        variant = request["variant"]
+        relations = compiled_sources[sid].relations
+        try:
+            sampler.validate_request(request)
+            context: JsonObject = {
+                "goods": request["goods"],
+                "regime": regime,
+                "equipment": equipment_choice_brief(request["equipmentSlots"]),
+                "form": request["goodsForm"],
+                "dangerousGoods": request["dangerousGoods"],
+            }
+            if any(row["typeCategory"] in TANK_TYPES for row in request["equipmentSlots"]):
+                context["installedTank"] = True
+            if regime == "dg":
+                context["packingContext"] = dg_context.packing_context(request, sampler.hmt_states)
+            article_groups = request.get("cargoPresentation", {}).get("articleGroups")
+            if article_groups is not None:
+                context["packingContext"] = (
+                    context.get("packingContext", "")
+                    + "\nBare vehicle accounting groups: "
+                    + json.dumps(article_groups)
+                    + ". Each list is one declared unit, not one vehicle. Preserve all roles "
+                    "and propulsion. No support or enclosing package is supplied. "
+                    "The supplied SET grouping is explicit, not a request to invent a retail "
+                    "kit. A singleton vehicle group can still be one declared SET."
+                )
+            if relations == ("MIXED",):
+                context["packingContext"] = (
+                    (context.get("packingContext", "") + "\n")
+                    + "Source presentation counts supports plus loose packages as generic "
+                    "PACKAGE_PACKAGE. A later semantic planner selects compatible support "
+                    "and loose-package types; no source cargo or ratios are retained."
+                )
+            candidates = [
+                category
+                for category, target in targets.items()
+                if target > accepted.get(category, 0) + proposed[category]
+            ]
+            presentation = request.get("cargoPresentation")
+            if presentation is not None:
+                context["allowedPackageTypes"] = presentation["packageTypes"]
+                candidates = [c for c in candidates if c in presentation["packageTypes"]]
+            if relations == ("MIXED",):
+                context["requiredCategory"] = "PACKAGE_PACKAGE"
+            elif candidates:
+                candidate = min(
+                    candidates,
+                    key=lambda c: (
+                        -(targets[c] - accepted.get(c, 0) - proposed[c]),
+                        digest([config["seed"], key, c]),
+                    ),
+                )
+                context["requiredCategory"] = candidate
+                proposed[candidate] += 1
+            package_request = PackageChoiceRequest.model_validate(context)
+            prompt = package_choice_prompt(package_request, hs_codes=sampler.phrases)
+            native_requests[key], requests[key] = package_request, request
+            jobs[key] = (
+                "independent-package-choice",
+                package_choice_output_type(package_request),
+                PACKAGE_CHOICE_SYSTEM,
+                prompt,
+                _package_validator(package_request),
+                package_request.model_dump(mode="json"),
+            )
+            inventory[key] = {
+                "sourceDocumentId": sid,
+                "variant": variant,
+                "status": "goods_prepared",
+                "sourceRelations": list(relations),
+            }
+        except Exception as exception:
+            inventory[key].update(
+                status="held_goods_preparation", reason=f"{type(exception).__name__}: {exception}"
+            )
     _verify_pins(pins)
     atomic_publish_json(directory / "goods-requests.json", requests)
     choices = await _native_batch(source.calls, jobs, directory / "choices")

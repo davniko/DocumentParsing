@@ -13,11 +13,12 @@ from collections.abc import Mapping, Sequence
 from decimal import ROUND_FLOOR, Decimal
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 
 from document_ocr.synthesis.generators import DeterministicStream
+from document_ocr.synthesis.independent_dg_context import PhysicalForm, physical_form
 from document_ocr.synthesis.independent_envelopes import package_family
 from document_ocr.synthesis.independent_packages import equipment_choice_brief
 from document_ocr.synthesis.package_aliases import PACKAGE_ALIASES
@@ -156,12 +157,24 @@ class UnitProfileRequest(BaseModel):
     dangerousGoods: dict[str, Any] | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
-    physicalState: Literal["liquid", "solid"] | None = Field(
-        default=None, exclude_if=lambda value: value is None
+    physicalState: PhysicalForm | None = Field(default=None, exclude_if=lambda value: value is None)
+    articleGroups: list[list[str]] | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
     )
 
     @model_validator(mode="after")
     def context(self) -> UnitProfileRequest:
+        if self.articleGroups is not None and (
+            self.physicalState != "article"
+            or len(self.equipment) != 1
+            or any(
+                not group or any(role not in {"passenger car", "motorbike"} for role in group)
+                for group in self.articleGroups
+            )
+        ):
+            raise ValueError(
+                "bare vehicle manifest requires explicit article roles in one carrying unit"
+            )
         package_family(self.selectedCategory)
         if self.regime not in {"ambient", "frozen", "chilled", "dg"}:
             raise ValueError("unknown operational regime")
@@ -169,6 +182,15 @@ class UnitProfileRequest(BaseModel):
             if self.dangerousGoods is None or self.physicalState is None:
                 raise ValueError(
                     "DG unit planning requires its authoritative tuple and physical state"
+                )
+            if self.physicalState == "gas" and self.countedUnitContext in {
+                "vehicle",
+                "discrete_article",
+                "bulk_loading_lot",
+            }:
+                raise ValueError(
+                    "gas cargo needs contained receptacles or installed-tank contents, "
+                    "not unpackaged gas"
                 )
         elif self.dangerousGoods is not None or self.physicalState is not None:
             raise ValueError("non-DG unit planning cannot invent DG physical authority")
@@ -198,6 +220,8 @@ class UnitProfile(BaseModel):
 
 
 def zero_packing_tare(request: UnitProfileRequest) -> bool:
+    if request.articleGroups is not None:
+        return True
     if request.countedUnitContext == "bulk_loading_lot":
         # A dry box does not itself contain loose liquid. Its unprinted liner
         # or receptacles are packing, not carrying-container hardware.
@@ -248,11 +272,14 @@ def unit_profile_output_type(request: UnitProfileRequest) -> type[UnitProfile]:
         request.payloadKg,
         request.volumeBudgetM3,
         zero_packing_tare(request),
-        packed_liquid_lot(request),
+        packed_liquid_lot(request)
+        or (request.physicalState == "gas" and request.countedUnitContext != "tank_loading_lot"),
     )
 
 
 def unit_profile_prompt(request: UnitProfileRequest) -> str:
+    if request.articleGroups is not None:
+        raise ValueError("an article manifest requires the per-component native profile interface")
     context = request.model_dump(mode="json")
     context["equipmentContext"] = equipment_choice_brief(request.equipment)
     context["unitMeaning"] = (
@@ -279,6 +306,22 @@ def validate_profile(request: UnitProfileRequest, value: Mapping[str, Any]) -> U
     return unit_profile_output_type(request).model_validate(value)
 
 
+def validate_profile_context(
+    request: UnitProfileRequest, frozen: Mapping[str, Any], physical_states: Mapping[str, str]
+) -> None:
+    if request.dangerousGoods != frozen.get("dangerousGoods"):
+        raise ValueError("native unit profile changed the authoritative DG tuple")
+    if request.articleGroups != frozen.get("cargoPresentation", {}).get("articleGroups"):
+        raise ValueError("native vehicle manifest changed source-owned article groups")
+    state = physical_form(frozen, physical_states)
+    if request.physicalState != state:
+        raise ValueError("native unit profile changed the authoritative DG physical state")
+    for key in ("goods", "regime", "selectedCategory", "countedUnitContext", "equipment"):
+        expected = frozen["equipmentSlots"] if key == "equipment" else frozen[key]
+        if getattr(request, key) != expected:
+            raise ValueError("native unit profile differs from frozen " + key)
+
+
 def verify_profile_evidence(
     root: Path,
     frozen: Mapping[str, Any],
@@ -290,17 +333,9 @@ def verify_profile_evidence(
 
     evidence = frozen["nativeUnitProfileEvidence"]
     request = UnitProfileRequest.model_validate(evidence["request"])
-    if request.dangerousGoods != frozen.get("dangerousGoods"):
-        raise ValueError("native unit profile changed the authoritative DG tuple")
-    state = (
-        physical_states[frozen["dangerousGoods"]["recordId"]] if frozen["regime"] == "dg" else None
-    )
-    if request.physicalState != state:
-        raise ValueError("native unit profile changed the authoritative DG physical state")
-    for key in ("goods", "regime", "selectedCategory", "countedUnitContext", "equipment"):
-        expected = frozen["equipmentSlots"] if key == "equipment" else frozen[key]
-        if getattr(request, key) != expected:
-            raise ValueError("native unit profile differs from frozen " + key)
+    if request.articleGroups is not None:
+        raise ValueError("vehicle manifests require per-component native evidence")
+    validate_profile_context(request, frozen, physical_states)
     answer = verify_native_evidence(
         root,
         evidence,
@@ -361,6 +396,11 @@ def sample_unit_profile(
     raw_tare = left_tare + (right_tare - left_tare) * alpha
     a, b = Decimal(str(left.occupiedVolumeM3)), Decimal(str(right.occupiedVolumeM3))
     raw_cube = a + (b - a) * alpha
+    if request.articleGroups is not None:
+        group_count = Decimal(len(request.articleGroups))
+        raw_net /= group_count
+        raw_tare /= group_count
+        raw_cube /= group_count
     # An integer-CBM source can still describe small packages. Use the smallest
     # decimal count group that represents a positive unit, then require every
     # row to contain whole such groups. Do not turn 0.04 m3 into zero or 1 m3.

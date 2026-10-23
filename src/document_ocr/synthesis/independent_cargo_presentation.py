@@ -18,8 +18,12 @@ class CargoPresentation(BaseModel):
     hsHeadings: list[str] = Field(min_length=1)
     excludedHs6: list[str]
     packageTypes: list[str] = Field(min_length=1)
+    dgUnNumbers: list[str] = Field(default_factory=list, exclude_if=lambda value: not value)
+    articleGroups: list[list[str]] | None = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
 
-    @field_validator("hsHeadings", "excludedHs6", "packageTypes")
+    @field_validator("hsHeadings", "excludedHs6", "packageTypes", "dgUnNumbers")
     @classmethod
     def unique(cls, values: list[str]) -> list[str]:
         if len(values) != len(set(values)):
@@ -28,6 +32,18 @@ class CargoPresentation(BaseModel):
 
     @model_validator(mode="after")
     def valid_domains(self) -> "CargoPresentation":
+        if self.articleGroups is not None:
+            if not self.dgUnNumbers or any(
+                not group or any(role not in {"passenger car", "motorbike"} for role in group)
+                for group in self.articleGroups
+            ):
+                raise ValueError("vehicle groups require explicit DG identities and article roles")
+            if not set(self.packageTypes) <= {"PACKAGE_SET", "PACKAGE_UNPACKED_OR_UNPACKAGED"}:
+                raise ValueError("bare vehicle groups require counted sets or unpackaged articles")
+        if any(
+            len(code) != 4 or not code.isascii() or not code.isdigit() for code in self.dgUnNumbers
+        ):
+            raise ValueError("cargo presentation needs four-digit UN numbers")
         if any(
             len(code) != 4 or not code.isascii() or not code.isdigit() for code in self.hsHeadings
         ):
@@ -57,6 +73,11 @@ def validate_cargo_presentation(
     if expected is None:
         return
     domain = CargoPresentation.model_validate(expected)
+    if (
+        domain.dgUnNumbers
+        and request.get("dangerousGoods", {}).get("unNumber") not in domain.dgUnNumbers
+    ):
+        raise ValueError("frozen DG identity violates the reviewed article presentation")
     if any(not domain.permits(goods["hs6"]) for goods in request["goods"]):
         raise ValueError("frozen goods violate reviewed cargo presentation")
     if "selectedCategory" in request and request["selectedCategory"] not in domain.packageTypes:

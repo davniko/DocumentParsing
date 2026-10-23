@@ -30,6 +30,7 @@ from document_ocr.synthesis.independent_cargo_presentation import (
     CargoPresentation,
     validate_cargo_presentation,
 )
+from document_ocr.synthesis.independent_dg_context import known_physical_form, named_eligible
 from document_ocr.synthesis.independent_envelopes import (
     DEFAULT_ROW_PAYLOAD_KG,
     DEFAULT_ROW_VOLUME_M3,
@@ -43,7 +44,6 @@ from document_ocr.synthesis.independent_unit_profiles import (
     validate_profile,
 )
 from document_ocr.synthesis.tank_equipment import TANK_SIZES, TANK_TYPES
-from document_ocr.synthesis.template_compiler.dangerous_goods_packaging import profile
 from document_ocr.synthesis.thermal_goods import classify_thermal_descriptions
 
 _REGIMES = frozenset({"ambient", "frozen", "chilled", "dg"})
@@ -285,16 +285,13 @@ class IndependentSampler:
         self.flash = load_flash_points(
             registry.flash.path, registry.flash.sha256, None
         ).identity_index(self.dg)
-        self.hmt_states: dict[str, str] = {}
-        for record in self.dg.hmt_records:
-            try:
-                self.hmt_states[record.record_id] = profile(record).state
-            except ValueError:
-                continue
         self.hmt = {
-            record.record_id: record
-            for record in self.dg.hmt_records
-            if record.record_id in self.hmt_states
+            record.record_id: record for record in self.dg.hmt_records if named_eligible(record)
+        }
+        self.hmt_states = {
+            record_id: form
+            for record_id, record in self.hmt.items()
+            if (form := known_physical_form(record)) is not None
         }
         links: dict[str, set[str]] = defaultdict(set)
         matched_link_rows = 0
@@ -308,6 +305,7 @@ class IndependentSampler:
                 links[link.hmt_record_id].add(link.hs6)
         self.matched_link_rows = matched_link_rows
         self.hs_links = {record_id: frozenset(codes) for record_id, codes in links.items()}
+        self._dg_domains: dict[tuple[bool, bool, int | None, bool], tuple[str, ...]] = {}
         pools: dict[str, list[str]] = {regime: [] for regime in ("ambient", "frozen", "chilled")}
         for code in self.hs.global_codes:
             thermal = classify_thermal_descriptions(
@@ -338,7 +336,9 @@ class IndependentSampler:
             "registryPins": self.registry.pins(),
         }
 
-    def _dg_pool(self, requirements: Mapping[str, Any]) -> tuple[str, ...]:
+    def _dg_pool(
+        self, requirements: Mapping[str, Any], *, include_vehicles: bool = False
+    ) -> tuple[str, ...]:
         if set(requirements) - {"flashPoint", "subsidiaryCount", "packingGroup"}:
             raise ValueError("unknown DG presentation requirement")
         flash = requirements.get("flashPoint", False)
@@ -350,11 +350,15 @@ class IndependentSampler:
             or (subsidiary is not None and (type(subsidiary) is not int or subsidiary < 0))
         ):
             raise ValueError("invalid DG presentation requirement")
-        return tuple(
+        cache_key = (flash, packing, subsidiary, include_vehicles)
+        if cache_key in self._dg_domains:
+            return self._dg_domains[cache_key]
+        domain = tuple(
             sorted(
                 record_id
-                for record_id in self.hs_links
-                if (not flash or record_id in self.flash)
+                for record_id in self.hmt
+                if (include_vehicles or self.hmt[record_id].un_number not in {"3166", "3171"})
+                and (not flash or record_id in self.flash)
                 and (not packing or self.hmt[record_id].packing_group_category is not None)
                 and (
                     subsidiary is None
@@ -362,6 +366,8 @@ class IndependentSampler:
                 )
             )
         )
+        self._dg_domains[cache_key] = domain
+        return domain
 
     def prepare_request(
         self,
@@ -416,12 +422,21 @@ class IndependentSampler:
         )
         if regime == "dg":
             requirements = dict(dg_requirements or {})
-            eligible = self._dg_pool(requirements)
+            eligible = self._dg_pool(
+                requirements, include_vehicles=bool(presentation and presentation.dgUnNumbers)
+            )
             if presentation is not None:
                 eligible = tuple(
                     record_id
                     for record_id in eligible
-                    if any(presentation.permits(code) for code in self.hs_links[record_id])
+                    if (
+                        not presentation.dgUnNumbers
+                        or self.hmt[record_id].un_number in presentation.dgUnNumbers
+                    )
+                    and (
+                        record_id not in self.hs_links
+                        or any(presentation.permits(code) for code in self.hs_links[record_id])
+                    )
                 )
             if not excluded <= set(eligible):
                 raise ValueError("excluded DG identities are outside the eligible registry pool")
@@ -434,11 +449,11 @@ class IndependentSampler:
             codes = tuple(
                 sorted(
                     code
-                    for code in self.hs_links[record_id]
+                    for code in self.hs_links.get(record_id, ())
                     if presentation is None or presentation.permits(code)
                 )
             )
-            code = _pick(codes, stream.derive("exact-hs-join"))
+            code = _pick(codes, stream.derive("exact-hs-join")) if codes else None
             goods = [{"hs6": code, "description": record.proper_shipping_name}]
             declaration = {
                 "recordId": record_id,
@@ -491,7 +506,7 @@ class IndependentSampler:
             result["cargoPresentation"] = presentation.model_dump(mode="json")
         return result
 
-    def validate_request(self, request: Mapping[str, Any]) -> None:
+    def validate_request(self, request: Mapping[str, Any], *, require_context: bool = True) -> None:
         """Reject any frozen goods request outside its pinned registry ancestry."""
         regime = request.get("regime")
         goods = request.get("goods")
@@ -499,7 +514,7 @@ class IndependentSampler:
             raise ValueError("frozen request has no valid regime/goods")
         if request.get("sourceCargoUsedForSelection") is not False:
             raise ValueError("frozen request lacks donor-independent provenance")
-        if "cargoPresentation" in request:
+        if "cargoPresentation" in request and require_context:
             validate_cargo_presentation(request["cargoPresentation"], request)
         if (
             not isinstance(request.get("sourceDocumentId"), str)
@@ -517,8 +532,27 @@ class IndependentSampler:
                 raise ValueError("DG request needs one joined identity and declaration")
             declaration = request["dangerousGoods"]
             record_id = declaration.get("recordId")
-            if record_id not in self.hs_links or goods[0]["hs6"] not in self.hs_links[record_id]:
-                raise ValueError("DG identity lacks its exact eligible HMT/HS6 join")
+            if record_id not in self.hmt:
+                raise ValueError("DG identity is outside the eligible named maritime registry")
+            if self.hmt[record_id].un_number in {"3166", "3171"} and self.hmt[
+                record_id
+            ].un_number not in request.get("cargoPresentation", {}).get("dgUnNumbers", []):
+                raise ValueError("vehicle DG identity requires an explicit vehicle presentation")
+            code = goods[0]["hs6"]
+            if record_id in self.hs_links:
+                if code not in self.hs_links[record_id]:
+                    raise ValueError("DG identity lacks its exact eligible HMT/HS6 join")
+                if "nativeDgHsEvidence" in request:
+                    raise ValueError("exact joined HS cannot be replaced by a synthetic proposal")
+            elif require_context:
+                from document_ocr.synthesis.independent_dg_context import validate_hs
+
+                proposal = request["nativeDgHsEvidence"]["output"]
+                validate_hs(request, proposal, self.phrases)
+                if code != proposal["hs6"]:
+                    raise ValueError("synthetic HS differs from its received native proposal")
+            elif code is not None:
+                raise ValueError("unprepared unjoined DG cannot invent an HS code")
             record = self.hmt[record_id]
             expected = {
                 "recordId": record_id,
@@ -533,8 +567,15 @@ class IndependentSampler:
                 or goods[0]["description"] != record.proper_shipping_name
             ):
                 raise ValueError("DG request changed an authoritative registry tuple")
-            if record_id not in self._dg_pool(request.get("dgRequirements", {})):
+            if record_id not in self._dg_pool(
+                request.get("dgRequirements", {}),
+                include_vehicles=bool(request.get("cargoPresentation", {}).get("dgUnNumbers")),
+            ):
                 raise ValueError("DG request fails its printed-field requirements")
+            if require_context:
+                from document_ocr.synthesis.independent_dg_context import physical_form
+
+                physical_form(request, self.hmt_states)
         else:
             if request.get("dangerousGoods") is not None or request.get("dgRequirements"):
                 raise ValueError("non-DG request carries DG facts")
@@ -624,9 +665,10 @@ class IndependentSampler:
             raise ValueError("row capacities must be positive finite decimals")
         variable_unit = request.get("nativeUnitProfileEvidence")
         composed_unit = request.get("nativeComposedProfileEvidence")
-        if variable_unit is not None and composed_unit is not None:
+        article_unit = request.get("nativeArticleProfileEvidence")
+        if sum(item is not None for item in (variable_unit, composed_unit, article_unit)) > 1:
             raise ValueError("one physical planning authority is required")
-        native_unit = variable_unit is not None or composed_unit is not None
+        native_unit = any(item is not None for item in (variable_unit, composed_unit, article_unit))
         if native_unit and row_capacities is None:
             raise ValueError("native unit profiles require explicit current planning capacities")
         # Explicit row limits can tighten the synthetic envelope, never loosen
@@ -664,10 +706,25 @@ class IndependentSampler:
                     **precision,
                 )
             else:
-                unit_request = UnitProfileRequest.model_validate(variable_unit["request"])
+                evidence = article_unit if article_unit is not None else variable_unit
+                unit_request = UnitProfileRequest.model_validate(evidence["request"])
+                if unit_request.articleGroups is not None and fixed_quantity != len(
+                    unit_request.articleGroups
+                ):
+                    raise ValueError(
+                        "vehicle manifest count must equal its declared accounting groups"
+                    )
+                if article_unit is not None:
+                    from document_ocr.synthesis.independent_article_profiles import (
+                        normalize_article_profile,
+                    )
+
+                    unit_profile = normalize_article_profile(unit_request, evidence["output"])
+                else:
+                    unit_profile = validate_profile(unit_request, evidence["output"])
                 unit_net, unit_gross, unit_cube, numeric_authority = sample_unit_profile(
                     unit_request,
-                    validate_profile(unit_request, variable_unit["output"]),
+                    unit_profile,
                     capacities,
                     stream,
                     **precision,

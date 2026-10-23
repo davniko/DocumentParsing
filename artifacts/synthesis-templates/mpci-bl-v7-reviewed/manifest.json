@@ -13225,7 +13225,7 @@
       },
       "files": {
         "alignment.json": "0fc4b287e6afa1758bb0f9fb6b94e373678772aee101bf9c4d0940c430fb6528",
-        "contract.json": "baff7fcf13d65cc5939a2b98a7ae00ff0901c4e3c686c7a80f05f2d8a5a1151e",
+        "contract.json": "2a3279f86f2afd5a8a3150fa45c551acbc33ccd9ad374673b91faa59e12d33e6",
         "source-positioned.txt": "1ea499097dba00af0f07c27c0c9ed1ae72ff925775c184a308e0c0d149c54013",
         "source.txt": "5cdb8573d93b5b4f9d9318d6cf914bc704d94f9d8c293adb4e8f3eb62730bcbd",
         "target.json": "c52a073adc939f6f61f6c3661545d9b5c0c372bd7434d6961cf0f89189c60481",
@@ -15877,7 +15877,7 @@
       },
       "files": {
         "alignment.json": "af6dc5c44342fa4e7dd9a1c88c2b8b5198cdd1c8239ed0026098cf1ba0d54692",
-        "contract.json": "1f0c05a727ef56beaa69c9390d27ed3b975e68057e2405ea5f2e05d2b3521db7",
+        "contract.json": "47d9fd38837614051fdabbb578e65576026d0d328393d7d5ed67c2f1063d2ddc",
         "source-positioned.txt": "f66e940c49791ebbb5cf1c5451f8f3c3a2310824597106758ae702d0a1ea2a66",
         "source.txt": "1ac0bbcbc7a1645852e491e648dfa3e982c71016d42e72b0109754f0cfc20f13",
         "target.json": "fd156d03345f91a0ed40daad394421fc86c8528b2769661a124a0e58f88c24d3",
@@ -16274,6 +16274,30 @@
     "sourcesWithNameAliases": 15,
     "staleMarksVinAssemblyRemoved": true
   },
+  "dgContextExpansion20261023": {
+    "R28MembershipUnchanged": true,
+    "candidateRecords": 2195,
+    "candidateUnNumbers": 1917,
+    "certifiedInspectionSamples": 83,
+    "certifiedInspectionSources": 26,
+    "evidence": {
+      "path": "docs/analysis/r28-dg-expansion-20261023/final-results.json",
+      "sha256": "e44a8d54e3bbcb901b23b030e8edff3edd41c9a0be48cd39381a0a85241267b5"
+    },
+    "newlyAcceptedVehicleSources": [
+      "doc_bef02d48de66ec8cf54fa0221d1ddbdc9c1d92d8821a9039ea20a056b44b832f",
+      "doc_fdbc7d941b71f98dcc86796e2999a8ba48e8833aea2bd6fab484fc4a3ebc1584"
+    ],
+    "report": "docs/analysis/r28-dg-expansion-20261023/REPORT.md",
+    "sourceOnlyPhoneRepair": {
+      "path": "docs/analysis/r28-dg-expansion-20261023/emergency-phone-repair.json",
+      "sha256": "2ffc04e0fd646801c14dc0eb3643bfe590614981bd87b6984a9c88176ee5028c"
+    },
+    "workingConfig": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/independent-flat-full-registry-20261021/working-config.json",
+      "sha256": "f0be625e4f93b04c98aeb68d632b98aff8f0f45728ce3903f3b0bf607389feac"
+    }
+  },
   "finalCampaignRegistryPinReconciliation": {
     "contractRevision": {
       "afterSha256": "e7917d55d16c650d92f1a6b5587df29d04a753130b18732339ab2df79e06728c",
@@ -16342,13 +16366,13 @@
   "independentFlatFullRegistryAcceptance20261021": {
     "acceptanceIndex": {
       "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/independent-flat-full-registry-20261021/acceptance-index.json",
-      "sha256": "a62563d6d9a2c2daf1740688ca293210c03e2c6b25a58d7427e1240a7c31621c"
+      "sha256": "06fcc5a1d99e101e05c0f362b32bc23b1d0987f9136264cb5f980d316d0f680a"
     },
-    "acceptedSources": 451,
+    "acceptedSources": 453,
     "inspectionOnly": true,
-    "remainingSources": 2,
+    "remainingSources": 0,
     "report": "/mnt/d/projects/documentparsing/docs/analysis/r28-donor-free-full-registry-20261021/PLAN.md",
-    "sourceOwnershipSha256": "1c2a5927919fea36255331159acd4d5192a74f598163d12d8faa3eb915cf8936"
+    "sourceOwnershipSha256": "7a473a5b3438884ebd716b1343cc11e93a84b8d777e51b72af806532dcd86a15"
   },
   "invoicePartyPrivacyClosure20261019": {
     "afterOwnershipSha256": "3098022df16dee3e8cd319918d41e2835bb1c230cf5418239f74b6aeea66a0fd",
@@ -17609,8 +17633,8 @@
   },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "758229682adf8e5a81c595f39e39adb55e2bb48f2652bb066c255fd54a2222b8",
-    "ownership.yaml": "1c2a5927919fea36255331159acd4d5192a74f598163d12d8faa3eb915cf8936",
+    "auxiliary.yaml": "7047af7779ceb5e9a410afefe2ca50313c9b08f938eacfe8913d0dc8e19f6111",
+    "ownership.yaml": "7a473a5b3438884ebd716b1343cc11e93a84b8d777e51b72af806532dcd86a15",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513",
     "task-constraints.json": "a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77"

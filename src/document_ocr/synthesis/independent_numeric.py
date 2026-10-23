@@ -1284,11 +1284,12 @@ class IndependentNumericCertificates:
         ):
             raise ValueError(f"certificate {source_id} has invalid ownership collections")
         constraints = certificate.get("constraints", [])
-        if (
-            "requiredPhysicalAuthority" in certificate
-            and certificate["requiredPhysicalAuthority"]
-            != "native_goods_conditioned_unit_profile_v1"
-        ):
+        if "requiredPhysicalAuthority" in certificate and certificate[
+            "requiredPhysicalAuthority"
+        ] not in {
+            "native_goods_conditioned_unit_profile_v1",
+            "native_article_component_profiles_v1",
+        }:
             raise ValueError("unknown required physical authority")
         if "unitProfilePrecision" in certificate:
             precision = certificate["unitProfilePrecision"]

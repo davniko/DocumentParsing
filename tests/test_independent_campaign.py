@@ -841,6 +841,7 @@ def test_native_evidence_uses_runner_canonical_provider_not_raw_yaml(monkeypatch
                     "variant": 1,
                     "selectedCategory": "PACKAGE_CARTON",
                     "planningStage": "native_package_choice_accepted",
+                    "regime": "ambient",
                 }
             }
         elif key == "private_plans":
