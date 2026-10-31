@@ -1,0 +1,22 @@
+[
+  {
+    "categoryToken": "PACKAGE_SET",
+    "displayName": "Set",
+    "kind": "COUNTING_UNIT",
+    "family": "SET",
+    "notes": [
+      "Reviewed extraction meaning. No accepted application code is assigned by this crosswalk.",
+      "A declared set does not establish its component count, a coordinated kit, an outer receptacle or a packaging hierarchy."
+    ]
+  },
+  {
+    "categoryToken": "PACKAGE_BALE",
+    "displayName": "Bale",
+    "kind": "PACKAGE",
+    "family": "BALE",
+    "notes": [
+      "Reviewed generic extraction meaning. Compression remains unasserted, not missing or erroneous.",
+      "No compressed/non-compressed application code is selected without its supporting evidence."
+    ]
+  }
+]

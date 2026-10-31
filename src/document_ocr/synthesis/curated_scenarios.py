@@ -564,8 +564,6 @@ class SourceCapabilities(BaseModel):
             raise ValueError("reviewed donor pins require the reviewed whole-unit profile")
         if self.family in {"vehicle", "dg_vehicle"} and not self.allowed_hs_headings:
             raise ValueError("vehicle scenarios require an explicit source-owned HS heading")
-        if self.family.startswith("dg_") and self.identity_count != 1:
-            raise ValueError("this single-goods pilot requires one coherent DG identity")
         if self.route_topology is not None:
             for path, node in self.route_topology.party_nodes.items():
                 if path in self.party_sides and self.party_sides[path] != node:

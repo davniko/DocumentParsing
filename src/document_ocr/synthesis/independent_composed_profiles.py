@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 from decimal import ROUND_FLOOR, Decimal
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 
@@ -71,6 +71,7 @@ def packing_roles(plan: Mapping[str, Any]) -> dict[str, Any]:
 
 class TopologyRequest(UnitProfileRequest):
     privatePacking: dict[str, Any]
+    packingLevels: Literal[2, 3] = Field(default=2, exclude_if=lambda value: value == 2)
 
     @model_validator(mode="after")
     def composed(self) -> TopologyRequest:
@@ -81,6 +82,11 @@ class TopologyRequest(UnitProfileRequest):
             "MIXED",
         }:
             raise ValueError("composed physical authority requires an explicit relation")
+        if self.packingLevels == 3 and self.privatePacking["privatePackingRelation"] not in {
+            "CONTAINS",
+            "SUPPORTS",
+        }:
+            raise ValueError("three-level packing requires counted outer units and inner packages")
         return self
 
 
@@ -110,12 +116,45 @@ class MixedTopology(BaseModel):
     loosePerGroup: int = Field(ge=1)
 
 
-Topology = ContainsTopology | SupportsTopology | OnSupportTopology | MixedTopology
+class InnerContents(BaseModel):
+    """Private innermost packages inside EACH related/intermediate package."""
+
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
+    # Private receptacles need not be categories in the public Flat48 target.
+    # Their nouns are linguistic authority, not another public package row.
+    packageSingular: str = Field(min_length=1, max_length=80, pattern=r"^[A-Z]+(?:[ -][A-Z]+)*$")
+    packagePlural: str = Field(min_length=1, max_length=80, pattern=r"^[A-Z]+(?:[ -][A-Z]+)*$")
+    unitsPerRelated: int = Field(ge=1)
+
+    def noun(self, count: int) -> str:
+        return self.packageSingular if count == 1 else self.packagePlural
+
+
+class ThreeLevelContainsTopology(ContainsTopology):
+    contents: InnerContents
+
+
+class ThreeLevelSupportsTopology(SupportsTopology):
+    contents: InnerContents
+
+
+Topology = (
+    ThreeLevelContainsTopology
+    | ThreeLevelSupportsTopology
+    | ContainsTopology
+    | SupportsTopology
+    | OnSupportTopology
+    | MixedTopology
+)
 TOPOLOGY_TYPES = {
     "CONTAINS": ContainsTopology,
     "SUPPORTS": SupportsTopology,
     "ON_SUPPORT": OnSupportTopology,
     "MIXED": MixedTopology,
+}
+THREE_LEVEL_TYPES = {
+    "CONTAINS": ThreeLevelContainsTopology,
+    "SUPPORTS": ThreeLevelSupportsTopology,
 }
 
 
@@ -129,35 +168,55 @@ class TopologyProposal(BaseModel):
         return self.topology is None
 
 
-@lru_cache(maxsize=4)
-def topology_output_type(relation: str) -> type[TopologyProposal]:
+@lru_cache(maxsize=6)
+def topology_output_type(relation: str, packing_levels: int = 2) -> type[TopologyProposal]:
+    if packing_levels not in (2, 3) or (packing_levels == 3 and relation not in THREE_LEVEL_TYPES):
+        raise ValueError("unsupported packing depth/relation")
     return create_model(
         "FrozenCompositionTopology",
         __base__=TopologyProposal,
-        topology=(TOPOLOGY_TYPES[relation] | None, ...),
+        topology=(
+            (THREE_LEVEL_TYPES if packing_levels == 3 else TOPOLOGY_TYPES)[relation] | None,
+            ...,
+        ),
     )
 
 
 def topology_prompt(request: TopologyRequest) -> str:
-    return json.dumps(
-        {
-            key: value
-            for key, value in request.model_dump(mode="json").items()
-            if key
-            in {
-                "goods",
-                "regime",
-                "selectedCategory",
-                "countedUnitContext",
-                "dangerousGoods",
-                "physicalState",
-                "privatePacking",
-                "reviewFeedback",
-            }
-        },
-        ensure_ascii=False,
-        sort_keys=True,
-    )
+    context = {
+        key: value
+        for key, value in request.model_dump(mode="json").items()
+        if key
+        in {
+            "goods",
+            "regime",
+            "selectedCategory",
+            "countedUnitContext",
+            "dangerousGoods",
+            "physicalState",
+            "privatePacking",
+            "reviewFeedback",
+            "componentPhysicalStates",
+        }
+    }
+    if request.packingLevels == 3:
+        context["requiredPackingLevels"] = 3
+        context["innerContentsInstruction"] = (
+            "Preserve THREE levels: one counted outer/support unit, its related/intermediate "
+            "packages, and innermost packages inside EACH intermediate package. Choose a "
+            "plausible innermost package/receptacle and positive unitsPerRelated. "
+            "Give its uppercase packageSingular and packagePlural nouns (for example "
+            "GLASS BOTTLE / GLASS BOTTLES), not a product name, quantity or instruction. "
+            "The frozen relatedPackageType is the middle level, not the innermost level. "
+            "Each level must be a DISTINCT physical package, not the same receptacle "
+            "restated with its material (DRUM containing one STEEL DRUM does not establish "
+            "a third level). If a drum is the intermediate overpack, its contents must "
+            "be separate smaller inner receptacles; do not nest full-sized drums inside it. "
+            "Do not drop a level or replace package identities with cargo pieces. "
+            "If these frozen package roles cannot plausibly form this nesting, "
+            "return topology=null."
+        )
+    return json.dumps(context, ensure_ascii=False, sort_keys=True)
 
 
 class ComposedRequest(TopologyRequest):
@@ -165,9 +224,10 @@ class ComposedRequest(TopologyRequest):
 
     @model_validator(mode="after")
     def exact_topology(self):
-        if not isinstance(
-            self.topology, TOPOLOGY_TYPES[self.privatePacking["privatePackingRelation"]]
-        ):
+        expected = (THREE_LEVEL_TYPES if self.packingLevels == 3 else TOPOLOGY_TYPES)[
+            self.privatePacking["privatePackingRelation"]
+        ]
+        if type(self.topology) is not expected:
             raise ValueError("frozen topology belongs to a different packing relation")
         return self
 
@@ -295,6 +355,12 @@ def composed_prompt(request: ComposedRequest) -> str:
             f"{t.supportsPerGroup + t.loosePerGroup} public packages and "
             f"{t.supportsPerGroup * t.packedPerSupport + t.loosePerGroup} inner packages."
         )
+    if isinstance(t, (ThreeLevelContainsTopology, ThreeLevelSupportsTopology)):
+        contents = t.contents.packagePlural
+        definition += (
+            f" EACH of those intermediate {related} encloses EXACTLY "
+            f"{t.contents.unitsPerRelated} {contents}. Include packing at ALL THREE levels."
+        )
     context["exactFrozenGroup"] = (
         definition + " These coefficients count the named PACKAGES, not product pieces, "
         "unless the supplied counted category itself is an unpackaged article. "
@@ -322,11 +388,14 @@ def verify_composed_evidence(
             raise ValueError("composed profile changed frozen " + key)
     if request.equipment != frozen["equipmentSlots"]:
         raise ValueError("composed profile changed frozen equipment")
-    from document_ocr.synthesis.independent_dg_context import physical_form
+    from document_ocr.synthesis.independent_dg_context import physical_form, physical_forms
 
     expected_state = physical_form(frozen, physical_states)
     if request.physicalState != expected_state:
         raise ValueError("composed profile changed DG physical authority")
+    expected_forms = physical_forms(frozen, physical_states) if "dgComponents" in frozen else None
+    if request.componentPhysicalStates != expected_forms:
+        raise ValueError("composed profile changed component physical authority")
     topology_request = TopologyRequest.model_validate(
         {k: v for k, v in request.model_dump(mode="json").items() if k != "topology"}
     )
@@ -336,7 +405,9 @@ def verify_composed_evidence(
         stage=TOPOLOGY_STAGE,
         identity=f"{frozen['sourceDocumentId']}:{frozen['variant']}",
         request=topology_request.model_dump(mode="json"),
-        model=topology_output_type(request.privatePacking["privatePackingRelation"]),
+        model=topology_output_type(
+            request.privatePacking["privatePackingRelation"], request.packingLevels
+        ),
         system=TOPOLOGY_SYSTEM,
         prompt=topology_prompt(topology_request),
         provider=provider,
@@ -392,7 +463,7 @@ def sample_composed_profile(
         {
             k: v
             for k, v in request.model_dump(mode="json").items()
-            if k not in {"privatePacking", "topology"}
+            if k not in {"privatePacking", "topology", "packingLevels"}
         }
     )
     # Complete supported articles are packed groups even if the counted
@@ -445,6 +516,8 @@ def sample_composed_profile(
         },
         request=request.model_dump(mode="json"),
     )
+    if request.packingLevels == 3:
+        authority["composition"]["contents"] = request.topology.contents.model_dump(mode="json")
     return net, gross, cube, authority
 
 
@@ -483,7 +556,7 @@ def scope_composition(
             ),
             "authority": {"authority": numeric["authority"], "sourceCargoAccess": False},
         }
-    return {
+    result = {
         "relatedQuantity": groups * group["relatedPerGroup"],
         "supportEnvelope": support,
         "mixed": {
@@ -496,3 +569,10 @@ def scope_composition(
             "sourceCountRatioUsed": False,
         },
     }
+    if "contents" in group:
+        contents = InnerContents.model_validate(group["contents"])
+        result["contents"] = {
+            **contents.model_dump(mode="json"),
+            "quantity": result["relatedQuantity"] * contents.unitsPerRelated,
+        }
+    return result

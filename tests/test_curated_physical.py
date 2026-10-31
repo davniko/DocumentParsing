@@ -31,6 +31,60 @@ from document_ocr.synthesis.template_compiler.equipment_tares import TareSupport
 PREFIX = "documentPatch.goodsItemDetails[0]"
 
 
+@pytest.mark.parametrize("public_mass", [False, True])
+def test_declared_groups_use_mass_shares_not_package_count_shares(public_mass):
+    from document_ocr.synthesis.declared_packages import CountedPackage, DeclaredPackages
+
+    row, blueprint, scenario, support = fixture(public_mass=public_mass)
+    ledger = DeclaredPackages(
+        (
+            CountedPackage("PACKAGE_BOX", Decimal(1), Decimal(2), Decimal(".1")),
+            CountedPackage("PACKAGE_DRUM", Decimal(8), Decimal(10), Decimal(".2")),
+        ),
+        ((5, 0), (0, 5)),
+        ((Decimal(100), Decimal(10)),) * 2,
+    )
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"] = ledger.public_rows()
+    scenario.provenance.pop("donorDocumentId")
+    scenario.provenance["declaredPackages"] = ledger.receipt()
+    scenario.provenance["explicitPhysicalFacts"] = {
+        field: {"value": ledger.totals()[fact], "unit": unit}
+        for field, fact, unit in (
+            ("grossWeight", "grossKg", "kilogram"),
+            ("netWeight", "netKg", "kilogram"),
+            ("volume", "volumeM3", "cubic_metre"),
+        )
+    }
+    for item in scenario.provenance["physicalRows"]:
+        item.update(shareNumerator=5, shareDenominator=10)
+    plan = prepare_physical_render(blueprint, scenario, target, support=support)
+    assert plan.receipt["rows"]["grossWeight"] == ["10", "50"]
+    assert plan.variable_values["total"] == "60"
+    assert ("grossWeight" in plan.target["documentPatch"]["goodsItemDetails"][0]) is public_mass
+    assert (
+        plan.target["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"]
+        == ledger.public_rows()
+    )
+
+
+def test_declared_group_measure_cannot_silently_use_donor_or_forged_total():
+    from document_ocr.synthesis.declared_packages import CountedPackage, DeclaredPackages
+
+    row, blueprint, scenario, support = fixture()
+    ledger = DeclaredPackages(
+        (CountedPackage("PACKAGE_BOX", Decimal(1), Decimal(2), Decimal(".1")),),
+        ((5,), (5,)),
+        ((Decimal(100), Decimal(10)),) * 2,
+    )
+    scenario.provenance["declaredPackages"] = ledger.receipt()
+    with pytest.raises(ValueError, match="one independent physical authority"):
+        prepare_physical_render(blueprint, scenario, row["target"], support=support)
+    scenario.provenance.pop("donorDocumentId")
+    with pytest.raises(ValueError, match="totals differ"):
+        prepare_physical_render(blueprint, scenario, row["target"], support=support)
+
+
 def test_source_readiness_requires_private_measures_before_donor_sampling():
     _, blueprint, _, _ = fixture(public_mass=False)
     with pytest.raises(ValueError, match="omits required private measures: grossWeight"):

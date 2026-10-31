@@ -131,8 +131,6 @@ def test_preparation_cli_forwards_explicit_retry_permission(tmp_path, monkeypatc
     module.main()
     assert calls[0][2] == {
         "package_targets": {},
-        "retry_rate_limited": flag == "--retry-rate-limited",
-        "retry_invalid_output": flag == "--retry-invalid-output",
-        "retry_failed_receipt_sha256s": [],
+        flag.removeprefix("--").replace("-", "_"): True,
     }
     assert json.loads(capsys.readouterr().out)["readySlots"] == 3

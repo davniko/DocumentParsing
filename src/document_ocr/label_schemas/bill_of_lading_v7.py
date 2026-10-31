@@ -816,10 +816,19 @@ class GoodsItemDetailsV7(LabelSchemaModel):
         default=None,
         min_length=1,
         description=(
-            "Uppercase goods/shipment-specific carriage, storage, handling or delivery "
-            "instructions in source order. Generic "
-            "carrier responsibility/disclaimer text, including shipper's load/stow/count/"
-            "seal declarations, is not a goods-specific handling instruction."
+            "Uppercase, literal goods/shipment-specific carriage, storage, stowage, "
+            "segregation, handling or delivery/release instructions, in source order. "
+            "Join genuine continuations with whitespace; preserve punctuation and "
+            "numbers, without summaries. Retain ventilation, humidity and temperature "
+            "ranges. Omit a pure carrying-temperature restatement already represented "
+            "by the applicable container temperatureSetpoint; retain a complete mixed "
+            "clause when it adds another instruction and splitting loses meaning. "
+            "Exclude detention/demurrage/free-time terms, bare service terms, costs or "
+            "completed certification alone, generic carrier liability/disclaimers "
+            "and shipper's load/stow/count/seal boilerplate. An actual shipment-specific "
+            "payment-before-release prerequisite is a release instruction. Product "
+            "specifications belong in description, not this field. Deduplicate repeated "
+            "copies; do not infer instructions from goods identity or equipment type."
         ),
     )
     dangerousGoods: tuple[DangerousGoodsV7, ...] | None = Field(

@@ -51,6 +51,7 @@ def test_precision_is_owned_cargo_typography_not_equipment_tare():
         },
         contract=SimpleNamespace(variables=[mass, volume, tare], targets=bindings),
         regions=[],
+        ownership_data={},
     )
     assert source_unit_profile_precision(blueprint) == {"massKg": "0.01", "volumeM3": "1"}
     blueprint.target["documentPatch"]["goodsItemDetails"][0]["grossWeight"]["unit"] = "metric_tonne"
@@ -59,7 +60,7 @@ def test_precision_is_owned_cargo_typography_not_equipment_tare():
 
 def test_no_printed_measure_uses_declared_private_arithmetic_precision_only():
     blueprint = SimpleNamespace(
-        target={}, contract=SimpleNamespace(variables=[], targets=[]), regions=[]
+        target={}, contract=SimpleNamespace(variables=[], targets=[]), regions=[], ownership_data={}
     )
     assert source_unit_profile_precision(blueprint) == {"massKg": "0.01", "volumeM3": "0.0001"}
     assert (
@@ -76,6 +77,22 @@ def test_no_printed_measure_uses_declared_private_arithmetic_precision_only():
         )["massKg"]
         == "1"
     )
+
+
+def test_private_tonne_owner_constrains_mass_without_adding_a_target():
+    blueprint = SimpleNamespace(
+        target={},
+        contract=SimpleNamespace(variables=[], targets=[]),
+        regions=[],
+        ownership_data={
+            "measure_owners": {
+                "private_mass": {"measure": "grossWeight", "baseline": 200, "unit": "metric_tonne"}
+            }
+        },
+        historical_bindings={"private_mass": {"occurrences": [{"source_text": "200,000"}]}},
+    )
+    assert source_unit_profile_precision(blueprint)["massKg"] == "1"
+    assert blueprint.target == {}
 
 
 def request(**updates):
@@ -376,6 +393,44 @@ def test_real_sampler_uses_profile_not_fixed_unit_scale():
             container_count=1,
             selected_category="PACKAGE_UNIT",
         )
+
+
+def test_installed_system_count_is_not_increased_by_unused_cube():
+    from test_independent_sampling import ROOT, registry_config
+
+    from document_ocr.synthesis.independent_sampling import IndependentSampler
+
+    sampler = IndependentSampler.from_config(ROOT, registry_config())
+    frozen = sampler.prepare_request(
+        source_document_id="installed-test", variant=1, regime="ambient", identity_count=1, seed=7
+    )
+    frozen.update(selectedCategory="PACKAGE_FLEXITANK", countedUnitContext="non_dg_liquid_system")
+    req = request(
+        goods=frozen["goods"],
+        selectedCategory="PACKAGE_FLEXITANK",
+        countedUnitContext="non_dg_liquid_system",
+    )
+    profile = answer()
+    for example in profile["examples"]:
+        example.update(grossKg=1000.0, occupiedVolumeM3=2.0)
+    frozen["nativeUnitProfileEvidence"] = {
+        "request": req.model_dump(mode="json"),
+        "output": profile,
+    }
+    args = dict(
+        request=frozen,
+        seed=1,
+        draw_key="installed",
+        container_count=2,
+        selected_category="PACKAGE_FLEXITANK",
+        counted_unit_context="non_dg_liquid_system",
+        row_capacities=[{"payloadKg": "28000", "volumeM3": "76.4"}] * 2,
+        unit_profile_precision={"massKg": "1", "volumeM3": "0.001"},
+    )
+    draw = sampler.draw(**args)
+    assert [r["packageQuantity"] for r in draw["allocations"]] == [1, 1]
+    with pytest.raises(ValueError, match="fixed quantity exceeds"):
+        sampler.draw(**args, fixed_quantity=3)
 
 
 def test_integer_cbm_source_preserves_small_units_via_count_groups():

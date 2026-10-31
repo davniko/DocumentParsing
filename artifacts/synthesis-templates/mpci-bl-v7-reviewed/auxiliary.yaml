@@ -5437,7 +5437,7 @@ sources:
         format: source
   doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb:
     bindings:
-      'anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]':
+      anchor:documentPatch.cargoGroups[0].marksAndNumbers[0]:
         identifier: private chassis identifier in Marks, not an extracted goods field
         format: source
       agent:consignee_tax_id:
@@ -6503,6 +6503,11 @@ sources:
         format: source
         identifier: private commercial/reference identifier
   doc_78e8864ab17a0618fcb175fa298ee69c317983fc5cf5156836a8610ce85722e7:
+    spans:
+    - quote: PORT SAID WEST FREE ZONE
+      count: 1
+      value:
+        text: '{destination_port} FREE ZONE'
     bindings:
       agent:exporter_registration_country:
         party_location: documentPatch.parties.shipper
@@ -8094,6 +8099,12 @@ sources:
       anchor:documentPatch.forwardingAndExportReferences[1]:
         format: source
         identifier: Private shipping-bill commercial reference
+      reviewed_marks_consignee_name:
+        party_location: documentPatch.parties.consignee
+        field: name
+      reviewed_marks_consignee_country:
+        party_location: documentPatch.parties.consignee
+        field: country
   doc_08ec8a5ff38973d6b448d6210beae09dfa6daa1df935781d0bcdb31b567b958b:
     bindings:
       agent:booking:initial_sailed_date:
@@ -11538,7 +11549,8 @@ sources:
         format: source
         identifier: Private fiscal/customs/commercial reference
       registration_country:
-        text: TAIWAN
+        party_location: documentPatch.parties.notifyParties[0]
+        field: country
   doc_1e903c9913ed557aa5df7494e5a990e9a165b049dd6da2fd67b7acb15e89f2d5:
     bindings:
       acid:
@@ -12030,3 +12042,93 @@ sources:
       tax:
         format: source
         identifier: Private fiscal/customs/commercial reference
+  doc_1149521ede78a0527c6a82ca4db69a97a2ad6c6da9a2c6ecb4db9be5d65b7a37:
+    bindings:
+      private_ref_0:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_1:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_2:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_3:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_4:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_5:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_6:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_7:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_8:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_9:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_10:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_11:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_12:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_13:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      export_country:
+        target: documentPatch.parties.shipper.country
+      origin_state:
+        target: documentPatch.route.placeOfReceipt.name
+  doc_951024129bf38a16234b6b31e924e0bf72ec56207be8d68bb9af51927447a358:
+    bindings:
+      represented_phone:
+        phone: origin
+        channel: phone
+      delivery_fax:
+        phone: destination
+        channel: fax
+      private_ref_0:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_1:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_2:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_3:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_4:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+  doc_ede7dfe3ae6509d0389e46d4686578ffe82fa2302f0f943aee875ead8648a4aa:
+    bindings:
+      private_ref_0:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_1:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_2:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_3:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      private_ref_4:
+        identifier: Private fiscal/customs/commercial reference
+        format: source
+      exporter_country:
+        target: documentPatch.parties.shipper.country

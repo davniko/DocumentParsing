@@ -764,6 +764,24 @@ def test_reflow_validator_rejects_broken_row_column_bounds_and_density_geometry(
         assert validate_page(nodes, scale, minimum_gap=2)
 
 
+def test_overlapping_ocr_rows_keep_caption_value_order_when_other_column_grows():
+    boxes = np.array([[0, 0, 50, 10], [60, 20, 100, 31], [60, 29, 100, 40]], dtype=float)
+    replacement = dict(
+        id="expanded",
+        source=boxes[0].tolist(),
+        ownedBoxKeys={tuple(boxes[0])},
+        lineHeight=10,
+        height=50,
+        width=100,
+    )
+    nodes, _, _, _ = layout_page(
+        boxes, [replacement], gap_ratio=0.2, row_lock_fraction=1 / 3, bottom_guard_fraction=1
+    )
+    caption = next(n for n in nodes if n["id"] == "source:1")
+    value = next(n for n in nodes if n["id"] == "source:2")
+    assert sum(caption["box"][1::2]) < sum(value["box"][1::2])
+
+
 @pytest.mark.parametrize("statistics", [True, False])
 def test_geometry_stream_selects_exact_rows_with_or_without_statistics(tmp_path, statistics):
     rows = [dict(document_id=f"pdf_{i:03}", value=i) for i in range(9)]

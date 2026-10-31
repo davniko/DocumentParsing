@@ -7,6 +7,7 @@ import json
 from datetime import date
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -185,6 +186,33 @@ def _compile_fixture(tmp_path: Path):
         report_path=report_path,
         source=_source_pin(metadata, report),
     )
+
+
+def test_verified_snapshot_reuses_compilation_but_rechecks_file_bytes(tmp_path):
+    from document_ocr.synthesis import hs_registry
+
+    hs_registry._compile_verified_snapshot.cache_clear()
+    with patch.object(hs_registry, "_parse_report", wraps=hs_registry._parse_report) as parse:
+        first = _compile_fixture(tmp_path)
+        second = _compile_fixture(tmp_path)
+        assert first is second
+        assert parse.call_count == 1
+    metadata, report = _metadata_bytes(), _csv_bytes(_fixture_rows())
+    (tmp_path / "commodities-report.csv").write_bytes(report.replace(b"horses", b"HORSES", 1))
+    with pytest.raises(HsRegistryError):
+        compile_uk_global_tariff_registry(
+            metadata_path=tmp_path / "metadata.json",
+            report_path=tmp_path / "commodities-report.csv",
+            source=_source_pin(metadata, report),
+        )
+    (tmp_path / "commodities-report.csv").write_bytes(report)
+    changed_pin = _source_pin(metadata, report).model_copy(update={"expected_source_rows": 16})
+    with pytest.raises(HsRegistryError, match="row count mismatch"):
+        compile_uk_global_tariff_registry(
+            metadata_path=tmp_path / "metadata.json",
+            report_path=tmp_path / "commodities-report.csv",
+            source=changed_pin,
+        )
 
 
 def test_ukgt_compiler_separates_global_hs6_from_gb_extensions(tmp_path: Path) -> None:

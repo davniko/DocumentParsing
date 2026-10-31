@@ -191,11 +191,16 @@ def validate_form(
 
 def physical_form(
     frozen: Mapping[str, Any], known_states: Mapping[str, str]
-) -> PhysicalForm | None:
+) -> PhysicalForm | Literal["mixed"] | None:
     if frozen.get("regime") != "dg":
         if "nativeDgPhysicalEvidence" in frozen:
             raise ValueError("non-DG request carries private DG physical evidence")
         return None
+    if "dgComponents" in frozen:
+        from document_ocr.synthesis.independent_dg_group import components
+
+        forms = {physical_form(row, known_states) for row in components(frozen)}
+        return next(iter(forms)) if len(forms) == 1 else "mixed"
     expected = known_states.get(frozen["dangerousGoods"]["recordId"])
     evidence = frozen.get("nativeDgPhysicalEvidence")
     if evidence is not None:
@@ -210,7 +215,17 @@ def packing_context(frozen: Mapping[str, Any], known_states: Mapping[str, str]) 
     if form is None:
         raise ValueError("DG packing context requires an explicit physical form")
     text = "Frozen physical form (private synthesis context, not transport approval): " + form
-    if form == "gas":
+    if "dgComponents" in frozen:
+        from document_ocr.synthesis.independent_dg_group import components
+
+        text += ". Separate products, NOT a chemical mixture: " + json.dumps(
+            [
+                {"dgIndex": i, "form": physical_form(row, known_states)}
+                for i, row in enumerate(components(frozen))
+            ]
+        )
+        text += ". Choose packaging plausible for each separately contained product."
+    if "gas" in physical_forms(frozen, known_states):
         text += (
             ". Gas cargo must remain inside suitable self-contained gas receptacles. "
             "PACKAGE_PACKAGE may count generic declared shipping packages containing those "
@@ -220,6 +235,15 @@ def packing_context(frozen: Mapping[str, Any], known_states: Mapping[str, str]) 
             "pressure, material, certification or approval. UNKNOWN remains available."
         )
     return text
+
+
+def physical_forms(
+    frozen: Mapping[str, Any], known_states: Mapping[str, str]
+) -> list[PhysicalForm]:
+    """Keep per-product physical context available when a group is mixed."""
+    from document_ocr.synthesis.independent_dg_group import components
+
+    return [physical_form(row, known_states) for row in components(frozen)]
 
 
 def verify_dg_context_evidence(
@@ -232,6 +256,19 @@ def verify_dg_context_evidence(
     hs_links: Mapping[str, Container[str]],
 ) -> None:
     """Reconstruct requests, then verify actual native receipts before use."""
+    if "dgComponents" in frozen:
+        from document_ocr.synthesis.independent_dg_group import components
+
+        for row in components(frozen):
+            verify_dg_context_evidence(
+                root,
+                row,
+                provider=provider,
+                known_states=known_states,
+                hs_codes=hs_codes,
+                hs_links=hs_links,
+            )
+        return
     if frozen.get("regime") != "dg":
         if any(key in frozen for key in ("nativeDgHsEvidence", "nativeDgPhysicalEvidence")):
             raise ValueError("non-DG request carries private DG context evidence")

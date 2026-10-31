@@ -41,7 +41,9 @@ def prepared(tmp_path, monkeypatch):
         "_load_source_context",
         lambda *args: SimpleNamespace(
             source=source,
-            certificates={"a": {"unitProfilePrecision": {"massKg": "1", "volumeM3": "0.001"}}},
+            certificates={
+                "a": {"regions": [], "unitProfilePrecision": {"massKg": "1", "volumeM3": "0.001"}}
+            },
         ),
     )
     monkeypatch.setattr(preparation, "_load_pin", lambda root, key: getattr(state, key))

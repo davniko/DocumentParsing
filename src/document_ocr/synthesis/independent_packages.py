@@ -89,7 +89,7 @@ class PackageGoodsContext(BaseModel):
     regime: Literal["ambient", "chilled", "frozen", "dg"]
     equipment: _NonEmptyText
     form: _NonEmptyText | None = None
-    dangerousGoods: dict[str, JsonValue] | None = None
+    dangerousGoods: dict[str, JsonValue] | list[dict[str, JsonValue]] | None = None
     packingContext: _NonEmptyText | None = None
 
     @model_validator(mode="after")
@@ -408,16 +408,7 @@ def package_choice_facts(answer: PackageChoice) -> dict[str, Any]:
     return answer.model_dump(mode="json", exclude={"goodsForm"})
 
 
-def verify_native_choice_evidence(
-    root: Path,
-    frozen_request: Mapping[str, Any],
-    *,
-    provider: Mapping[str, Any],
-    hs_codes: Container[str],
-) -> PackageChoice:
-    """Validate selection against received native evidence, not a forgeable stage label."""
-    from document_ocr.synthesis.independent_native_evidence import verify_native_evidence
-
+def _frozen_choice_request(frozen_request: Mapping[str, Any]) -> PackageChoiceRequest:
     evidence = frozen_request.get("nativeChoiceEvidence")
     if not isinstance(evidence, Mapping):
         raise ValueError("frozen package choice lacks native evidence")
@@ -443,6 +434,50 @@ def verify_native_choice_evidence(
             raise ValueError("native choice equipment differs from frozen carrying hardware")
         if request.installedTank != any(slot["typeCategory"] in TANK_TYPES for slot in slots):
             raise ValueError("native choice tank context differs from frozen carrying hardware")
+    return request
+
+
+def _validate_selected_choice(frozen_request: Mapping[str, Any], answer: PackageChoice) -> None:
+    selected = frozen_request.get("selectedCategory")
+    if (
+        selected not in answer.package_types
+        or "countedUnitContext" not in frozen_request
+        or frozen_request["countedUnitContext"] != answer.counting_contexts.get(selected)
+    ):
+        raise ValueError("frozen category/counting context is not an approved native alternative")
+
+
+def validate_shared_native_choice(
+    frozen: Mapping[str, Any], child: Mapping[str, Any], verified_choice: PackageChoice
+) -> None:
+    """Select another alternative from the same just-verified shipment decision.
+
+    This is not an evidence cache: the parent wire is verified on each campaign
+    load. Children must have exactly that evidence and its complete context;
+    their independent physical/relationship receipts still require verification.
+    """
+    if child.get("nativeChoiceEvidence") != frozen["nativeChoiceEvidence"]:
+        raise ValueError("declared group changed the verified native choice evidence")
+    for key in ("sourceDocumentId", "variant"):
+        if child[key] != frozen[key]:
+            raise ValueError("declared group changed the verified native choice identity")
+    _frozen_choice_request(child)
+    _validate_selected_choice(child, verified_choice)
+
+
+def verify_native_choice_evidence(
+    root: Path,
+    frozen_request: Mapping[str, Any],
+    *,
+    provider: Mapping[str, Any],
+    hs_codes: Container[str],
+) -> PackageChoice:
+    """Validate selection against received native evidence, not a forgeable stage label."""
+    from document_ocr.synthesis.independent_native_evidence import verify_native_evidence
+
+    request = _frozen_choice_request(frozen_request)
+    evidence = frozen_request["nativeChoiceEvidence"]
+    data = request.model_dump(mode="json")
     output = verify_native_evidence(
         root,
         evidence,
@@ -455,13 +490,7 @@ def verify_native_choice_evidence(
         provider=provider,
     )
     answer = validate_package_choice(request, output)
-    selected = frozen_request.get("selectedCategory")
-    if (
-        selected not in answer.package_types
-        or "countedUnitContext" not in frozen_request
-        or frozen_request["countedUnitContext"] != answer.counting_contexts.get(selected)
-    ):
-        raise ValueError("frozen category/counting context is not an approved native alternative")
+    _validate_selected_choice(frozen_request, answer)
     return answer
 
 

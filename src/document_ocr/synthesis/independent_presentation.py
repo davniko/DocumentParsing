@@ -632,6 +632,15 @@ def semantic_private_packing(ledger: dict[str, Any]) -> dict[str, Any]:
     if unknown := ledger.keys() - required - PRIVATE_PACKING_AUDIT_FIELDS - {"scopeLedgers"}:
         raise ValueError(f"unclassified private packing fields: {sorted(unknown)}")
     projected = {key: copy.deepcopy(ledger[key]) for key in SEMANTIC_PRIVATE_PACKING_FIELDS}
+    if "declaredGroupLedgers" in ledger["facts"]:
+        groups = ledger["facts"]["declaredGroupLedgers"]
+        if not isinstance(groups, list) or not groups:
+            raise ValueError("declared group private ledgers must be a nonempty list")
+        # Group ledgers have the same semantic/audit boundary as the parent.
+        # Catalogue bookkeeping must not become cargo context for wording.
+        projected["facts"]["declaredGroupLedgers"] = [
+            semantic_private_packing(group) for group in groups
+        ]
     if "scopeLedgers" in ledger:
         scoped = ledger["scopeLedgers"]
         if not isinstance(scoped, dict):

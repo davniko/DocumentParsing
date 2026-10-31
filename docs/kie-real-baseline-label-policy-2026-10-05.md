@@ -382,6 +382,38 @@ current targets. Do not reintroduce them to shorten long product descriptions.
 Goods-specific handling instructions have a separate, defined purpose; they are
 not a renamed overflow field for product wording.
 
+### Handling boundary — R28 clarification, 2026-10-30
+
+Extract applied shipment-specific carriage, storage, stowage, segregation,
+handling, delivery and release instructions. Preserve the literal printed
+punctuation and numbers; uppercase and join genuine continuations with spaces.
+Do not summarize, manufacture punctuation, or repair OCR from the PDF in the
+target. Deduplicate complete repetitions and keep source order. A separated
+caption/value may be joined only with reviewed ownership evidence.
+
+Detention/demurrage free periods, generic tariff menus, bare CFS/CFS or LINER
+IN/FREE OUT terms, responsibility for costs alone and completed certification
+status do not belong in handling. Preserve their OCR; do not invent another
+target. A specific payment-before-release condition is different and remains
+eligible. Generic carrier rights to stow on deck are not an applied stowage
+statement; explicit shipment on-deck/hold instructions are eligible.
+Check the complete declaration: a `Whereof Nil ... shipped on deck` frame
+declares zero deck-carried cargo, not an applied on-deck instruction. Do not
+extract its preprinted risk clause independently of that negating count.
+
+Pure carrying-temperature restatements, including “as per above”, are omitted
+when the applicable container `temperatureSetpoint` already represents them.
+This does not remove the printed repetition or its synthesis binding. Retain
+ventilation, humidity, storage constraints and genuine ranges. Keep a complete
+mixed clause when splitting it loses meaning. Never infer a setpoint from a
+reefer, product identity or observed gate-in temperature.
+
+The NAIC MIG separately defines container TMP (page 60) and goods HAN (page 81).
+The free-period exclusion is our semantic extraction boundary, not a claimed
+live-portal validation prohibition. Evidence and the coupled data/template
+migration are recorded in
+[the R28 handling cleanup](analysis/r28-handling-cleanup-20261030/REPORT.md).
+
 ## Approved reduced field scope
 
 The user approved removing `transport.vesselFlagCountry`,
@@ -910,3 +942,18 @@ The 2026-10-20 source review confirms the same rule for attached hyphen tails:
 This does not classify every hyphen as a range or expand abbreviated numbers.
 A hyphen separating two separately printed complete numbers remains a
 separator; their existing independent target ownership is retained.
+
+## Source-specific multi-row synthesis decisions — 2026-10-31
+
+- `e18486c6`: the PDF itself prints `2030 KOS` for carrying-container tare and
+  `GW 7,737.00 KOS` for shipment gross. The user explicitly permits interpreting
+  these two source-only numeric owners as kilograms **privately for synthesis**.
+  Render the sampled tare/gross through those owners, retain the literal `KOS`,
+  and preserve the absent public weight targets. This is not a global unit alias,
+  an OCR correction, or permission to infer kilograms in other documents.
+- `2763b891`: retain a **single public package row**. Its right-aligned quantity
+  cell does not fit a disjoint count/type list at the measured source font. The
+  user chose single-row synthesis rather than moving that list into the goods
+  column. Do not shrink text, invent coordinates, or introduce a multi-row
+  presentation into this template. Three fresh single-row descendants validate
+  continued source support; the restriction does not remove it from the registry.

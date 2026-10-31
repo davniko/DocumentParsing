@@ -19,13 +19,14 @@ from dataclasses import dataclass
 from decimal import Decimal
 from math import gcd
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_ai import Agent, NativeOutput, capture_run_messages
 from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.messages import ModelResponse
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelResponse
+from pydantic_ai.models.wrapper import WrapperModel
 
 from document_ocr.labeling_agents.target_normalization import normalize_target_casing
 from document_ocr.synthesis.curated_descriptions import (
@@ -105,6 +106,12 @@ class Variable(StrictModel):
         pattern=r"^[a-z][a-z0-9_]*$",
         description="Unique meaningful key, shared by repeated occurrences of the same fact.",
     )
+    dg_indices: list[Annotated[int, Field(strict=True, ge=0)]] | None = Field(
+        default=None,
+        min_length=1,
+        exclude_if=lambda value: value is None,
+        description="Explicit DG declaration indices owned by this product wording region.",
+    )
     kind: Literal[
         "postal", "name", "product", "identifier", "container", "count", "mass", "volume"
     ] = Field(
@@ -155,6 +162,14 @@ class Variable(StrictModel):
             "repetitions."
         ),
     )
+
+    @model_validator(mode="after")
+    def dg_ownership(self):
+        if self.dg_indices is not None and (
+            self.kind != "product" or len(set(self.dg_indices)) != len(self.dg_indices)
+        ):
+            raise ValueError("DG ownership requires distinct indices on a product region")
+        return self
 
 
 class TargetBinding(StrictModel):
@@ -296,9 +311,7 @@ def runner_call_key(
     provider: dict[str, Any],
 ) -> str:
     """Name a native call by the exact structured request and provider wire config."""
-    return digest(
-        [stage, identity, output_type.model_json_schema(), system, prompt, provider]
-    )
+    return digest([stage, identity, output_type.model_json_schema(), system, prompt, provider])
 
 
 def save(path: Path, value: Any) -> None:
@@ -350,6 +363,8 @@ def locate(text: str, occurrence: Occurrence) -> tuple[int, int]:
 def _number_style(text: str, baseline: str, value: str) -> str:
     """Choose a numeric presentation only when it round-trips the observed value."""
     original, generated = Decimal(baseline), Decimal(value)
+    omit_zero = text.startswith((".", ",", "-.", "-,", "+.", "+,"))
+    explicit_plus = text.startswith("+")
     candidates = []
     for decimal, thousands in ((".", ","), (",", "."), (".", " "), (",", " "), (".", "")):
         try:
@@ -371,6 +386,10 @@ def _number_style(text: str, baseline: str, value: str) -> str:
             result = result.replace(",", "~").replace(".", decimal).replace("~", thousands)
             if text.startswith("0") and len(text) > 1 and not grouped and decimal not in text:
                 result = result.zfill(len(text))
+            if omit_zero and abs(number) < 1:
+                result = re.sub(r"^(-?)0(?=[.,])", r"\1", result)
+            if explicit_plus and number >= 0:
+                result = "+" + result
             return result
 
         if formatted(original) != text:
@@ -936,11 +955,18 @@ class Runner:
         )
 
     async def call(
-        self, stage: str, identity: str, output_type: type[BaseModel], system: str, prompt: str
+        self,
+        stage: str,
+        identity: str,
+        output_type: type[BaseModel],
+        system: str,
+        prompt: str,
+        *,
+        output_retries: int = 0,
     ):
-        key = runner_call_key(
-            stage, identity, output_type, system, prompt, self.config["provider"]
-        )
+        if type(output_retries) is not int or output_retries not in (0, 1):
+            raise ValueError("native output correction permits at most one explicit retry")
+        key = runner_call_key(stage, identity, output_type, system, prompt, self.config["provider"])
         path = self.output / "calls" / f"{stage}-{key}.json"
         attempt = 1
         while path.exists():
@@ -993,12 +1019,51 @@ class Runner:
             if self.spent + self.reserved + maximum > Decimal(str(self.config["budget_usd"])):
                 raise RuntimeError("paid-request budget reservation exceeds configured cap")
             self.reserved += maximum
+            model = self.model
+            if output_retries:
+                runner = self
+
+                class CorrectionBudgetModel(WrapperModel):
+                    """Reserve actual correction context before its additional request."""
+
+                    requests = 0
+
+                    async def request(self, messages, model_settings, model_request_parameters):
+                        nonlocal maximum
+                        if self.requests:
+                            # Match the existing UTF-8-byte upper-bound accounting,
+                            # using the actual rejected response and validator feedback.
+                            # No guessed tokens-per-response expansion is needed.
+                            context_bytes = len(ModelMessagesTypeAdapter.dump_json(messages))
+                            context_bytes += len(
+                                json.dumps(output_type.model_json_schema()).encode()
+                            )
+                            extra = (
+                                Decimal(context_bytes)
+                                * runner.provider.max_prompt_price_usd_per_million
+                                + Decimal(runner.provider.max_output_tokens)
+                                * runner.provider.max_completion_price_usd_per_million
+                            ) / 1_000_000
+                            if runner.spent + runner.reserved + extra > Decimal(
+                                str(runner.config["budget_usd"])
+                            ):
+                                raise RuntimeError(
+                                    "native correction budget reservation exceeds configured cap"
+                                )
+                            runner.reserved += extra
+                            maximum += extra
+                        self.requests += 1
+                        return await self.wrapped.request(
+                            messages, model_settings, model_request_parameters
+                        )
+
+                model = CorrectionBudgetModel(model)
             agent = Agent(
-                self.model,
+                model,
                 output_type=NativeOutput(output_type, strict=True),
                 system_prompt=system,
                 model_settings=_provider_settings(self.provider),
-                retries=0,
+                retries=output_retries,
             )
             started, output, error = time.perf_counter(), None, None
             rejected = False
@@ -1054,6 +1119,7 @@ class Runner:
                     "seconds": time.perf_counter() - started,
                     "promptSha256": digest(prompt),
                     "schemaSha256": digest(output_type.model_json_schema()),
+                    "outputRetries": output_retries,
                     "messages": model_messages(messages),
                 },
             )

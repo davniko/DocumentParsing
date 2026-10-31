@@ -46,6 +46,10 @@ def package_category_surface_present(value: str, category: str) -> bool:
         raise ValueError(f"unsupported package category token: {category!r}")
     if category == "PACKAGE_INTERMEDIATE_BULK_CONTAINER" and re.search(r"\bIBCS?\b", value, re.I):
         return True
+    if category == "PACKAGE_BOX_WOODEN_NATURAL_WOOD_ORDINARY":
+        # The reviewed natural surface is WOODEN BOX, not the filing label's
+        # explanatory ORDINARY/NATURAL WOOD qualifiers.
+        return bool(re.search(r"\bWOODEN\s+BOX(?:ES|\(ES\))?\b", value, re.I))
     for word in category.removeprefix("PACKAGE_").split("_"):
         variants = {word, word + "S"}
         if word.endswith("Y") and len(word) > 1:

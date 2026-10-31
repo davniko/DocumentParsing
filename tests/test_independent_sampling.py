@@ -83,10 +83,32 @@ def test_requires_explicit_exact_registry_file_pins():
         IndependentSampler.from_config(ROOT, config)
 
 
+def test_ambiguous_cold_chain_identity_is_not_an_ambient_goods_authority(sampler):
+    assert "020450" not in sampler.pools["ambient"]
+    assert "020450" in sampler.pools["chilled"]
+    assert "020450" in sampler.pools["frozen"]
+
+
+@pytest.mark.parametrize("description,profiles", [
+    ("Fresh, chilled or frozen goat meat", ("CHILLED", "FROZEN")),
+    ("Fresh or chilled meat", ("CHILLED",)),
+    ("Frozen meat", ("FROZEN",)),
+    ("Fruit, fresh or frozen", ()),
+    ("Meat, excluding chilled", ()),
+    ("Other than fresh or chilled", ()),
+])
+def test_thermal_eligibility_does_not_invent_a_unique_state(description, profiles):
+    from document_ocr.synthesis.thermal_goods import (
+        classify_thermal_descriptions, eligible_thermal_profiles)
+    assert eligible_thermal_profiles([description]) == profiles
+    assert classify_thermal_descriptions([description]) == (
+        profiles[0] if len(profiles) == 1 else None)
+
+
 def test_entire_hs_registry_and_exact_joined_dg_are_eligible(sampler):
     support = sampler.support()
     assert support["registryHs6"] == 5612
-    assert sum(support["hs6ByRegime"].values()) == 5612
+    assert sum(support["hs6ByRegime"].values()) >= 5612
     assert set().union(*(set(codes) for codes in sampler.pools.values())) == set(sampler.phrases)
     assert support["joinedDgRecords"] == 468
     assert support["joinedDgLinkRows"] == 470

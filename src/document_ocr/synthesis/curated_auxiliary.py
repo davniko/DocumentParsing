@@ -67,7 +67,7 @@ _CAPTIONS = (
 
 
 def load_auxiliary_contract(path: Path) -> dict[str, Any]:
-    value = yaml.safe_load(path.read_text())
+    value = yaml.load(path.read_text(), Loader=yaml.CSafeLoader)
     if value.get("version") != 1 or not isinstance(value.get("sources"), dict):
         raise ValueError("unsupported auxiliary dependency contract")
     for source in value["sources"].values():
@@ -119,13 +119,15 @@ def _validate_recipe(recipe: dict) -> None:
         "phone": {"channel", "canonical_identity", "prefix", "suffix", "country_code"},
         "transport_leg": {"source_voyage"},
         "party_location": {"field"},
-        "dg_fact": {"prefix", "suffix"},
+        "dg_fact": {"prefix", "suffix", "dg_index"},
         "package_range": set(),
     }[action]
     if set(recipe) - {action} - options:
         raise ValueError("unsupported auxiliary recipe options")
     if action == "dg_fact" and recipe[action] != "properShippingName":
         raise ValueError("unsupported DG identity fact")
+    if "dg_index" in recipe and (type(recipe["dg_index"]) is not int or recipe["dg_index"] < 0):
+        raise ValueError("DG fact index must be a nonnegative integer")
     if action == "package_range":
         declaration = recipe[action]
         if (
@@ -481,7 +483,11 @@ def _render_recipe(
             raise ValueError("unknown auxiliary interpolation key")
         return recipe.get("prefix", "") + value + recipe.get("suffix", "")
     if "dg_fact" in recipe:
-        return recipe.get("prefix", "") + proper_shipping_name(scenario) + recipe.get("suffix", "")
+        return (
+            recipe.get("prefix", "")
+            + proper_shipping_name(scenario, recipe.get("dg_index"))
+            + recipe.get("suffix", "")
+        )
     if "target" in recipe:
         value = flat(target).get(recipe["target"])
         if not isinstance(value, str) or not value:

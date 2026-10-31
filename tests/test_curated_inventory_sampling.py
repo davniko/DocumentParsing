@@ -12,6 +12,7 @@ import yaml
 from test_curated_registry_sampling import profile_data, registry_catalog
 from test_curated_scenarios import config, source_row
 
+from document_ocr.hashing import sha256_file
 from document_ocr.synthesis.curated import assign
 from document_ocr.synthesis.curated_equipment_inventory import compile_equipment_inventory
 from document_ocr.synthesis.curated_scenarios import (
@@ -508,6 +509,29 @@ def actual_inventory_campaign():
         source_ids=ids, mixed_probability="0.5", modes=("uniform", "mixed")
     ).model_dump(mode="json")
     base.pop("template_sampling", None)
+    # Current contracts include the reviewed handling-target cleanup; use the
+    # matching authority rather than an October 12 target snapshot.
+    base["dataset"] = (
+        "artifacts/synthesis-templates/mpci-bl-v7-reviewed/"
+        "source-authorities/handling-20261030/source-dataset"
+    )
+    base["task_constraints_sha256"] = sha256_file(root / base["task_constraints"])
+    from document_ocr.hashing import canonical_json_sha256
+    from document_ocr.synthesis.curated_scenarios import _hs6
+
+    authority = {
+        row["documentId"]: row
+        for row in map(
+            json.loads, (root / base["dataset"] / "train.jsonl").read_text().splitlines()
+        )
+    }
+    for sid, override in base["sampling"]["observed_hs_overrides"].items():
+        row = authority[sid]
+        assert _hs6(row["target"]["documentPatch"]["goodsItemDetails"][0]) == tuple(
+            override["from_hs6"]
+        )
+        assert all(value in row["joinedRawText"] for value in override["source_text_literals"])
+        override["source_target_sha256"] = canonical_json_sha256(row["target"])
     campaign = Campaign(root, base)
 
     async def no_paid_calls(*args, **kwargs):

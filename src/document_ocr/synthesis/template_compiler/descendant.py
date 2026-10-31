@@ -2010,8 +2010,8 @@ def _package_candidate(source: str, value: str, *, quantity: int | None = None) 
     # Abbreviations are optional presentation choices, not the package vocabulary.
     # Every validated category has a complete readable surface, including material
     # qualifiers (e.g. FIBRE DRUM), which must never be dropped to fit an old alias.
-    words = _package_surface(value).split()
-    if len(words) > 1 and words[0] in {
+    words = (alias.singular if alias is not None else _package_surface(value)).split()
+    if alias is None and len(words) > 1 and words[0] in {
         "BAG",
         "BARREL",
         "BOX",
@@ -2050,6 +2050,8 @@ def _package_candidate(source: str, value: str, *, quantity: int | None = None) 
     source_noun = source.strip().upper()
     if source_noun in _FULL_PACKAGE_SURFACES and " OR " not in readable:
         plural = quantity != 1 if quantity is not None else source_noun.endswith("S")
+        if alias is not None:
+            return _layout_like_source(source, alias.plural if plural else alias.singular)
         if plural:
             head, separator, tail = readable.rpartition(" ")
             ending = (

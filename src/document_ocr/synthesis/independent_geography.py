@@ -717,6 +717,21 @@ def _remove_scalar_path(target: dict[str, Any], path: str) -> None:
     del node[parts[-1]]
 
 
+def validate_locality_target_projection(original, projected) -> list[str]:
+    """Validate the narrow target omission shared by cargo certificate views."""
+    if original.source != projected.source:
+        raise ValueError("locality target projection changed source bytes")
+    before, after = flat(original.target), flat(projected.target)
+    changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+    if not changed or any(
+        key in after or re.fullmatch(
+            r"documentPatch\.(?:route\.\w+|placeOfIssue|freight\.paymentPlace)\.country", key
+        ) is None for key in changed
+    ):
+        raise ValueError("projection may only omit authorized locality countries")
+    return sorted(changed)
+
+
 def project_composite_locality_homonyms(
     plan: tuple[Any, Any, Any, dict[str, Any]], candidate: Mapping[str, Any]
 ) -> tuple[tuple[Any, Any, Any, dict[str, Any]], dict[str, Any] | None]:

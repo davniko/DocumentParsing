@@ -508,7 +508,26 @@ def _measure_totals(blueprint, scenario, target, owners, support):
     profile_data = scenario.provenance.get("registryLoadProfile")
     donor = None
     explicit = {}
-    if profile_data is not None:
+    group_data = scenario.provenance.get("declaredPackages")
+    if group_data is not None:
+        from document_ocr.synthesis.declared_packages import DeclaredPackages
+
+        ledger = DeclaredPackages.from_receipt(group_data)
+        if profile_data is not None or "donorDocumentId" in scenario.provenance:
+            raise ValueError("declared groups require one independent physical authority")
+        if sum(p["packageQuantity"] for p in goods["numberAndTypeOfPackages"]) != ledger.total:
+            raise ValueError("public declared counts differ from their physical ledger")
+        explicit = {
+            field: {"value": ledger.totals()[fact], "unit": unit}
+            for field, fact, unit in (
+                ("grossWeight", "grossKg", "kilogram"),
+                ("netWeight", "netKg", "kilogram"),
+                ("volume", "volumeM3", "cubic_metre"),
+            )
+        }
+        if scenario.provenance.get("explicitPhysicalFacts") != explicit:
+            raise ValueError("declared-group totals differ from their physical receipt")
+    elif profile_data is not None:
         profile = RegistryLoadProfile.model_validate(profile_data)
         quantity = goods["numberAndTypeOfPackages"][0]["packageQuantity"]
         expected = {
@@ -788,6 +807,15 @@ def _operational(blueprint, scenario, target, surfaces, receipt):
             output = [_temperature_text(text, *thermal, unit=thermal_unit) for text in texts]
         dg = scenario.provenance.get("dgPrintedFacts")
         if dg and any(".dangerousGoods[" in path for path in paths):
+            if isinstance(dg, list):
+                indices = {
+                    int(re.search(r"\.dangerousGoods\[(\d+)\]", path)[1])
+                    for path in paths
+                    if ".dangerousGoods[" in path
+                }
+                if len(indices) != 1 or next(iter(indices)) >= len(dg):
+                    raise ValueError("one DG owner must identify exactly one sampled declaration")
+                dg = dg[next(iter(indices))]
             if not all(".dangerousGoods[" in path for path in paths):
                 raise ValueError("DG numeric regions cannot own unrelated fields")
             fields = {path.split(".dangerousGoods[", 1)[1].split("].", 1)[1] for path in paths}
@@ -1477,15 +1505,40 @@ def prepare_physical_render(
     weights = [
         Decimal(row["shareNumerator"]) / Decimal(row["shareDenominator"]) for row in physical_rows
     ]
+    group_loads = None
+    if "declaredPackages" in scenario.provenance:
+        from document_ocr.synthesis.declared_packages import DeclaredPackages
+
+        group_loads = DeclaredPackages.from_receipt(
+            scenario.provenance["declaredPackages"]
+        ).row_facts()
+        if physical_rows and len(group_loads) != len(physical_rows):
+            raise ValueError("declared-group load count differs from carrying equipment")
+    fact_names = {"netWeight": "netKg", "grossWeight": "grossKg", "volume": "volumeM3"}
+    measure_weights = {
+        measure: [Decimal(row[fact_names[measure]]) for row in group_loads]
+        if group_loads is not None
+        else weights
+        for measure in totals
+    }
     rows = {}
     for measure, total in totals.items():
         if any(o.row is not None for o in owners if o.measure == measure):
             rows[measure] = (
                 [Decimal(0)] * len(weights)
                 if total == 0
-                else _distribute(total, weights, lattices[measure])
+                else _distribute(total, measure_weights[measure], lattices[measure])
             )
-    _couple_mass_rows(rows, totals, lattices, measures_receipt, weights)
+    if group_loads is None:
+        _couple_mass_rows(rows, totals, lattices, measures_receipt, weights)
+    elif {"grossWeight", "netWeight"} <= rows.keys() and any(
+        n * _FACTORS[measures_receipt["netWeight"]["unit"]]
+        > g * _FACTORS[measures_receipt["grossWeight"]["unit"]]
+        for n, g in zip(rows["netWeight"], rows["grossWeight"], strict=True)
+    ):
+        # A numerical-fit retry must sample new representable group facts. Do
+        # not move mass between heterogeneous groups to conceal rounding loss.
+        raise CandidateIncompatibility("declared-group printed net exceeds gross after rounding")
     values, surfaces = {}, {}
     components = {}
     for measure, total in totals.items():
@@ -1577,7 +1630,12 @@ def prepare_physical_render(
         for field in _MEASURES:
             if field not in totals or totals[field] == 0:
                 continue
-            amount = rows[field][index] if field in rows else totals[field] * weights[index]
+            sharing = measure_weights[field]
+            amount = (
+                rows[field][index]
+                if field in rows
+                else totals[field] * sharing[index] / sum(sharing)
+            )
             actual[field] = amount * _FACTORS[measures_receipt[field]["unit"]]
         # A total-only mass has no printed per-container allocation. Couple its
         # feasibility estimate to the rounded rows of the other mass, rather
@@ -1585,7 +1643,8 @@ def prepare_physical_render(
         # vice versa). This changes neither printed values nor target labels.
         for field, counterpart in (("netWeight", "grossWeight"), ("grossWeight", "netWeight")):
             if (
-                field in actual
+                group_loads is None
+                and field in actual
                 and field not in rows
                 and counterpart in rows
                 and counterpart in actual

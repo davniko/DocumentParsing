@@ -440,6 +440,12 @@ def build_owned_blueprint(
     validate_party_field_separators(blueprint)
     _contact_name_surfaces(blueprint, row["target"])
     for key, recipe in declarations.get("surfaces", {}).items():
+        if "expression" in recipe:
+            missing = set(re.findall(r"\{([^{}]+)\}", recipe["expression"])) - leaves.keys()
+            if missing:
+                raise ValueError(
+                    f"surface recipe {key} has unresolved target owners: {sorted(missing)}"
+                )
         if "contained_quantity" in recipe:
             contained_quantity_surfaces(blueprint, row["target"], key, recipe["contained_quantity"])
     if blueprint.blocked_bindings:
@@ -454,7 +460,7 @@ def _ownership_sources(payload: bytes) -> dict:
     Readers still load current bytes, so edits invalidate the cache immediately.
     Selected declarations are copied before use to keep this shared cache private.
     """
-    value = yaml.safe_load(payload)
+    value = yaml.load(payload, Loader=yaml.CSafeLoader)
     if (
         not isinstance(value, dict)
         or value.get("version") != 1
@@ -655,9 +661,12 @@ def ownership_surfaces(
     )
     for key, recipe in blueprint.ownership_data.get("surfaces", {}).items():
         if "dg_fact" in recipe:
-            if recipe != {"dg_fact": "properShippingName"}:
+            if recipe.get("dg_fact") != "properShippingName" or set(recipe) - {
+                "dg_fact",
+                "dg_index",
+            }:
                 raise ValueError("unsupported DG identity surface recipe")
-            result[key] = proper_shipping_name(scenario)
+            result[key] = proper_shipping_name(scenario, recipe.get("dg_index"))
         elif "product_reference" in recipe:
             result[key] = product_reference_surface(blueprint, key, lexical_values)
         elif "lexical_key" in recipe:

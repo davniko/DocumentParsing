@@ -79,6 +79,15 @@ def layout_page(
                 edges[b["band"]].append(
                     (a["band"], bands[b["band"]]["anchor"] - bands[a["band"]]["anchor"] + extra)
                 )
+            elif x_overlap(xa, xb) and ab[1] <= bb[1]:
+                # OCR rectangles can overlap slightly while their row centres
+                # are ordered. Preserve that source ordering when a different
+                # column pushes the upper row down; absence of clearance is not
+                # permission for a caption to overtake its value.
+                growth = max(0.0, a["height"] - (ab[3] - ab[1]))
+                edges[b["band"]].append(
+                    (a["band"], bands[b["band"]]["anchor"] - bands[a["band"]]["anchor"] + growth)
+                )
     shifted = []
     for g, band in enumerate(bands):
         y = band["anchor"]

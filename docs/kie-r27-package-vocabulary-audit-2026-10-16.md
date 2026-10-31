@@ -1,5 +1,185 @@
 # R27 package vocabulary and free-text fallback audit
 
+2026-10-29 [new 20-template alias batch](analysis/r28-package-alias-scale-20261029/REPORT.md):
+60 semantic/preservation controls pass (40 changed, 20 unchanged/protected), plus
+33 exact prior replays; 462 tests pass. Width checks cover 77 measured regions
+and reject every oversized stress case; 13 edited fragments retain unknown
+source anchors. Larger aliases still need owner-level cell/line budgets before
+unrestricted production rollout. Stale ORDINARY wooden-box staging wording was
+corrected, protected 5H3/removable-head detail retained, and merged duplicate
+geometry joins tested without guessed identity. Production and R28 are unchanged.
+
+2026-10-29 follow-up: [handling boundary resolution and exact cleanup dry run](analysis/r28-handling-boundary-followup-20261029/REPORT.md).
+User approved structured temperature only for pure restatements. Official NAIC
+TMP/HAN review supports excluding commercial free periods from handling. Earlier
+thermal/free-period omission counts are withdrawn. The removal-only dry run
+affects 106 real, 1,242 synthetic, 13 validation and 475 overlapping retained-UAE
+documents; 77 admitted source families require coupled contract/index rebasing.
+Stowage additions and literal-text corrections are listed separately. **This is
+not an applied R28 cleanup**; data, production and template authorities remain
+unchanged while the complete migration is specified.
+
+2026-10-29 completed sequence:
+
+- [Multi-DG integration and admission](analysis/r28-multidg-integration-20261029/REPORT.md):
+  three templates admitted, registry 453→456; nine audited descendants, 36 DG
+  tuples, all three packing levels preserved. 3,008 tests and 1,359 prior-source
+  plan controls passed. R27/R28 training files are unchanged.
+- [Handling semantic/completeness audit](analysis/r28-handling-semantics-20261029/REPORT.md):
+  expanded reviewed omissions in 58 real, 755 synthetic and three validation
+  documents under the proposed broad operational scope, mostly applied free
+  periods. Three real/21 synthetic summary-style values and separate semantic
+  boundary cases are inventoried. No handling relabeling or policy promotion yet.
+  This supersedes the narrower omission counts in the historical entry below.
+- [Package-alias probe and scale-up plan](analysis/r28-package-alias-probe-20261029/REPORT.md):
+  11 templates/33 presentation controls, 181 tests; mixed specificity, optional
+  plurals, compound equations, literal description projection and material-witness
+  guards tested. Same-line horizontal fit remains a scale-up check. Alias sampling
+  is not enabled in production; no corpus re-render or factorization is implied.
+
+2026-10-29 source follow-up: [unused multi-DG candidates, handling OCR provenance and R28 implementation choices](analysis/r28-multidg-handling-source-audit-20261029/REPORT.md).
+Keep the single-goods baseline. Five unused/unadmitted multi-DG candidates were
+found in the wider pool: three initial compilation candidates, one extra-UN
+attribution hold, and one independently accounted multi-product/formulation case
+to defer. Two additional archive-only leads remain outside that PDF-reviewed
+candidate group. Multi-DG preparation remains a separate required extension, not
+merely template admission. The deeper handling input-to-target audit identifies 23
+real and 199 current synthetic applied-free-time omissions plus 8 synthetic
+reefer-clause omissions; 14 stored template targets share the relevant gaps. These targets were
+already the same in R27. Tariff blocks, including the validation screen hit, are
+separated from confirmed omissions. Source fidelity and operational-scope policy
+need clarification before the bounded repair. The detailed plan separates alias
+rendering, public multi-package-row synthesis, multi-DG and handling follow-ups,
+and compares new 2,500 generation with selective existing-row re-rendering. No
+production, template, policy or dataset values were changed by this audit.
+
+2026-10-29: [multiple DG declarations, handling supervision and the next R28 sequence](analysis/r28-dg-handling-followup-20261029/REPORT.md).
+One goods item can hold two separately paired UN/class/PG entries in V7 and the
+saved MPCI form; fresh representation controls passed. Current training has
+17 real plus432 synthetic DG documents, all single-declaration, and independent
+preparation/sampling still explicitly enforces that limit. This is a separate
+coverage extension from multiple package rows. Source3973440c also prints an
+additional IMO3/1266 shorthand on page3, so its complete DG gold remains a review
+item, not a silently certified two-entry label. Handling is supervised in151/600
+real and1553/6900 synthetic documents; all408 distinct current instruction strings
+were read without finding product-catalogue overflow. A bounded text-fidelity
+inventory distinguishes paraphrase/normalization from valid continuation joins.
+The report specifies occurrence-aware aliases, multi-package-row synthesis and
+separate multi-DG/handling follow-ups. No data, template, policy or runtime changes.
+
+2026-10-28 follow-up: [multiple package rows and seven easier/DG diagnostics](analysis/r27-easier-package-dg-probe-20261028/REPORT.md).
+The saved form supports two package rows within one goods item; all eight current
+real examples pass a fresh saved-form-shape projection check. `442f613b` has no
+package-count imbalance: shipment and six allocations both total1880. `8add9a5c`
+conflicts in type wording (457 boxes versus410 boxes+47 drums), not total count.
+Five easier cargo cases and two additional DG cases all recover package category,
+total, allocation and gross weight correctly. Both DG declarations are recovered,
+including plastic material/PGIII/102C in the richer case. Seven outputs parse;
+six pass V7. Date syntax, wrong party ownership, locality-country hallucinations
+and one description typo remain visible; OCR omissions/decimal corruption are
+documented separately. No dataset, template, model or runtime changes were made.
+
+2026-10-28: [target semantics and five unseen-source R27 terminal probes](analysis/r28-package-target-review-20261028/REPORT.md).
+The present form stores types on goods package rows and scalar counts on container
+placements; it does not require a typed container matrix. Real source `442f613b`
+demonstrates an unknowable type split, but its scalar targets remain meaningful.
+All eight existing multi-row targets pass fresh direct/form-aligned cargo checks.
+`8add9a5c` retains its previously documented precise-composition interpretation;
+no new repair is silently applied. Independent flat synthesis still explicitly
+requires one public package row, so multi-row coverage is a bounded extension,
+not a public-schema prerequisite for alias improvements. Five local model probes
+separate correct declared-level selection from OCR loss, source conflicts,
+description/DG omissions, wrong weights and malformed generation. Dataset,
+production and template authorities remain unchanged.
+
+2026-10-26: [aggregate-allocation follow-up](analysis/r28-aggregate-package-audit-20261026/REPORT.md)
+separates homogeneous shortened repetitions from real heterogeneous totals and
+nested contents. The paper/plastic-bag example was hypothetical. Current placement
+fields do not identify package rows, so aggregate counts must not become invented
+per-type splits. No corpus/schema/runtime changes were made by that audit.
+
+2026-10-25: the [complete maintained internal crosswalk and general-mechanism
+specification](analysis/r28-package-crosswalk-20261025/REPORT.md) are now delivered.
+All 405 accepted codes plus two semantic extensions are mapped, with explicit
+component roles, source-version exceptions and valid broader/unasserted properties.
+The earlier 405-crosswalk-outstanding statements below are historical. A STEEL
+DRUM does not need a head classification, nor PAPER BAG a water-resistant/multi-wall
+classification. This does not enable aliases, change targets or repair presentation
+distribution yet; automatic occurrence-aware rendering remains the separate next task.
+
+## Required factorization coverage — clarified 2026-10-24
+
+The earlier 23-family pilot is a test vocabulary, **not a coverage limit**.
+Factorization must preserve all 48 currently supported package meanings and retain
+the pilot's additional BARREL, JERRICAN, BUCKET, TUB and KIT meanings. Missing
+families are required work, not optional exclusions:
+
+```text
+BIN, BLOCK, BULK_LIQUID, BULK_SOLID_FINE_PARTICLES_POWDERS,
+BULK_SOLID_GRANULAR_PARTICLES_GRAINS, COIL, FLEXIBAG, FLEXITANK,
+LOT, OCTABIN, PARCEL, RACK, SKID, SLAB, VEHICLE
+```
+
+The final schema may represent a named distinction as a family or an explicit
+reviewed property, but must not silently drop/coarsen it. The six current subtype
+distinctions identified in the scope report must also remain representable.
+CYLINDER and GAS BOTTLE are separately staged authoritative additions and must be
+accounted for when their active-task extension is enabled. No blanket 23-family
+restriction, default-null migration or commodity-donor restriction is authorized.
+
+Official taxonomy/composition and real-versus-synthetic presentation research is
+the next design gate; alias rendering remains a separate integration task.
+
+Research completed for that gate: [ontology, current-corpus specificity census and
+actual-render controls](analysis/r28-package-ontology-specificity-20261024/REPORT.md).
+The 405 list contains several independent axes and relational/administrative
+exceptions, not a ready-made 405-to-two-fields ontology. Real sources can establish
+material in one declaration and omit it in allocations. The final conservative
+current-synthetic screen finds 339 matched documents: 333 repeat material, six
+retain family-only allocations (all from one HDPE-bag source). The actual renderer
+already supports full STEEL DRUM declarations with generic DRUM allocations;
+automatic selection over-expands the repetitions. No runtime or dataset changes
+were made by this research. A complete reviewed internal crosswalk and the public
+schema choice remain subsequent design work, not silently claimed finished.
+
+Carry-forward validation requirements from that research:
+
+- [x] Complete the authoritative-code/semantic-extension crosswalk before claiming
+  full-domain factorization coverage; preserve component roles and explicit values.
+  Delivered 2026-10-25: maintained 405+2 reference, strict loader, immutable lookup,
+  broad/child and component tests; public factorized schema/projection still separate.
+- [ ] Test shared declared-package identity with full/full, full/family-only and
+  generic-total/material-bearing-packing presentations across different layouts.
+- [ ] Distinguish lexical aliases, contextually shortened repetitions and genuinely
+  different inner/support packaging; do not add bare DRUM as unconditional STEEL
+  DRUM proof or require every allocation to repeat material.
+- [ ] Cover all active meanings in the next synthesis coverage ledger. Current
+  R28 has 47 of 48 active categories: BULK_LIQUID has one real row but no synthetic
+  row. Its required family support must not be confused with existing sample coverage.
+
+2026-10-24 scope clarification: [actual plurality behavior, alias implementation
+layers and complete current-category factorization options](analysis/r28-package-rendering-factorization-scope-20261024/REPORT.md).
+Both isolated representations distinguish all 48 current tokens: two fields with
+qualified families, or broader families plus an optional feature list. These are
+representation checks, not an OCR-conditioned migration or production rollout.
+The renderer still controls ordinary plurality by count. The alias integration
+scope includes 1,199 shared scalar regions and review of 37 special-owner regions;
+it does not imply a wholesale 453-template rebase.
+
+Discussion inventory: [plurality/slot-placement evidence, inactive safe aliases,
+CY/GB extension scope and factorization coverage](analysis/r28-package-alias-followup-20261023/DISCUSSION.md).
+These are staged research artifacts, not enabled rendering or a schema migration.
+
+2026-10-23 follow-up: [DG package-choice verification, native R27 package errors,
+primary alias vocabulary and region-style evidence](analysis/r28-package-alias-followup-20261023/REPORT.md).
+DG physical form feeds the shared LLM chooser, not a fixed package map. The new
+inactive research candidate pins the official 405 code set (identical to the saved
+form) and 20 commercial abbreviation pairs across 17 of the 48 runtime categories.
+R27's remaining package errors also include full-word specificity/ownership
+failures; alias causality is not established. Region styles vary within sources;
+no country lock is justified. Production/template/dataset alias changes remain
+the next bounded rendering task, separate from factorization.
+
 Latest closure, 2026-10-23: **453/453 templates accepted**. The
 [DG expansion and vehicle closure](analysis/r28-dg-expansion-20261023/REPORT.md)
 integrates HS-only proposals, broader named DG forms and per-article vehicle
@@ -1775,3 +1955,262 @@ four physical articles with only three printed VIN occurrences. These are not ye
 full source-render certificates. Article-aware identity/optional-HS and heterogeneous
 component integration remain the next bounded DG work; acceptance stays 451/453.
 No package factorization or unverified DG enrichment is silently promoted.
+
+## 2026-10-30 — R28 handling cleanup completed; alias procedure validated separately
+
+The [handling implementation and inventory](analysis/r28-handling-cleanup-20261030/REPORT.md)
+is published **in R28 only** and read back successfully. R27, historical runs,
+membership, input/coordinate bytes and all non-handling targets are preserved.
+Changed documents: **116 real / 1,294 current synthetic / 14 validation**;
+retained old-UAE copies are synchronized (495 full-sidecar and 359 selected-sidecar
+documents, overlapping other pools rather than additional unique counts).
+
+Handling now excludes detention/demurrage/free periods and pure temperature
+restatements already represented by the applicable setpoints. Actual additional
+ventilation, humidity, storage, stowage, delivery and release instructions remain.
+Literal punctuation/continuations replace unsupported summaries; source text is
+not rewritten merely because its target is removed. Policy and the live V7
+description now state this boundary. Final reviewed stowage additions are
+**4 real / 38 synthetic / 1 validation**. A prior `9f4d3ead` addition was rejected
+after PDF review found `Whereof Nil`: the original absence was correct.
+
+Corrections cover source authorities, affected contracts/templates/owners,
+temperature/route-dependent repetitions, numeric/geography certificates and a
+production final-render literal-evidence gate. A newly recovered bonded-warehouse
+instruction has its own generated private-name component, not a fabricated party
+role. **456/456 source replays**, **453 numeric-certificate checks**, **38 thermal
+perturbation controls**, **14 fresh synthesis cases** and **352 targeted tests**
+pass. Three separately certified multi-DG sources are included in the 456-source
+replay; their certificates are not silently merged into the older 453 pool.
+The evidence gate adds approximately 0.044 ms/render and 0.09 KiB traced peak in
+the warm bounded benchmark. Backups and exact per-record operations are retained.
+
+The subsequent [package-alias procedure report](analysis/r28-package-alias-procedure-20261030/REPORT.md)
+is **experimental, not production rollout**. It replays 60 controls on 20 current
+templates and 33 earlier difficult controls; another 12 controls use fresh native
+DG/thermal wording through the real independent renderer, without new paid calls.
+All preserve intended targets and non-alias facts. The native group has ten text
+changes and two no-ops. Optional plurals are count-independent, associated
+allocation wording can be shortened, and the last specific material/attribute
+witness cannot be discarded. Retained description wording projects literally.
+
+The same-line geometry gap is now demonstrated and bounded: 28/60 source controls
+pass the conservative original-width envelope (eight changed, twenty no-ops),
+with 16 recomputed centroids. The other 32 require explicit width or anchor review,
+not semantic repair. A PDF-reviewed carton column passes CTNS, CARTON(S) and
+CARTONS controls; longer text is allowed only under its documented width budget.
+Projected synthetic glyph coordinates are explicitly distinguished from measured
+OCR. No unknown points, silent baseline fallback or overlapping text are invented.
+
+Next alias integration is precisely scoped: reviewed vocabulary/style pools;
+per-occurrence identity, specificity and fit metadata; configurable sampling over
+eligible forms with logged conditional distributions; expression-owned aliases;
+shared same-line/vertical geometry handling; regression-test migration; and
+batch native synthesis/review. A baseline must render the **sampled** package,
+never preserve a now-inapplicable source noun. The current experiment does not
+enable arbitrary alias choices on all 456 templates. Package factorization and
+multiple public package rows remain separate changes.
+
+## 2026-10-30 — Package aliases integrated and full registry certified
+
+The [production report and batch inventory](analysis/r28-package-alias-production-20261030/REPORT.md)
+supersede the pending alias-rollout status above. **456/456 templates pass**, in
+23 batches (22 × 20 and one × 16), each with fresh native synthesis, semantic
+review, deterministic replay and geometry validation. Work used no Codex
+subagents. **1,368/1,368** frozen-source style controls and **3,269 tests** pass.
+The final promoted-authority replay preserves all 456 candidates' text, targets
+and positioned text; only certificate provenance hashes change.
+
+The pinned 48-category vocabulary and exact occurrence ownership are now in the
+production path, including compound equations, nested packing and the three
+multi-DG additions with three-level support. Full/short/optional-plural weights
+are configurable (base 0.5/0.3/0.2, conditional on eligibility). Associated
+repetitions can shorten without losing the specific category witness; finer
+HDPE/HMHDPE/head/material wording remains protected. Shared reflow handles longer
+same-line aliases inside source columns and rejects ambiguous geometry. Unknown
+anchors remain unknown; no fabricated package slot is added to implicit vehicle
+presentations.
+
+Use [the production configuration](../configs/synthesis/mpci_bl_curated_v7_package_aliases.json).
+Evidence: `artifacts/synthesis-templates/mpci-bl-v7-reviewed/package-alias-rollout-20261030/`.
+Accepted draws show 898 scalar changes, 133 distinct scalar forms and 138
+documents with family-shortened repetitions. There are 506 retained rendered
+candidates including superseded attempts, **456 final accepted**; 2,614 native
+call receipts record USD 1.09368969. These are reviewed outcomes, not first-pass
+accuracy or a general privacy certificate.
+
+The rollout also corrected the appropriate upstream layers for dangling owner
+paths, repeated-product/HS association, composite postal/name wording, source-only
+mass precision and three stale location owners. Exactly **19 current R28 synthetic
+records** received narrow legacy repairs: seven delivery-country continuations,
+six stale free-zone references and six malformed discharge-country suffixes.
+Other records, real/validation, retained sidecars and R27 are preserved. Backups,
+per-record deltas and readback checks are retained. Inspection descendants were
+not added to training, and no bulk alias migration occurred.
+
+Measured local rendering overhead is 8.34 ms/document and approximately 45.2 KiB
+traced peak allocation on the bounded warm benchmark; no extra LLM call is needed
+for aliases. This is not local-render performance parity. Multiple public package
+rows, factorization and choosing the next synthesis/rerender distribution remain
+separate decisions. Model gains still need a training comparison.
+
+## 2026-10-30 — Multiple public package rows: isolated baseline tested
+
+See the [multi-row probe report](analysis/r28-multirow-package-probe-20261030/REPORT.md)
+and its pinned inventory/results. This is **not production promotion**. R28,
+retained sidecars and production/template authorities remain unchanged.
+
+Fresh census confirms eight real two-row targets and zero multi-row targets among
+6,900 current synthetics. None of the eight real sources is currently admitted as
+a template. Their targets still pass V7 and the saved-form cargo projection;
+allocations remain scalar quantities, not typed package references.
+
+The isolated experiment covers 20 templates × three controlled presentations,
+180 same-fact alias comparisons, 16 native per-group physical profiles and 800
+capacity/count controls. Six additional renders connect fresh per-group physical
+facts to complete numeric owners on two templates. Two heterogeneous nested
+controls keep 25,032 inner cartons out of the 2,086 declared outer-unit total.
+All 68 final inspection artifacts pass scoped checks; they are **not 68 fresh full
+linguistic syntheses** and are not new training records. Three generic-BALE
+examples retain the known unresolved submission mapping. 497 tests pass.
+
+The mechanism uses ordered group identities, complete count/type-list owners,
+per-group physical facts, a private composition ledger and evidence-limited scalar
+allocations. Generic and material-specific declarations can describe disjoint
+additive groups; their ontology relationship is not proof of double counting.
+Final primary declarations print the groups directly, avoiding confusion with
+the existing generic mixed-accounting convention. Missing allocations and absent
+equipment remain missing. Native review false positives were adjudicated against
+exact text, headings and arithmetic, not accepted automatically.
+
+Next: wire the combined isolated path through target alignment/scenario/numeric
+ledgers; validate fresh synthesis across the 20 cases, including heterogeneous
+three-level packing; add clean observed multi-row layouts; then expand in reviewed
+batches before production integration. Do not remove single-row guards alone.
+Alias rerendering remains deferred: decide a stratified presentation-only subset
+after these changes settle, with frozen-fact controls. Multi-row generation is a
+separate semantic change. Public factorization remains a later measurable task.
+
+## 2026-10-30 — Broader multi-row combined-path baseline completed
+
+The [broader probe report](analysis/r28-multirow-broader-probe-20261030/REPORT.md)
+and hash-pinned final readback supersede the previous probe's *pending fresh combined
+testing* status, not its production boundary. **72 final renders across 24 sources**
+now use fresh numerical planning; 60 also have fresh goods wording. There are 20 new
+admitted templates, two deliberately revisited difficult templates and two observed
+multi-row real layouts. The union with the earlier probe is **42 distinct source
+identities**. Production, template admission, R28, retained sidecars and training
+membership remain unchanged; no Codex subagents were used.
+
+The new cohort covers 13 ordinary, three thermal and four DG templates. It exercises
+17 package categories, mixed and same-category disjoint groups, fresh heterogeneous
+three-level packing, repeated private measurements/Marks partitions, and five-container
+planning with only the fifth allocation public. Two real layouts independently
+regenerate CARTON+PIECE and IBC+PALLET declarations with scalar allocation totals.
+
+The principal refinements are complete numeric occurrence ownership, precision-aware
+totals, and distinguishing a repeated global group from a disjoint container-local
+declaration. The latter must not publish hidden cross-container planning-group sums.
+Seventeen first wording attempts needed focused regeneration; exact-key native schemas
+and retained review receipts make that visible. Source-based geometry checks now allow
+legitimate description-line merges without inventing or losing anchor support.
+
+**779 tests pass**, all 72 targets pass V7, and 66 pass the saved-form cargo projection.
+Six generic-BALE examples retain the existing explicit submission-code mapping deferral.
+There are no newly blocking geometry holds; 5,748/6,924 output lines are positioned in
+this selected cohort. Native review objections concerning an unchanged opaque ID format
+and assumed pallet floor positions were explicitly adjudicated; physical loading approval
+is not claimed. Recorded native cost is USD 0.08802019. The bounded warm host benchmark
+adds approximately 1.34 ms/document and 161.9 KiB traced peak; it excludes LLM/reflow/disk
+and does not claim end-to-end parity.
+
+The baseline is sufficient for controlled integration and reviewed batch scaling.
+Next work is precise: carry the group ledger through preparation/scenario alignment,
+numeric planning, wording and targets together; promote occurrence contracts and tests;
+replay this cohort, then certify batches of 20 × three descendants with one-row controls.
+Tank/flexitank lots, mixed vehicle manifests and mixed-equation/multi-public-row combinations
+still need targeted combined-path checks. They are not blanket-certified by this cohort.
+Public factorization and the dataset rerender/new-synthesis distribution remain separate.
+
+## 2026-10-31 — Full-registry multi-row integration and controlled rollout
+
+The [production integration report](analysis/r28-multirow-production-20261031/REPORT.md)
+now records all **456 sources**, rather than another restricted probe. Production
+code carries disjoint public rows through native preparation, group-aware numerical
+planning, wording, repeated/nested rendering, target projection, geometry and
+publication admission. Flat package categories and scalar container allocations
+remain unchanged. No Codex subagents were used.
+
+**Complete and activated:** all **456 sources / 1,368 selected controls** pass.
+452 sources have single/two/three-group controls; four retain three single-row
+controls for their approved source presentation. The user approved private kg
+interpretation of `e18486c6`'s KOS numbers with spelling/target absence preserved,
+and kept `2763b891` single-row. Both received fresh synthesis and geometry review.
+No unresolved source hold remains.
+
+`multirow-rollout-20261031/main-adjudication-02.json` is the current exact evidence
+selection. The final combined replay passes all 1,368 controls with identical
+rendered text and targets. Nested child-ledger audit hashes are now excluded from
+LLM context; 144 existing validation fingerprints were explicitly rebased only
+after exact semantic-equivalence verification, preserving original receipts and
+without pretending new model calls. Nine fresh paired wording controls validate
+the final prompt separately. One lexical artifact was corrected and freshly
+reviewed; no remaining finding is unadjudicated.
+
+The final post-promotion regression suite passes **3,630 tests**. Measured integrated startup fell
+from 16.45 to 11.58 seconds and peak RSS by about 78 MiB; single-row output remains
+identical. The report distinguishes the original baseline, optimized baseline,
+additional-group cost and the negligible final prompt-projection cost.
+
+The registry's current production configuration is
+`configs/synthesis/mpci_bl_curated_v7_multirow.json`, with hash-pinned source/count
+acceptance and promoted owner/auxiliary authorities. The all-source runtime
+admission check passes. Historical failed/superseded attempts and pre-promotion
+authority backups remain available.
+
+The real prepared-campaign publication preview additionally passes 3/3 controls
+without publishing records. It caught and resolved an omitted configuration
+utilization envelope; all accepted cohorts already used `[0.35, 0.75]`, now retained
+in the production reference. Five configuration regression tests pass. Actual
+negative admission probes reject an unaccepted row count and an altered contract.
+
+R28 training data remains unchanged. The next campaign's sample/distribution plan,
+existing-sample rerender selection and public package factorization remain separate
+follow-ups; no corpus-wide migration or new training-run configuration is claimed.
+
+## 2026-10-31 — R28 training plan and live dataset reconciliation
+
+The [new planning report](analysis/r28-run-planning-20261031/REPORT.md) separates
+applied R28 repairs from newly integrated synthesis capabilities. Exact comparison
+with frozen R27 finds **2,063 changed synthetic and 132 changed real training
+documents**, plus 14 validation handling repairs; membership remains 6,900+600.
+The complete 41-entry repair-provenance ledger and per-record census are linked.
+All 7,560 active train/validation targets and raw/positioned hashes verify.
+
+**User decision: public package factorization moves to R29.** Keep the reviewed
+ontology/crosswalk and full-family scope there; do not enable factorized targets
+or silently bundle that schema experiment into R28. Cylinder/gas-bottle categories
+remain a separately staged, inactive vocabulary extension—not completed alias work.
+
+Proposed R28 campaign: replace 1,800 existing records through alias-only replay
+and 200 through explicit independent multi-row regeneration; then add 2,500
+new records (450 DG, 350 thermal, 1,700 other). This yields 9,400 synthetic+600
+real, with 882 synthetic DG and 869 synthetic thermal examples. Proposed total
+multi-row coverage is 500 synthetic documents. Use batches of 100 with a
+20-record migration preflight, preserving all prior R28 repairs and synchronizing
+overlapping sidecars. These are plans, not published records.
+
+The census identifies 48 admitted but unused templates, concentrated steel-drum
+and wooden-box coverage, absent synthetic GASES, scarce subsidiary hazards and
+only one admitted partial-allocation source. Humidity has no training target or
+active source occurrence; the validation example is not permission to use its
+source for synthesis. Forwarding/delivery roles are already reasonably represented.
+
+The separate [real-input coordinate probe](analysis/r28-run-planning-20261031/COORDINATES.md)
+replayed all 660 sources. Joining multiple GLM lines to one complete Paddle region
+adds 96 strict or 154 punctuation-normalized lines: 84.9345%→85.1632% at most under
+the recommended block-local candidate rule. All 77 broader groups were text/PDF
+reviewed. These are coarse shared-region centres, not measured fragment positions;
+many are headings and some span columns. No production alignment or dataset
+coordinate change was made. Keep this separate pending a representation/parity
+decision, not a prerequisite for the proposed training run.

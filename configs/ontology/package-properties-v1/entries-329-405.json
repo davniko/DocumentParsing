@@ -1,0 +1,699 @@
+[
+  {
+    "code": "WA",
+    "kind": "PACKAGE",
+    "family": "IBC"
+  },
+  {
+    "code": "WB",
+    "kind": "PACKAGE",
+    "family": "WICKERBOTTLE",
+    "notes": [
+      "The accepted definition names the trade family Wickerbottle but does not specify the bottle body material or a separate inner-receptacle material. Those materials are not inferred as glass, wood or plastic. A component-level decomposition is not established by the pinned label."
+    ]
+  },
+  {
+    "code": "WC",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "STEEL"
+  },
+  {
+    "code": "WD",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "ALUMINIUM"
+  },
+  {
+    "code": "WF",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "METAL"
+  },
+  {
+    "code": "WG",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "STEEL",
+    "attributes": {"PRESSURIZATION": "PRESSURISED"},
+    "measurements": [
+      {"property": "PRESSURE", "values": [10], "unit": "KILOPASCAL", "relation": "GT"}
+    ],
+    "notes": [
+      "PRESSURIZATION records explicitly pressurised wording. The measurement is the encoded package pressure category, not an observed operating-pressure setting of carrying equipment."
+    ]
+  },
+  {
+    "code": "WH",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "ALUMINIUM",
+    "attributes": {"PRESSURIZATION": "PRESSURISED"},
+    "measurements": [
+      {"property": "PRESSURE", "values": [10], "unit": "KILOPASCAL", "relation": "GT"}
+    ]
+  },
+  {
+    "code": "WJ",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "METAL",
+    "measurements": [
+      {"property": "PRESSURE", "values": [10], "unit": "KILOPASCAL", "relation": "UNSPECIFIED"}
+    ],
+    "notes": [
+      "The pinned English definition states pressure 10 kpa without a comparator. Neither equality nor greater-than is asserted. Some government translations add a greater-than interpretation, but they do not silently amend the accepted application's English definition."
+    ]
+  },
+  {
+    "code": "WK",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "STEEL",
+    "attributes": {"CONTENTS_FORM": "LIQUID"}
+  },
+  {
+    "code": "WL",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "ALUMINIUM",
+    "attributes": {"CONTENTS_FORM": "LIQUID"}
+  },
+  {
+    "code": "WM",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "METAL",
+    "attributes": {"CONTENTS_FORM": "LIQUID"}
+  },
+  {
+    "code": "WN",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "WOVEN", "COATING": "ABSENT", "LINING": "ABSENT"}
+  },
+  {
+    "code": "WP",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "WOVEN", "COATING": "PRESENT"}
+  },
+  {
+    "code": "WQ",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "WOVEN", "LINING": "PRESENT"},
+    "components": [{"role": "LINER"}]
+  },
+  {
+    "code": "WR",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "WOVEN", "COATING": "PRESENT", "LINING": "PRESENT"},
+    "components": [{"role": "LINER"}]
+  },
+  {
+    "code": "WS",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "FILM"}
+  },
+  {
+    "code": "WT",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "TEXTILE",
+    "attributes": {"COATING": "ABSENT", "LINING": "ABSENT"}
+  },
+  {
+    "code": "WU",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "WOOD",
+    "attributes": {"WOOD_TYPE": "NATURAL", "LINING": "PRESENT"},
+    "components": [{"role": "LINER"}]
+  },
+  {
+    "code": "WV",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "TEXTILE",
+    "attributes": {"COATING": "PRESENT"}
+  },
+  {
+    "code": "WW",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "TEXTILE",
+    "attributes": {"LINING": "PRESENT"},
+    "components": [{"role": "LINER"}]
+  },
+  {
+    "code": "WX",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "TEXTILE",
+    "attributes": {"COATING": "PRESENT", "LINING": "PRESENT"},
+    "components": [{"role": "LINER"}]
+  },
+  {
+    "code": "WY",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLYWOOD",
+    "attributes": {"LINING": "PRESENT"},
+    "components": [{"role": "LINER"}]
+  },
+  {
+    "code": "WZ",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "RECONSTITUTED_WOOD",
+    "attributes": {"LINING": "PRESENT"},
+    "components": [{"role": "LINER"}]
+  },
+  {
+    "code": "XA",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "WOVEN", "COATING": "ABSENT", "LINING": "ABSENT"}
+  },
+  {
+    "code": "XB",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "WOVEN", "SIFT_PROOF": "YES"}
+  },
+  {
+    "code": "XC",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "WOVEN", "WATER_RESISTANCE": "RESISTANT"}
+  },
+  {
+    "code": "XD",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "FILM"}
+  },
+  {
+    "code": "XF",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "TEXTILE",
+    "attributes": {"COATING": "ABSENT", "LINING": "ABSENT"}
+  },
+  {
+    "code": "XG",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "TEXTILE",
+    "attributes": {"SIFT_PROOF": "YES"}
+  },
+  {
+    "code": "XH",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "TEXTILE",
+    "attributes": {"WATER_RESISTANCE": "RESISTANT"}
+  },
+  {
+    "code": "XJ",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "PAPER",
+    "attributes": {"CONSTRUCTION": "MULTI_WALL"}
+  },
+  {
+    "code": "XK",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "PAPER",
+    "attributes": {"CONSTRUCTION": "MULTI_WALL", "WATER_RESISTANCE": "RESISTANT"}
+  },
+  {
+    "code": "YA",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "DRUM", "material": "STEEL"}
+    ]
+  },
+  {
+    "code": "YB",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "CRATE_BOX", "material": "STEEL"}
+    ]
+  },
+  {
+    "code": "YC",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "DRUM", "material": "ALUMINIUM"}
+    ]
+  },
+  {
+    "code": "YD",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "CRATE", "material": "ALUMINIUM"}
+    ]
+  },
+  {
+    "code": "YF",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "BOX", "material": "WOOD"}
+    ]
+  },
+  {
+    "code": "YG",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "DRUM", "material": "PLYWOOD"}
+    ]
+  },
+  {
+    "code": "YH",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "BOX", "material": "PLYWOOD"}
+    ]
+  },
+  {
+    "code": "YJ",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "DRUM", "material": "FIBRE"}
+    ]
+  },
+  {
+    "code": "YK",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "BOX", "material": "FIBREBOARD"}
+    ]
+  },
+  {
+    "code": "YL",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "DRUM", "material": "PLASTIC"}
+    ]
+  },
+  {
+    "code": "YM",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC"},
+      {"role": "OUTER_ENCLOSURE", "family": "BOX", "material": "PLASTIC", "attributes": {"CONSTRUCTION": "SOLID"}}
+    ]
+  },
+  {
+    "code": "YN",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "DRUM", "material": "STEEL"}
+    ]
+  },
+  {
+    "code": "YP",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "CRATE_BOX", "material": "STEEL"}
+    ]
+  },
+  {
+    "code": "YQ",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "DRUM", "material": "ALUMINIUM"}
+    ]
+  },
+  {
+    "code": "YR",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "CRATE", "material": "ALUMINIUM"}
+    ]
+  },
+  {
+    "code": "YS",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "BOX", "material": "WOOD"}
+    ]
+  },
+  {
+    "code": "YT",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "DRUM", "material": "PLYWOOD"}
+    ]
+  },
+  {
+    "code": "YV",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "HAMPER", "attributes": {"CONSTRUCTION": "WICKERWORK"}}
+    ],
+    "notes": [
+      "WICKERWORK describes the outer hamper's construction; its constituent material is not named. No willow, rattan, wood or plastic material is inferred."
+    ]
+  },
+  {
+    "code": "YW",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "DRUM", "material": "FIBRE"}
+    ]
+  },
+  {
+    "code": "YX",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "BOX", "material": "FIBREBOARD"}
+    ]
+  },
+  {
+    "code": "YY",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "PACK", "material": "PLASTIC", "attributes": {"CONSTRUCTION": "EXPANDABLE"}}
+    ],
+    "notes": [
+      "The accepted label says expandable plastic pack. EXPANDABLE preserves that wording; it is not silently rewritten as already EXPANDED, nor does it identify a polymer."
+    ]
+  },
+  {
+    "code": "YZ",
+    "kind": "PACKAGE",
+    "family": "COMPOSITE_PACKAGING",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "GLASS"},
+      {"role": "OUTER_ENCLOSURE", "family": "PACK", "material": "PLASTIC", "attributes": {"CONSTRUCTION": "SOLID"}}
+    ]
+  },
+  {
+    "code": "ZA",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PAPER",
+    "attributes": {"CONSTRUCTION": "MULTI_WALL"}
+  },
+  {
+    "code": "ZB",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "attributes": {"SIZE": "LARGE"},
+    "notes": [
+      "LARGE preserves the expressly named size/trade variant, without a numeric dimension or an assumption that LARGE, JUMBO and SUPER_BULK are interchangeable."
+    ]
+  },
+  {
+    "code": "ZC",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PAPER",
+    "attributes": {"CONSTRUCTION": "MULTI_WALL", "WATER_RESISTANCE": "RESISTANT"}
+  },
+  {
+    "code": "ZD",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"RIGIDITY": "RIGID", "STRUCTURAL_EQUIPMENT": "PRESENT", "CONTENTS_FORM": "SOLID"},
+    "components": [{"role": "STRUCTURAL_SUPPORT"}]
+  },
+  {
+    "code": "ZF",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"RIGIDITY": "RIGID", "STRUCTURAL_EQUIPMENT": "FREESTANDING", "CONTENTS_FORM": "SOLID"}
+  },
+  {
+    "code": "ZG",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"RIGIDITY": "RIGID", "STRUCTURAL_EQUIPMENT": "PRESENT", "PRESSURIZATION": "PRESSURISED"},
+    "components": [{"role": "STRUCTURAL_SUPPORT"}]
+  },
+  {
+    "code": "ZH",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"RIGIDITY": "RIGID", "STRUCTURAL_EQUIPMENT": "FREESTANDING", "PRESSURIZATION": "PRESSURISED"}
+  },
+  {
+    "code": "ZJ",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"RIGIDITY": "RIGID", "STRUCTURAL_EQUIPMENT": "PRESENT", "CONTENTS_FORM": "LIQUID"},
+    "components": [{"role": "STRUCTURAL_SUPPORT"}]
+  },
+  {
+    "code": "ZK",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLASTIC",
+    "attributes": {"RIGIDITY": "RIGID", "STRUCTURAL_EQUIPMENT": "FREESTANDING", "CONTENTS_FORM": "LIQUID"}
+  },
+  {
+    "code": "ZL",
+    "definitionSources": ["un_adr2025"],
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE", "CONTENTS_FORM": "SOLID"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC", "attributes": {"RIGIDITY": "RIGID"}},
+      {"role": "OUTER_ENCLOSURE"}
+    ],
+    "notes": [
+      "For composite IBCs the stated rigid/flexible plastic distinction belongs to the inner receptacle, not an assumption that the whole assembly or outer enclosure is plastic. This component ownership follows UN composite-IBC definitions; the outer material is not specified."
+    ]
+  },
+  {
+    "code": "ZM",
+    "definitionSources": ["un_adr2025"],
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE", "CONTENTS_FORM": "SOLID"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC", "attributes": {"RIGIDITY": "FLEXIBLE"}},
+      {"role": "OUTER_ENCLOSURE"}
+    ]
+  },
+  {
+    "code": "ZN",
+    "definitionSources": ["un_adr2025"],
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE", "PRESSURIZATION": "PRESSURISED"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC", "attributes": {"RIGIDITY": "RIGID"}},
+      {"role": "OUTER_ENCLOSURE"}
+    ]
+  },
+  {
+    "code": "ZP",
+    "definitionSources": ["un_adr2025"],
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE", "PRESSURIZATION": "PRESSURISED"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC", "attributes": {"RIGIDITY": "FLEXIBLE"}},
+      {"role": "OUTER_ENCLOSURE"}
+    ]
+  },
+  {
+    "code": "ZQ",
+    "definitionSources": ["un_adr2025"],
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE", "CONTENTS_FORM": "LIQUID"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC", "attributes": {"RIGIDITY": "RIGID"}},
+      {"role": "OUTER_ENCLOSURE"}
+    ]
+  },
+  {
+    "code": "ZR",
+    "definitionSources": ["un_adr2025"],
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE", "CONTENTS_FORM": "LIQUID"},
+    "components": [
+      {"role": "INNER_RECEPTACLE", "family": "RECEPTACLE", "material": "PLASTIC", "attributes": {"RIGIDITY": "FLEXIBLE"}},
+      {"role": "OUTER_ENCLOSURE"}
+    ]
+  },
+  {
+    "code": "ZS",
+    "definitionSources": ["un_adr2025"],
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": null,
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "INNER_RECEPTACLE"},
+      {"role": "OUTER_ENCLOSURE"}
+    ],
+    "notes": [
+      "The generic composite-IBC entry does not name either component's material, receptacle rigidity, contents form or pressure category. It remains broader than the specific composite-plastic entries rather than inheriting their qualifiers."
+    ]
+  },
+  {
+    "code": "ZT",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "FIBREBOARD"
+  },
+  {
+    "code": "ZU",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "attributes": {"RIGIDITY": "FLEXIBLE"}
+  },
+  {
+    "code": "ZV",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "METAL",
+    "attributes": {"EXCLUDED_MATERIAL": "STEEL"},
+    "notes": [
+      "EXCLUDED_MATERIAL records the explicit other-than-steel qualification. Aluminium is not excluded by this definition, and no particular alternative metal is inferred."
+    ]
+  },
+  {
+    "code": "ZW",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "WOOD",
+    "attributes": {"WOOD_TYPE": "NATURAL"}
+  },
+  {
+    "code": "ZX",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "PLYWOOD"
+  },
+  {
+    "code": "ZY",
+    "kind": "PACKAGE",
+    "family": "IBC",
+    "material": "RECONSTITUTED_WOOD"
+  },
+  {
+    "code": "ZZ",
+    "kind": "ADMINISTRATIVE",
+    "family": null,
+    "attributes": {"STATUS": "MUTUALLY_DEFINED"},
+    "notes": [
+      "Mutually defined is an administrative code requiring the trading parties' external definition. It does not by itself establish a physical family, material, count, or transport-equipment role."
+    ]
+  }
+]

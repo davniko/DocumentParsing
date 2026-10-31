@@ -40,7 +40,7 @@ from document_ocr.synthesis.curated_admission import (
     verify_pins,
     yaml_bytes,
 )
-from document_ocr.synthesis.curated_campaign import Campaign
+from document_ocr.synthesis.curated_campaign import create_campaign
 
 PositiveInt = Annotated[int, Field(strict=True, gt=0)]
 
@@ -72,11 +72,14 @@ class CohortSpec(BaseModel):
     authority_relative: str
     production_config: str
     report: str
+    regression_controls: SelectionPin | None = None
 
     @model_validator(mode="after")
     def scoped_paths(self):
         for value in (self.registry, self.selection.path, self.production_config, self.report):
             relative(value)
+        if self.regression_controls is not None:
+            relative(self.regression_controls.path)
         authority = relative(self.authority_relative)
         require(
             len(authority.parts) >= 3
@@ -154,6 +157,36 @@ def protected_dataset_pins(ctx, before):
             pins[ctx.root / relative(folder) / relative(name)] = expected
     verify_pins(pins)
     return pins
+
+
+def regression_controls(ctx, old_ids):
+    """Explicit campaign evidence for existing templates that need private plans."""
+    authority = ctx.spec.regression_controls
+    if authority is None:
+        return None, {}
+    path = ctx.root / authority.path
+    require(sha256_file(path) == authority.sha256, "Regression control inventory changed")
+    inventory = read(path)
+    require(
+        set(inventory) == {"controls"} and inventory["controls"], "Invalid regression inventory"
+    )
+    pins, seen, result = {path: authority.sha256}, set(), []
+    for item in inventory["controls"]:
+        require(set(item) == {"config", "sourceIds"}, "Invalid regression control")
+        pin = SelectionPin.model_validate(item["config"])
+        config_path = ctx.root / relative(pin.path)
+        require(sha256_file(config_path) == pin.sha256, "Regression campaign changed")
+        sources = item["sourceIds"]
+        require(
+            isinstance(sources, list) and sources and len(set(sources)) == len(sources),
+            "Invalid regression source selection",
+        )
+        require(not seen.intersection(sources), "Duplicate regression source")
+        seen.update(sources)
+        pins[config_path] = pin.sha256
+        result.append((yaml.safe_load(config_path.read_text()), sources))
+    require(seen == set(old_ids), "Regression controls do not cover the existing registry exactly")
+    return result, pins
 
 
 def source_policy_gate(ctx, report, config):
@@ -492,13 +525,15 @@ def prepare(ctx):
         set(r["sourceDocumentId"] for r in positioned.values()) == new_ids,
         "Published source identities differ",
     )
-    campaign = Campaign(ctx.root, config)
+    campaign = create_campaign(ctx.root, config)
     campaign.validate_source_readiness()
     checked = validation_gate(
         ctx, read(ctx.audit / "validation.json"), campaign.calls.task, output, positions
     )
     require(set(checked) == set(positioned), "Domain validation sample identities differ")
     regression = read(ctx.audit / "regression-before-admission.json")
+    _, regression_pins = regression_controls(ctx, old_ids)
+    pins.update(regression_pins)
     require(
         regression["status"] == "PASS"
         and regression["sources"] == len(old_ids)
@@ -846,7 +881,7 @@ def validate_installed(plan):
     inspection = yaml.safe_load(ctx.config_path.read_text())
     replay = deepcopy(plan.config)
     replay["output"] = inspection["output"]
-    campaign = Campaign(ctx.root, replay)
+    campaign = create_campaign(ctx.root, replay)
     campaign.validate_source_readiness()
     for sid in campaign.source_ids:
         campaign.preflight(campaign.plans(sid))
@@ -855,18 +890,43 @@ def validate_installed(plan):
             read(ctx.root / inspection["output"] / "candidates" / f"{row['documentId']}.json")
         )
     old_manifest = read(ctx.audit / "before/manifest.json")
-    config = deepcopy(plan.config)
-    config.update(
-        source_ids=sorted(old_manifest["cases"]),
-        capabilities={sid: entry["capability"] for sid, entry in old_manifest["cases"].items()},
-        output=str((ctx.audit / "regression-admission-precommit").relative_to(ctx.root)),
-    )
-    old = Campaign(ctx.root, config)
-    old.validate_source_readiness()
-    for sid in old.source_ids:
-        old.preflight(old.plans(sid))
+    controls, _ = regression_controls(ctx, old_manifest["cases"])
+    if controls is None:
+        require(
+            plan.config.get("sampling_mode", "observed") == "observed",
+            "Independent admission requires explicit whole-registry regression controls",
+        )
+        config = deepcopy(plan.config)
+        config.update(
+            source_ids=sorted(old_manifest["cases"]),
+            capabilities={sid: entry["capability"] for sid, entry in old_manifest["cases"].items()},
+            output=str((ctx.audit / "regression-admission-precommit").relative_to(ctx.root)),
+        )
+        controls = [(config, sorted(old_manifest["cases"]))]
+    for index, (control, sources) in enumerate(controls):
+        config = deepcopy(control)
+        # Keep complete pinned independent requests; select only which plans are
+        # checked, rather than silently rewriting their source-scoped authority.
+        config.update(
+            dataset=plan.config["dataset"],
+            ownership=plan.config["ownership"],
+            auxiliary=plan.config["auxiliary"],
+            source_contracts=plan.config["source_contracts"],
+            historical_catalog=plan.config["historical_catalog"],
+            output=str(
+                (ctx.audit / f"regression-admission-precommit-{index}").relative_to(ctx.root)
+            ),
+        )
+        old = create_campaign(ctx.root, config)
+        old.validate_source_readiness()
+        require(set(sources) <= set(old.source_ids), "Regression selection outside pinned campaign")
+        for sid in sources:
+            plans = old.plans(sid)
+            require(len(plans) == ctx.spec.variants_per_source, "Regression variant count differs")
+            old.preflight(plans)
+    for sid in old_manifest["cases"]:
         validate_case(
-            old.rows[sid],
+            campaign.rows[sid],
             ctx.registry / "cases" / sid,
             expected=old_manifest["cases"][sid]["files"],
         )
@@ -876,7 +936,10 @@ def validate_installed(plan):
         original = yaml.safe_load((ctx.audit / "before" / name).read_text())
         installed = yaml.safe_load((ctx.registry / name).read_text())
         require(
-            all(installed["sources"][sid] == original["sources"][sid] for sid in old.source_ids),
+            all(
+                installed["sources"][sid] == original["sources"][sid]
+                for sid in old_manifest["cases"]
+            ),
             f"Old shared metadata changed: {name}",
         )
     verify_pins(fixed)

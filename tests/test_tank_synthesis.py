@@ -150,7 +150,7 @@ def test_optional_lot_context_does_not_remove_ordinary_packages_or_loose_mixed_u
         ),
     ],
 )
-def test_ordinary_native_contract_stays_byte_identical_to_pre_tank_baseline(extra, expected):
+def test_ordinary_contract_only_changes_the_approved_wooden_box_alias(extra, expected):
     import hashlib
 
     from document_ocr.synthesis.independent_packages import (
@@ -170,6 +170,16 @@ def test_ordinary_native_contract_stays_byte_identical_to_pre_tank_baseline(extr
         "prompt": package_choice_prompt(request, hs_codes={"520100"}),
         "system": PACKAGE_CHOICE_SYSTEM,
     }
+    # The later user-approved WOODEN BOX presentation replaced the verbose old
+    # noun, including in the chooser vocabulary. No tank prompt/schema changes
+    # may leak into the ordinary contract. Restore just that known presentation
+    # for comparison with the independently pinned pre-tank baseline.
+    before = "PACKAGE_BOX_WOODEN_NATURAL_WOOD_ORDINARY: WOODEN BOX"
+    assert contract["prompt"].count(before) == 1
+    contract["prompt"] = contract["prompt"].replace(
+        before,
+        "PACKAGE_BOX_WOODEN_NATURAL_WOOD_ORDINARY: ORDINARY WOODEN BOX (NATURAL WOOD)",
+    )
     assert hashlib.sha256(json.dumps(contract, sort_keys=True).encode()).hexdigest() == expected
 
 

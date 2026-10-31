@@ -1,0 +1,762 @@
+[
+  {
+    "code": "GI",
+    "kind": "CARGO_FORM",
+    "family": "GIRDER"
+  },
+  {
+    "code": "GL",
+    "kind": "PACKAGE",
+    "family": "CONTAINER",
+    "measurements": [{"property":"CAPACITY","values":[1],"unit":"GALLON_UNSPECIFIED","relation":"EQ"}],
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition specifies capacity of one gallon, not freight equipment. The gallon convention is not specified; no conversion or unsupported capacity measurement is asserted."]
+  },
+  {
+    "code": "GR",
+    "kind": "PACKAGE",
+    "family": "RECEPTACLE",
+    "material": "GLASS"
+  },
+  {
+    "code": "GU",
+    "kind": "PACKAGE",
+    "family": "TRAY",
+    "attributes": {"CONTENTS_SHAPE": "FLAT", "CONTENTS_ARRANGEMENT": "HORIZONTAL_STACK"}
+  },
+  {
+    "code": "GY",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "TEXTILE",
+    "attributes": {"TRADE_FORM": "GUNNY"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition names gunny or burlap fabric. The fibre is not specified, so no particular jute, hemp or other fibre is asserted."]
+  },
+  {
+    "code": "GZ",
+    "kind": "CARGO_FORM",
+    "family": "GIRDER",
+    "attributes": {"GROUPING": "BUNDLE_BUNCH_TRUSS"}
+  },
+  {
+    "code": "HA",
+    "kind": "PACKAGE",
+    "family": "BASKET",
+    "material": "PLASTIC",
+    "attributes": {"HANDLE": "PRESENT"}
+  },
+  {
+    "code": "HB",
+    "kind": "PACKAGE",
+    "family": "BASKET",
+    "material": "WOOD",
+    "attributes": {"HANDLE": "PRESENT"}
+  },
+  {
+    "code": "HC",
+    "kind": "PACKAGE",
+    "family": "BASKET",
+    "material": "CARDBOARD",
+    "attributes": {"HANDLE": "PRESENT"}
+  },
+  {
+    "code": "HG",
+    "kind": "PACKAGE",
+    "family": "HOGSHEAD"
+  },
+  {
+    "code": "HN",
+    "kind": "PACKAGE",
+    "family": "HANGER",
+    "attributes": {"PURPOSE": "HANGING"},
+    "components": [{"role": "STRUCTURAL_SUPPORT", "family": "HOOK"}],
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The hook is part of the hanger. The rail from which items can hang is not asserted to be a component of this package."]
+  },
+  {
+    "code": "HR",
+    "kind": "PACKAGE",
+    "family": "HAMPER"
+  },
+  {
+    "code": "IA",
+    "kind": "PACKAGE",
+    "family": "PACKAGE",
+    "material": "WOOD",
+    "attributes": {"PURPOSE": "DISPLAY"}
+  },
+  {
+    "code": "IB",
+    "kind": "PACKAGE",
+    "family": "PACKAGE",
+    "material": "CARDBOARD",
+    "attributes": {"PURPOSE": "DISPLAY"}
+  },
+  {
+    "code": "IC",
+    "kind": "PACKAGE",
+    "family": "PACKAGE",
+    "material": "PLASTIC",
+    "attributes": {"PURPOSE": "DISPLAY"}
+  },
+  {
+    "code": "ID",
+    "kind": "PACKAGE",
+    "family": "PACKAGE",
+    "material": "METAL",
+    "attributes": {"PURPOSE": "DISPLAY"}
+  },
+  {
+    "code": "IE",
+    "kind": "PACKAGE",
+    "family": "PACKAGE",
+    "attributes": {"PURPOSE": "SHOW"}
+  },
+  {
+    "code": "IF",
+    "kind": "PACKAGE",
+    "family": "PACKAGE",
+    "attributes": {"TRADE_FORM": "FLOW", "RIGIDITY": "FLEXIBLE", "SHAPE": "TUBULAR"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition establishes a flexible tubular package or skin. Possible transparency and common food use are not mandatory properties."]
+  },
+  {
+    "code": "IG",
+    "kind": "PACKAGE",
+    "family": "PACKAGE",
+    "attributes": {"CONSTRUCTION": "WRAPPED"},
+    "components": [{"role": "OUTER_ENCLOSURE", "material": "PAPER"}],
+    "notes": ["Paper is the wrapping material; the label does not establish a paper primary body beneath the wrap."]
+  },
+  {
+    "code": "IH",
+    "kind": "PACKAGE",
+    "family": "DRUM",
+    "material": "PLASTIC"
+  },
+  {
+    "code": "IK",
+    "kind": "PACKAGE",
+    "family": "PACKAGE",
+    "material": "CARDBOARD",
+    "attributes": {"GRIP_HOLES": "BOTTLE"},
+    "notes": ["Bottle grip-holes are explicit. Neither a bottle material nor an actual shipment's inner bottle count is established."]
+  },
+  {
+    "code": "IL",
+    "kind": "PACKAGE",
+    "family": "TRAY",
+    "attributes": {"RIGIDITY": "RIGID", "CLOSURE": "LID", "STACKABILITY": "STACKABLE"},
+    "standards": ["CEN TS 14482:2002"]
+  },
+  {
+    "code": "IN",
+    "kind": "CARGO_FORM",
+    "family": "INGOT"
+  },
+  {
+    "code": "IZ",
+    "kind": "CARGO_FORM",
+    "family": "INGOT",
+    "attributes": {"GROUPING": "BUNDLE_BUNCH_TRUSS"}
+  },
+  {
+    "code": "JB",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "attributes": {"TRADE_FORM": "JUMBO", "RIGIDITY": "FLEXIBLE"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition makes the containment bag flexible. Woven polypropylene and cubic form are described as typical, not required, and are not asserted."]
+  },
+  {
+    "code": "JC",
+    "kind": "PACKAGE",
+    "family": "JERRICAN",
+    "attributes": {"SHAPE": "RECTANGULAR"}
+  },
+  {
+    "code": "JG",
+    "kind": "PACKAGE",
+    "family": "JUG"
+  },
+  {
+    "code": "JR",
+    "kind": "PACKAGE",
+    "family": "JAR"
+  },
+  {
+    "code": "JT",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "material": "JUTE"
+  },
+  {
+    "code": "JY",
+    "kind": "PACKAGE",
+    "family": "JERRICAN",
+    "attributes": {"SHAPE": "CYLINDRICAL"}
+  },
+  {
+    "code": "KG",
+    "kind": "PACKAGE",
+    "family": "KEG"
+  },
+  {
+    "code": "KI",
+    "kind": "COUNTING_UNIT",
+    "family": "KIT",
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition is a set of articles or implements for a specific purpose. It does not establish a material or outer receptacle."]
+  },
+  {
+    "code": "LE",
+    "kind": "PACKAGE",
+    "family": "LUGGAGE",
+    "attributes": {"PURPOSE": "PERSONAL_BELONGINGS"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["Luggage denotes a collection of bags, cases and/or containers. No single container family or material is selected for that collection."]
+  },
+  {
+    "code": "LG",
+    "kind": "CARGO_FORM",
+    "family": "LOG"
+  },
+  {
+    "code": "LT",
+    "kind": "COUNTING_UNIT",
+    "family": "LOT"
+  },
+  {
+    "code": "LU",
+    "kind": "PACKAGE",
+    "family": "LUG",
+    "material": "WOOD",
+    "attributes": {"PURPOSE": "FRUIT_OR_VEGETABLES"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The authoritative definition specifically describes a wooden box; the named trade family LUG is retained."]
+  },
+  {
+    "code": "LV",
+    "kind": "PACKAGE",
+    "family": "LIFTVAN",
+    "materialAlternatives": ["WOOD", "METAL"],
+    "attributes": {"PURPOSE": "HOUSEHOLD_GOODS_AND_PERSONAL_EFFECTS"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition permits wooden or metal containers. Primary material is not narrowed to either alternative."]
+  },
+  {
+    "code": "LZ",
+    "kind": "CARGO_FORM",
+    "family": "LOG",
+    "attributes": {"GROUPING": "BUNDLE_BUNCH_TRUSS"}
+  },
+  {
+    "code": "MA",
+    "kind": "PACKAGE",
+    "family": "CRATE",
+    "material": "METAL"
+  },
+  {
+    "code": "MB",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "attributes": {"CONSTRUCTION": "MULTI_PLY"},
+    "notes": ["Multiply describes layered construction; paper or any other body material is not stated."]
+  },
+  {
+    "code": "MC",
+    "kind": "PACKAGE",
+    "family": "CRATE",
+    "attributes": {"PURPOSE": "MILK"}
+  },
+  {
+    "code": "ME",
+    "kind": "PACKAGE",
+    "family": "CONTAINER",
+    "material": "METAL",
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition expressly does not otherwise specify this containment box as transport equipment."]
+  },
+  {
+    "code": "MR",
+    "kind": "PACKAGE",
+    "family": "RECEPTACLE",
+    "material": "METAL"
+  },
+  {
+    "code": "MS",
+    "kind": "PACKAGE",
+    "family": "SACK",
+    "attributes": {"CONSTRUCTION": "MULTI_WALL"}
+  },
+  {
+    "code": "MT",
+    "kind": "PACKAGE",
+    "family": "MAT"
+  },
+  {
+    "code": "MW",
+    "kind": "PACKAGE",
+    "family": "RECEPTACLE",
+    "attributes": {"CONSTRUCTION": "WRAPPED"},
+    "components": [{"role": "OUTER_ENCLOSURE", "material": "PLASTIC"}],
+    "notes": ["Plastic belongs to the wrap, not necessarily to the containment vessel's primary body."]
+  },
+  {
+    "code": "MX",
+    "kind": "PACKAGE",
+    "family": "MATCHBOX"
+  },
+  {
+    "code": "NA",
+    "kind": "ADMINISTRATIVE",
+    "family": null,
+    "attributes": {"STATUS": "NOT_AVAILABLE"},
+    "notes": ["Not available is administrative state, not an unknown physical family asserted as a package type."]
+  },
+  {
+    "code": "NE",
+    "kind": "CARGO_FORM",
+    "family": "UNPACKAGED"
+  },
+  {
+    "code": "NF",
+    "kind": "CARGO_FORM",
+    "family": "UNPACKAGED",
+    "attributes": {"COUNT_FORM": "SINGLE_UNIT"},
+    "notes": ["SINGLE_UNIT is part of the code definition, not a deduction from a sampled quantity of one."]
+  },
+  {
+    "code": "NG",
+    "kind": "CARGO_FORM",
+    "family": "UNPACKAGED",
+    "attributes": {"COUNT_FORM": "MULTIPLE_UNITS"}
+  },
+  {
+    "code": "NS",
+    "kind": "PRESENTATION",
+    "family": "NEST"
+  },
+  {
+    "code": "NT",
+    "kind": "PACKAGE",
+    "family": "NET"
+  },
+  {
+    "code": "NU",
+    "kind": "PACKAGE",
+    "family": "NET",
+    "material": "PLASTIC",
+    "attributes": {"SHAPE": "TUBE"}
+  },
+  {
+    "code": "NV",
+    "kind": "PACKAGE",
+    "family": "NET",
+    "material": "TEXTILE",
+    "attributes": {"SHAPE": "TUBE"}
+  },
+  {
+    "code": "O1",
+    "kind": "EQUIPMENT_FORM",
+    "family": "CAGE",
+    "attributes": {"SIDES": "TWO", "WHEELS": "PRESENT"},
+    "components": [{"role": "STRUCTURAL_SUPPORT", "family": "STRAP", "attributes": {"PURPOSE": "FIXING"}}]
+  },
+  {
+    "code": "O2",
+    "kind": "EQUIPMENT_FORM",
+    "family": "TROLLEY"
+  },
+  {
+    "code": "O3",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"RETURNABILITY": "ONE_WAY"},
+    "standards": ["ISO 0", "1/2 EURO Pallet"]
+  },
+  {
+    "code": "O4",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"RETURNABILITY": "ONE_WAY"},
+    "standards": ["ISO 1", "1/1 EURO Pallet"]
+  },
+  {
+    "code": "O5",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"RETURNABILITY": "ONE_WAY"},
+    "standards": ["ISO 2", "2/1 EURO Pallet"]
+  },
+  {
+    "code": "O6",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"DIMENSION_CLASS": "EXCEPTIONAL"},
+    "notes": ["No actual dimensions or material are specified."]
+  },
+  {
+    "code": "O7",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "material": "WOOD",
+    "measurements": [{"property": "DIMENSIONS", "values": [40, 80], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "O8",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "material": "PLASTIC",
+    "attributes": {"POOL": "SRS"},
+    "measurements": [{"property": "DIMENSIONS", "values": [60, 80], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "O9",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "material": "PLASTIC",
+    "attributes": {"POOL": "SRS"},
+    "measurements": [{"property": "DIMENSIONS", "values": [80, 120], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "OA",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"POOL": "CHEP"},
+    "measurements": [{"property": "DIMENSIONS", "values": [40, 60], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "OB",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"POOL": "CHEP"},
+    "measurements": [{"property": "DIMENSIONS", "values": [80, 120], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "OC",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"POOL": "CHEP"},
+    "measurements": [{"property": "DIMENSIONS", "values": [100, 120], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "OD",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "measurements": [{"property": "DIMENSIONS", "values": [115.5, 116.5], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}],
+    "standards": ["AS 4068-1993"],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "OE",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "measurements": [{"property": "DIMENSIONS", "values": [110, 110], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}],
+    "standards": ["ISO T11"],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "OF",
+    "kind": "EQUIPMENT_FORM",
+    "family": "PLATFORM",
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["A pallet-equivalent shipping platform with unknown dimensions or weight; no default numeric dimensions or mass are asserted."]
+  },
+  {
+    "code": "OG",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "standards": ["ISO 0", "1/2 EURO Pallet"]
+  },
+  {
+    "code": "OH",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "standards": ["ISO 1", "1/1 EURO Pallet"]
+  },
+  {
+    "code": "OI",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "standards": ["ISO 2", "2/1 EURO Pallet"]
+  },
+  {
+    "code": "OJ",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "standards": ["1/4 EURO Pallet"]
+  },
+  {
+    "code": "OK",
+    "kind": "CARGO_FORM",
+    "family": "BLOCK",
+    "notes": ["A block names the cargo's physical form, not a material inferred from examples such as granite."]
+  },
+  {
+    "code": "OL",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "standards": ["1/8 EURO Pallet"]
+  },
+  {
+    "code": "OM",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "material": "SYNTHETIC",
+    "standards": ["ISO 1"],
+    "notes": ["Synthetic is the specified broad material designation; no particular plastic or polymer is inferred."]
+  },
+  {
+    "code": "ON",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "material": "SYNTHETIC",
+    "standards": ["ISO 2"],
+    "notes": ["Synthetic is the specified broad material designation; no particular plastic or polymer is inferred."]
+  },
+  {
+    "code": "OP",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"TRADE_FORM": "WHOLESALER"}
+  },
+  {
+    "code": "OQ",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "measurements": [{"property": "DIMENSIONS", "values": [80, 100], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "OR",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "measurements": [{"property": "DIMENSIONS", "values": [60, 100], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "OS",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"RETURNABILITY": "ONE_WAY"}
+  },
+  {
+    "code": "OT",
+    "kind": "PACKAGE",
+    "family": "OCTABIN",
+    "material": "CARDBOARD",
+    "attributes": {"SIZE": "LARGE"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition explicitly specifies a cardboard container of large dimensions; no shape or numeric capacity is inferred from the name."]
+  },
+  {
+    "code": "OU",
+    "kind": "PACKAGE",
+    "family": "CONTAINER",
+    "attributes": {"LAYER": "OUTER"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The code defines an outer containment box, not otherwise specified as transport equipment. It does not by itself identify the counted layer in a particular document."]
+  },
+  {
+    "code": "OV",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"RETURNABILITY": "RETURNABLE"}
+  },
+  {
+    "code": "OW",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "attributes": {"SIZE": "LARGE", "FOOTPRINT": "PALLET_SIZED"}
+  },
+  {
+    "code": "OX",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"WHEELS": "PRESENT", "RIM": "RAISED"},
+    "measurements": [{"property": "DIMENSIONS", "values": [81, 67, 135], "unit": null, "relation": "UNSPECIFIED"}],
+    "notes": ["The accepted label prints dimensions without a unit. No centimetre unit or named length/width/height axis order is invented."]
+  },
+  {
+    "code": "OY",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"WHEELS": "PRESENT", "RIM": "RAISED"},
+    "measurements": [{"property": "DIMENSIONS", "values": [81, 72, 135], "unit": null, "relation": "UNSPECIFIED"}],
+    "notes": ["The accepted label prints dimensions without a unit. No centimetre unit or named length/width/height axis order is invented."]
+  },
+  {
+    "code": "OZ",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"WHEELS": "PRESENT", "RIM": "RAISED"},
+    "measurements": [{"property": "DIMENSIONS", "values": [81, 60, 16], "unit": null, "relation": "UNSPECIFIED"}],
+    "notes": ["The accepted label prints dimensions without a unit. No centimetre unit or named length/width/height axis order is invented."]
+  },
+  {
+    "code": "P1",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"POOL": "CHEP"},
+    "measurements": [{"property": "DIMENSIONS", "values": [60, 80], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "P2",
+    "kind": "PACKAGE",
+    "family": "PAN",
+    "attributes": {"PROFILE": "SHALLOW_WIDE", "CLOSURE": "OPEN"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition establishes shallow, wide and open. Its usual metal material is not mandatory and is not asserted."]
+  },
+  {
+    "code": "P3",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"POOL": "LPR"},
+    "measurements": [{"property": "DIMENSIONS", "values": [60, 80], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "P4",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"POOL": "LPR"},
+    "measurements": [{"property": "DIMENSIONS", "values": [80, 120], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "PA",
+    "kind": "PACKAGE",
+    "family": "PACKET",
+    "attributes": {"SIZE": "SMALL"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "PB",
+    "kind": "PACKAGE",
+    "family": "PALLET_BOX",
+    "attributes": {"CONSTRUCTION": "COMPOSITE"},
+    "components": [
+      {"role": "OUTER_ENCLOSURE", "family": "BOX", "attributes": {"CLOSURE": "OPEN_ENDED"}},
+      {"role": "PALLET_BASE", "family": "PALLET"}
+    ],
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The authoritative definition names a combined open-ended box and pallet. Neither component's material is specified."]
+  },
+  {
+    "code": "PC",
+    "kind": "PACKAGE",
+    "family": "PARCEL"
+  },
+  {
+    "code": "PD",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"CONSTRUCTION": "MODULAR"},
+    "components": [{"role": "STRUCTURAL_SUPPORT", "family": "COLLAR"}],
+    "measurements": [{"property": "DIMENSIONS", "values": [80, 100], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "PE",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "attributes": {"CONSTRUCTION": "MODULAR"},
+    "components": [{"role": "STRUCTURAL_SUPPORT", "family": "COLLAR"}],
+    "measurements": [{"property": "DIMENSIONS", "values": [80, 120], "unit": "CENTIMETRE", "relation": "UNSPECIFIED"}]
+  },
+  {
+    "code": "PF",
+    "kind": "PACKAGE",
+    "family": "PEN",
+    "attributes": {"SIZE": "SMALL", "CLOSURE": "OPEN_TOP", "PURPOSE": "ANIMALS"},
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "PG",
+    "kind": "CARGO_FORM",
+    "family": "PLATE"
+  },
+  {
+    "code": "PH",
+    "kind": "PACKAGE",
+    "family": "PITCHER"
+  },
+  {
+    "code": "PI",
+    "kind": "CARGO_FORM",
+    "family": "PIPE"
+  },
+  {
+    "code": "PJ",
+    "kind": "PACKAGE",
+    "family": "PUNNET"
+  },
+  {
+    "code": "PK",
+    "kind": "PACKAGE",
+    "family": "PACKAGE"
+  },
+  {
+    "code": "PL",
+    "kind": "PACKAGE",
+    "family": "PAIL"
+  },
+  {
+    "code": "PN",
+    "kind": "CARGO_FORM",
+    "family": "PLANK"
+  },
+  {
+    "code": "PO",
+    "kind": "PACKAGE",
+    "family": "POUCH"
+  },
+  {
+    "code": "PP",
+    "kind": "COUNTING_UNIT",
+    "family": "PIECE",
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition describes a loose or unpacked article. PIECE remains a distinct counting family rather than silently becoming the generic UNPACKAGED code."]
+  },
+  {
+    "code": "PR",
+    "kind": "PACKAGE",
+    "family": "RECEPTACLE",
+    "material": "PLASTIC"
+  },
+  {
+    "code": "PT",
+    "kind": "PACKAGE",
+    "family": "POT"
+  },
+  {
+    "code": "PU",
+    "kind": "PACKAGE",
+    "family": "TRAY",
+    "attributes": {"TRADE_FORM": "TRAY_PACK"},
+    "notes": ["The saved accepted label is Tray pack; the older OASIS vocabulary names Tray. The current accepted wording is retained without inventing material, a lid or a film enclosure."]
+  },
+  {
+    "code": "PV",
+    "kind": "CARGO_FORM",
+    "family": "PIPE",
+    "attributes": {"GROUPING": "BUNDLE_BUNCH_TRUSS"}
+  },
+  {
+    "code": "PX",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "definitionSources": ["oasis_ubl21_rec21_9e"],
+    "notes": ["The definition says usually made of wood; that is not a universal material condition. Generic PALLET does not assert WOOD."]
+  },
+  {
+    "code": "PY",
+    "kind": "CARGO_FORM",
+    "family": "PLATE",
+    "attributes": {"GROUPING": "BUNDLE_BUNCH_TRUSS"}
+  },
+  {
+    "code": "PZ",
+    "kind": "CARGO_FORM",
+    "family": "PLANK",
+    "attributes": {"GROUPING": "BUNDLE_BUNCH_TRUSS"}
+  }
+]

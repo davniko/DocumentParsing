@@ -46,11 +46,14 @@ def verify_native_evidence(
     if set(evidence) != {"request", "output", "packet", "packetSha256", "callReceipts"}:
         raise ValueError("native decision lacks complete immutable evidence")
     packet = _read_pin(root, evidence["packet"])
+    # One schema is authoritative for this verification. Rebuilding it for each
+    # receipt adds work without adding an independent integrity check.
+    schema = model.model_json_schema()
     expected = {
         "stage": stage,
         "identity": identity,
         "request": request,
-        "schema": model.model_json_schema(),
+        "schema": schema,
         "system": system,
         "prompt": prompt,
         "provider": dict(provider),
@@ -67,7 +70,7 @@ def verify_native_evidence(
     paths = [pin["path"] for pin in pins]
     if len(paths) != len(set(paths)):
         raise ValueError("duplicate native receipt pin")
-    call_key = digest([stage, identity, model.model_json_schema(), system, prompt, dict(provider)])
+    call_key = digest([stage, identity, schema, system, prompt, dict(provider)])
     wire_name = re.compile(
         re.escape(stage + "-" + call_key) + r"(?:-attempt(?:[2-9]|[1-9][0-9]+))?\.json"
     )
@@ -82,7 +85,7 @@ def verify_native_evidence(
                 "stage": stage,
                 "identity": identity,
                 "promptSha256": digest(prompt),
-                "schemaSha256": digest(model.model_json_schema()),
+                "schemaSha256": digest(schema),
             }.items()
         ):
             raise ValueError("native receipt belongs to a different request")

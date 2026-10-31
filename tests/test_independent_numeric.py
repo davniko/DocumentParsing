@@ -198,6 +198,40 @@ def renderable_blueprint(source_id: str = "doc-optional-range") -> SamplingBluep
     )
 
 
+def test_disjoint_group_can_be_absent_from_one_container_scope(tmp_path):
+    source = "FIRST 100 KG\nSECOND 200 KG"
+    bp = FakeBlueprint("group", source, target(containers=2, allocation_rows=2))
+    regions = [
+        quoted(
+            source,
+            text,
+            "container_net_mass",
+            baselineKg=str(amount),
+            factGroup=f"row_{i}",
+            scope={"kind": "container", "index": i},
+        )
+        for i, (text, amount) in enumerate((("100 KG", 100), ("200 KG", 200)))
+    ]
+    value = certificate(bp, regions=regions)
+    authority = write_inventory(tmp_path / "inventory.json", bp, value)
+    bound = authority.apply_blueprint(bp, bp.document_id)
+    sampled = draw(quantities=(0, 4))
+    result = authority.build_ledger(
+        bound,
+        sampled,
+        {"privatePackingRelation": "NONE", "relatedPackageType": None},
+        1,
+        1,
+        allow_empty_group_scopes=True,
+    )
+    assert "held-numeric:0" not in result["surfaces"]
+    assert result["surfaces"]["held-numeric:1"] == ["720 KG"]
+    with pytest.raises(ValueError, match="positive"):
+        authority.build_ledger(
+            bound, sampled, {"privatePackingRelation": "NONE", "relatedPackageType": None}, 1, 1
+        )
+
+
 def test_inventory_path_pin_and_complete_coverage_fail_closed(tmp_path: Path) -> None:
     blueprint = FakeBlueprint(
         "doc-one",
@@ -677,11 +711,21 @@ def test_complete_handling_target_tracks_fresh_packing_not_old_source(tmp_path):
     original = target()
     original["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] = ["502 PACKAGES"]
     source = "502 PACKAGES"
-    bp = FakeBlueprint("doc-handling", source, original, regions=(
-        RenderRegion("old-handling", 0, 0, len(source), source, (path,), "auxiliary"),
-    ))
-    region = quoted(source, source, "packing_clause", handlingTargetPath=path,
-                    handlingTargetSuffix=")", prefix="(", suffix=" ON DECK")
+    bp = FakeBlueprint(
+        "doc-handling",
+        source,
+        original,
+        regions=(RenderRegion("old-handling", 0, 0, len(source), source, (path,), "auxiliary"),),
+    )
+    region = quoted(
+        source,
+        source,
+        "packing_clause",
+        handlingTargetPath=path,
+        handlingTargetSuffix=")",
+        prefix="(",
+        suffix=" ON DECK",
+    )
     authority = write_inventory(tmp_path / "handling.json", bp, certificate(bp, regions=[region]))
     prepared = authority.apply_blueprint(bp)
     ledger = {"surfaces": {"held-numeric:0": ["(16 WOODEN CASES ON DECK"]}}
@@ -689,8 +733,9 @@ def test_complete_handling_target_tracks_fresh_packing_not_old_source(tmp_path):
     assert projected["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == [
         "(16 WOODEN CASES ON DECK)"
     ]
-    assert changes == [{"path": path, "before": "502 PACKAGES",
-                        "after": "(16 WOODEN CASES ON DECK)"}]
+    assert changes == [
+        {"path": path, "before": "502 PACKAGES", "after": "(16 WOODEN CASES ON DECK)"}
+    ]
     assert original["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"] == [
         "502 PACKAGES"
     ]
@@ -701,20 +746,29 @@ def test_complete_handling_target_tracks_fresh_packing_not_old_source(tmp_path):
 
 def test_complete_handling_projection_cannot_own_a_quantity_target(tmp_path):
     bp = FakeBlueprint("doc-invalid-handling", "COUNT", target())
-    region = quoted("COUNT", "COUNT", "packing_clause",
-                    handlingTargetPath="documentPatch.goodsItemDetails[0].packageQuantity")
+    region = quoted(
+        "COUNT",
+        "COUNT",
+        "packing_clause",
+        handlingTargetPath="documentPatch.goodsItemDetails[0].packageQuantity",
+    )
     with pytest.raises(ValueError, match="invalid target declaration"):
         write_inventory(tmp_path / "invalid-handling.json", bp, certificate(bp, regions=[region]))
 
 
 def test_numeric_handling_replacement_cannot_silently_leave_stale_target(tmp_path):
     path = "documentPatch.goodsItemDetails[0].handlingInstructions[0]"
-    bp = FakeBlueprint("doc-stale-handling", "502 PACKAGES", target(), regions=(
-        RenderRegion("handling", 0, 0, 12, "502 PACKAGES", (path,), "auxiliary"),
-    ))
-    authority = write_inventory(tmp_path / "stale-handling.json", bp, certificate(bp, regions=[
-        quoted(bp.source, bp.source, "packing_clause")
-    ]))
+    bp = FakeBlueprint(
+        "doc-stale-handling",
+        "502 PACKAGES",
+        target(),
+        regions=(RenderRegion("handling", 0, 0, 12, "502 PACKAGES", (path,), "auxiliary"),),
+    )
+    authority = write_inventory(
+        tmp_path / "stale-handling.json",
+        bp,
+        certificate(bp, regions=[quoted(bp.source, bp.source, "packing_clause")]),
+    )
     with pytest.raises(ValueError, match="requires explicit target projection"):
         authority.apply_blueprint(bp)
 

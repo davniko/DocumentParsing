@@ -79,6 +79,17 @@ def classify_thermal_hs(row: HsGlobalSubheading) -> ThermalProfile | None:
 
 def classify_thermal_descriptions(nearest_first: Sequence[str]) -> ThermalProfile | None:
     """Apply the same exclusions and nearest-ancestor rules to an exact HS path."""
+    profiles = eligible_thermal_profiles(nearest_first)
+    return profiles[0] if len(profiles) == 1 else None
+
+
+def eligible_thermal_profiles(nearest_first: Sequence[str]) -> tuple[ThermalProfile, ...]:
+    """Retain both eligible cold-chain states instead of interpreting ambiguity as ambient.
+
+    A fresh/chilled/frozen meat identity does not choose one state, but neither
+    does it authorize dried meat. Fresh-or-frozen produce remains outside this
+    conservative classifier, as before.
+    """
     for value in nearest_first:
         text = value.casefold()
         # Negative tariff qualifications are not positive carrying requirements.
@@ -88,19 +99,21 @@ def classify_thermal_descriptions(nearest_first: Sequence[str]) -> ThermalProfil
             r"(?:fresh,?\s*(?:or\s*)?)?(?:frozen|chilled)\b",
             text,
         ):
-            return None
+            return ()
         if re.search(r"\b(?:whether or not|fresh or)\s+frozen\b", text):
-            return None
+            return ()
         frozen = re.search(r"\bfrozen\b", text) is not None
         chilled = re.search(r"\bchilled\b", text) is not None
         fresh = re.search(r"\bfresh\b", text) is not None
         if frozen and not chilled and not fresh:
-            return "FROZEN"
+            return ("FROZEN",)
         if chilled and not frozen:
-            return "CHILLED"
+            return ("CHILLED",)
+        if frozen and chilled:
+            return ("CHILLED", "FROZEN")
         if frozen or chilled:
-            return None
-    return None
+            return ()
+    return ()
 
 
 def build_thermal_goods_support(

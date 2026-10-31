@@ -29,7 +29,7 @@ _UNITS = {
 
 
 def _presentations(surface: str) -> tuple[str, dict[Decimal, Decimal]]:
-    matches = list(re.finditer(r"[+-]?\d(?:[\d., ]*\d)?", surface))
+    matches = list(re.finditer(r"[+-]?(?:\d(?:[\d., ]*\d)?|[.,]\d+)", surface))
     if len(matches) != 1:
         raise ValueError(f"numeric owner is not a single measured scalar: {surface!r}")
     token = matches[0][0]

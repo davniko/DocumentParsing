@@ -44,7 +44,7 @@ from document_ocr.synthesis.independent_unit_profiles import (
     validate_profile,
 )
 from document_ocr.synthesis.tank_equipment import TANK_SIZES, TANK_TYPES
-from document_ocr.synthesis.thermal_goods import classify_thermal_descriptions
+from document_ocr.synthesis.thermal_goods import eligible_thermal_profiles
 
 _REGIMES = frozenset({"ambient", "frozen", "chilled", "dg"})
 _GP_SIZES = (
@@ -308,10 +308,11 @@ class IndependentSampler:
         self._dg_domains: dict[tuple[bool, bool, int | None, bool], tuple[str, ...]] = {}
         pools: dict[str, list[str]] = {regime: [] for regime in ("ambient", "frozen", "chilled")}
         for code in self.hs.global_codes:
-            thermal = classify_thermal_descriptions(
+            thermal = eligible_thermal_profiles(
                 tuple(reversed(self.hs.global_description_path(code)))
             )
-            pools[(thermal or "ambient").lower()].append(code)
+            for regime in thermal or ("ambient",):
+                pools[regime.lower()].append(code)
         if set().union(*(set(codes) for codes in pools.values())) != set(self.phrases):
             raise ValueError("thermal identity pools omit a pinned HS6 code")
         self.pools = {regime: tuple(sorted(codes)) for regime, codes in pools.items()}
@@ -378,7 +379,7 @@ class IndependentSampler:
         identity_count: int,
         seed: int,
         equipment_mode: str = "uniform",
-        dg_requirements: Mapping[str, Any] | None = None,
+        dg_requirements: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None = None,
         excluded_identifiers: Sequence[str] = (),
         cargo_presentation: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -400,6 +401,20 @@ class IndependentSampler:
         if regime not in _REGIMES or equipment_mode not in {"uniform", "mixed"}:
             raise ValueError("unknown independent regime or equipment mode")
         count = _require_positive_int(identity_count, "identity_count")
+        if regime == "dg" and isinstance(dg_requirements, (list, tuple)):
+            from document_ocr.synthesis.independent_dg_group import prepare
+
+            return prepare(
+                self,
+                source_document_id=source_document_id,
+                variant=variant,
+                identity_count=count,
+                seed=seed,
+                equipment_mode=equipment_mode,
+                requirements=dg_requirements,
+                excluded_identifiers=excluded_identifiers,
+                cargo_presentation=cargo_presentation,
+            )
         if regime == "dg" and count != 1:
             raise ValueError("one DG declaration needs one independently joined HMT record")
         if regime != "dg" and dg_requirements:
@@ -527,6 +542,11 @@ class IndependentSampler:
             raise ValueError("frozen request has unsupported equipment mode")
         if request.get("goodsForm") != "; ".join(g["description"] for g in goods):
             raise ValueError("frozen goods form differs from registry descriptions")
+        if "dgComponents" in request:
+            from document_ocr.synthesis.independent_dg_group import validate
+
+            validate(self, request, require_context=require_context)
+            return
         if regime == "dg":
             if len(goods) != 1 or not isinstance(request.get("dangerousGoods"), Mapping):
                 raise ValueError("DG request needs one joined identity and declaration")
@@ -754,6 +774,12 @@ class IndependentSampler:
             for payload, cube in capacities
         )
         count_step = numeric_authority.get("quantityMultiple", 1)
+        if equipment and counted_unit_context in {"non_dg_liquid_system", "tank_loading_lot"}:
+            # These are installed contents systems, not stackable receptacles.
+            # Weight/cube headroom cannot authorize a second tank in the same box.
+            if multiple != 1 or count_step != 1:
+                raise ValueError("installed liquid systems require one counted unit per load")
+            maxima = tuple(min(value, 1) for value in maxima)
         if fixed_quantity is not None and fixed_quantity % (multiple * count_step):
             raise ValueError("fixed quantity violates the source precision count lattice")
         maxima = tuple(value // count_step for value in maxima)
@@ -794,26 +820,32 @@ class IndependentSampler:
             raise AssertionError("independent allocation failed conservation")
         declarations = None
         if regime == "dg":
-            record_id = request["dangerousGoods"]["recordId"]
-            record = self.hmt[record_id]
-            declarations = {
-                "recordId": record_id,
-                "properShippingName": record.proper_shipping_name,
-                "unNumber": record.un_number,
-                "exactHazardClass": record.exact_hazard_class,
-                "hazardCategory": record.hazard_category,
-                "packingGroupCode": record.packing_group_code,
-                "packingGroupCategory": record.packing_group_category,
-                "exactSubsidiaryHazards": list(record.exact_subsidiary_hazards),
-                "subsidiaryHazardCategories": list(record.subsidiary_hazard_categories),
-            }
-            if request["dgRequirements"].get("flashPoint"):
-                fact = self.flash[record_id]
-                declarations["flashPoint"] = {
-                    "valueCelsius": str(fact.value("celsius")),
-                    "sourceUrl": fact.source_url,
-                    "casNumber": fact.cas_number,
+            from document_ocr.synthesis.independent_dg_group import components
+
+            entries = []
+            for component in components(request):
+                record_id = component["dangerousGoods"]["recordId"]
+                record = self.hmt[record_id]
+                entry = {
+                    "recordId": record_id,
+                    "properShippingName": record.proper_shipping_name,
+                    "unNumber": record.un_number,
+                    "exactHazardClass": record.exact_hazard_class,
+                    "hazardCategory": record.hazard_category,
+                    "packingGroupCode": record.packing_group_code,
+                    "packingGroupCategory": record.packing_group_category,
+                    "exactSubsidiaryHazards": list(record.exact_subsidiary_hazards),
+                    "subsidiaryHazardCategories": list(record.subsidiary_hazard_categories),
                 }
+                if component["dgRequirements"].get("flashPoint"):
+                    fact = self.flash[record_id]
+                    entry["flashPoint"] = {
+                        "valueCelsius": str(fact.value("celsius")),
+                        "sourceUrl": fact.source_url,
+                        "casNumber": fact.cas_number,
+                    }
+                entries.append(entry)
+            declarations = entries if "dgComponents" in request else entries[0]
         thermal_context = None
         if thermal:
             thermal_context = {
@@ -881,14 +913,16 @@ class IndependentSampler:
 
 def summarize_requests(requests: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     """Separate eligible registry scope from actually selected finite requests."""
+    from document_ocr.synthesis.independent_dg_group import declarations
+
     return {
         "requests": len(requests),
         "uniqueHs6": len({goods["hs6"] for request in requests for goods in request["goods"]}),
         "uniqueDgRecords": len(
             {
-                request["dangerousGoods"]["recordId"]
+                entry["recordId"]
                 for request in requests
-                if request["dangerousGoods"] is not None
+                for entry in declarations(request["dangerousGoods"])
             }
         ),
         "regimes": dict(Counter(request["regime"] for request in requests)),

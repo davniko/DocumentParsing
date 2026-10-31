@@ -467,6 +467,43 @@ def test_changed_package_requires_printed_type_not_declared_or_product_overlap_o
         render_sampling_blueprint(blueprint, target, {"product": "PALLET STACKERS"})
 
 
+def test_reviewed_commercial_alias_requires_owned_package_region():
+    from document_ocr.synthesis.package_presentations import PackageVocabulary
+
+    row, contract, old = source_fixture()
+    target = deepcopy(row["target"])
+    target["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"][0]["typeCategory"] = (
+        "PACKAGE_PALLET"
+    )
+    bp = compile_sampling_blueprint(row, old, contract)
+    vocabulary = PackageVocabulary(
+        {
+            "version": 1,
+            "excludedUnscopedTokens": [],
+            "entries": {
+                "PACKAGE_PALLET": {
+                    "family": "PACKAGE_PALLET",
+                    "full": ["PALLET"],
+                    "short": ["PLT"],
+                    "optional": ["PALLET(S)"],
+                }
+            },
+        }
+    )
+    text, result, _ = render_sampling_blueprint(
+        bp, target, {}, surface_values={"package": "PLT"}, package_vocabulary=vocabulary
+    )
+    assert "PLT" in text
+    assert (
+        result["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"][0]["typeCategory"]
+        == "PACKAGE_PALLET"
+    )
+    with pytest.raises(ValueError, match="owned printed noun"):
+        render_sampling_blueprint(
+            bp, target, {}, surface_values={"package": "BOXES"}, package_vocabulary=vocabulary
+        )
+
+
 @pytest.mark.parametrize("quantity,expected", [(1, "PACKAGE"), (5440, "PACKAGES")])
 def test_reviewed_package_recipe_reconciles_source_noun_with_unchanged_current_category(
     quantity, expected

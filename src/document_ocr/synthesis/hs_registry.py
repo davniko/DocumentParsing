@@ -25,6 +25,7 @@ from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
 from typing import Annotated, Final, Literal, cast
@@ -618,7 +619,6 @@ def compile_uk_global_tariff_registry(
         max_bytes=_MAX_METADATA_BYTES,
         label="UKGT CSVW metadata",
     )
-    _validate_csvw_metadata(metadata_payload)
     report_payload = _read_pinned_file(
         report_path,
         expected_bytes=source.report_bytes,
@@ -626,6 +626,20 @@ def compile_uk_global_tariff_registry(
         max_bytes=_MAX_REPORT_BYTES,
         label="UKGT commodities report",
     )
+    return _compile_verified_snapshot(metadata_payload, report_payload, source)
+
+
+@lru_cache(maxsize=1)
+def _compile_verified_snapshot(
+    metadata_payload: bytes, report_payload: bytes, source: UkGlobalTariffSourcePin
+) -> UkGlobalTariffRegistry:
+    """Share the exact immutable snapshot across the two campaign consumers.
+
+    File size/hash checks still run on every public call. The cache is keyed by
+    current bytes and the complete frozen source pin, never filesystem metadata.
+    Keeping one snapshot bounds memory and avoids duplicate hierarchy compilation.
+    """
+    _validate_csvw_metadata(metadata_payload)
     rows, normalized_descriptions = _parse_report(
         report_payload, snapshot_date=source.snapshot_date
     )

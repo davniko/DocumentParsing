@@ -805,7 +805,7 @@ def reviewed_route_blueprints():
     return result
 
 
-def test_reviewed_freetime_literal_stays_grounded_while_other_countries_vary(
+def test_reviewed_freetime_is_source_only_while_countries_vary(
     registry, reviewed_route_blueprints
 ):
     bp = reviewed_route_blueprints["ebb856"]
@@ -823,10 +823,8 @@ def test_reviewed_freetime_literal_stays_grounded_while_other_countries_vary(
     text, target, proof = render_sampling_blueprint(bp, bp.target, {}, country_rendering=prepared)
     key = "agent:operational:freetime_clause"
     owner = next(item for item in proof["countryPresentations"]["owners"] if item["key"] == key)
-    literal = target["documentPatch"]["goodsItemDetails"][0]["handlingInstructions"][0]
-    assert owner["before"] == owner["after"] == literal
-    assert literal in text
-    assert owner["edits"][0]["selection"]["family"] == "retained_literal_target"
+    assert "handlingInstructions" not in target["documentPatch"]["goodsItemDetails"][0]
+    assert owner["after"] in text
     assert any(
         item["before"] != item["after"]
         for item in proof["countryPresentations"]["owners"]

@@ -1,0 +1,230 @@
+aliases:
+  package_mode: registry
+  package_registry:
+    path: artifacts/sampling-registries/package-extraction-vocabulary-v2.json
+    records: 407
+    sha256: 4392e46f19ef4cbc6138c6039c3cafaf4c36edacc5bacd468baec635820058c0
+auxiliary: artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml
+budget_usd: 0.75
+capabilities:
+  doc_1149521ede78a0527c6a82ca4db69a97a2ad6c6da9a2c6ecb4db9be5d65b7a37:
+    family: dg_chemical
+    identity_count: 2
+    location_sides:
+      documentPatch.freight.paymentPlace: origin
+  doc_951024129bf38a16234b6b31e924e0bf72ec56207be8d68bb9af51927447a358:
+    family: dg_chemical
+    identity_count: 7
+  doc_ede7dfe3ae6509d0389e46d4686578ffe82fa2302f0f943aee875ead8648a4aa:
+    family: dg_chemical
+    identity_count: 3
+casing:
+  render_styles:
+  - uppercase
+  - title
+  target: uppercase
+concurrency: 4
+country_presentations:
+  alias_probability: 0.3
+  family_weights:
+    abbreviation: 1
+    dotted_code: 1
+    iso2: 1
+    iso3: 1
+    localized_name: 1
+    name: 1
+  language_allowlist:
+  - en
+  - it
+  - fr
+  - es
+  unavailable_family_policy: renormalize_eligible
+country_registry_manifest: artifacts/registries/compiled/country-presentations-iso-cldr-48.2.3-v1/production-manifest.json
+country_registry_sha256: aa8f579b7a5855a47b11dca35b27c38198f07d090d801b6c1fe86917c4b854b4
+dataset: artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset
+environment_file: .env
+historical_catalog: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+independent:
+  distinct_actor_reviews:
+    path: docs/analysis/r28-multidg-integration-20261029/native-synthesis-v2/prepared/e92f955ae92692b0785064f7b311021e38a8ab2ad48ad93af8ede8550343ded6/distinct_actor_reviews.json
+    sha256: ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356
+  geography_certificates:
+    path: docs/analysis/r28-multidg-integration-20261029/geography_certificates.json
+    sha256: 9e0555b2029618d99b2564c87a254dafc636cbbe2b55a04fce14c3e0933c168b
+  locality_owner_reviews:
+    path: docs/analysis/r28-multidg-integration-20261029/native-synthesis-v2/prepared/e92f955ae92692b0785064f7b311021e38a8ab2ad48ad93af8ede8550343ded6/locality_owner_reviews.json
+    sha256: ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356
+  numeric_certificates:
+    path: docs/analysis/r28-multidg-integration-20261029/numeric_certificates.json
+    sha256: 6b2d101d7af7c285c6960971a9c072e11100b9feff9334515e403daa9bfef60d
+  private_plans:
+    path: docs/analysis/r28-multidg-integration-20261029/native-synthesis-v2/prepared/e92f955ae92692b0785064f7b311021e38a8ab2ad48ad93af8ede8550343ded6/private-plans.json
+    sha256: e2d5376d6813489881f2d4bdf26e2e354e93ba37b86720b6ba57b8eec8c3b3dc
+  registry:
+    dgEcics:
+      path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+      sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+    dgHmt:
+      path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+      sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+    flash:
+      path: artifacts/sampling-registries/niosh-flashpoints-20261014/registry.json
+      sha256: ddc4f1bbe438d7ad58825188d91790d0e63c31891d0f4f90c33de8c9a20329f3
+    hsManifest:
+      path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+      sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+    hsMetadata:
+      path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+      sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+    hsReport:
+      path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+      sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+    phrases:
+      path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+      sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+  requests:
+    path: docs/analysis/r28-multidg-integration-20261029/native-synthesis-v2/prepared/e92f955ae92692b0785064f7b311021e38a8ab2ad48ad93af8ede8550343ded6/requests.json
+    sha256: 519f576102e7b07010b58e7ddf62aa26e8ec6af199eb159af36ffad543a0549a
+  wording_certificates:
+    path: docs/analysis/r28-multidg-integration-20261029/native-synthesis-v2/prepared/e92f955ae92692b0785064f7b311021e38a8ab2ad48ad93af8ede8550343ded6/wording_certificates.json
+    sha256: 01bda822b5654654f072993031ffe53ef4b0aa3cb006f70ce8b5e0a8b47682bd
+output: artifacts/kie-synthesis-production/multi-dg-20261029-registry-validation
+ownership: artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml
+phones:
+  family_weights:
+  - family: source
+    weight: 1
+positions:
+  max_translation: 20
+  output_subdirectory: positions-reflow-v1
+  reflow:
+    bottom_guard_height_fraction: 1
+    calibration_path: artifacts/synthesis-templates/mpci-bl-v7-reviewed/position-calibration.json
+    calibration_sha256: 21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a
+    column_guard_height_fraction: 0.5
+    font_path: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    font_sha256: 690243adfefe0ce154b547db6205794bd30ac4277275179517a90994f4980648
+    row_lock_height_fraction: 0.3333333333333333
+    seed: 2026101651
+  scale_attempts: 32
+  scale_max: 1.05
+  scale_min: 0.95
+  seed: 2026101651
+provider:
+  allow_fallbacks: false
+  api_key_env: OPENROUTER_API_KEY
+  data_collection: deny
+  kind: openrouter
+  max_completion_price_usd_per_million: 0.75
+  max_output_tokens: 8192
+  max_prompt_price_usd_per_million: 0.25
+  model: z-ai/glm-5.3-flash
+  native_structured_output_profile: provider_verified
+  native_structured_output_source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  output_mode: native
+  pricing:
+    cache_write_multiplier: 1
+    cached_input_usd_per_million: '0.03000000'
+    currency: USD
+    effective_date: '2026-10-13'
+    input_usd_per_million: '0.15000000'
+    output_usd_per_million: '0.5000000'
+    source_url: https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints
+  provider_only:
+  - together
+  reasoning_effort: low
+  request_timeout_seconds: 300
+  require_parameters: true
+  transport_max_retries: 0
+sampling:
+  commodity_phrases:
+    path: artifacts/registries/phrases/hs6-commercial-phrases-ukgt-v4.0.1590-v1/phrases.jsonl
+    records: 5612
+    sha256: 05340e29eabf21e9cae56d28287834e6bfa1a5791e9311cb889031affb0f3078
+  countries:
+    path: artifacts/registries/sources/countries/iso-codes-4.9.0-1/iso_3166-1.json
+    records: null
+    sha256: f7dc5542a692ad8e23b9b85a6a1800a63f7a05e5246065fac1ede04ed209ce00
+  ecics:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/ecics-links.jsonl
+    records: 3480
+    sha256: 51e23d0de3437276a8c1eaa62835705212f0154259de955b2139287fc60ac15f
+  flash_points:
+    path: artifacts/sampling-registries/niosh-flashpoints-20261014/registry.json
+    records: 64
+    sha256: ddc4f1bbe438d7ad58825188d91790d0e63c31891d0f4f90c33de8c9a20329f3
+  hmt:
+    path: artifacts/registries/compiled/dangerous-goods-phmsa-ecics-20260831-v4/hmt-records.jsonl
+    records: 2934
+    sha256: bb581d3f1c60f46aa82d13f171f78e61124bbf7d7e83b7295bb970cd69305cb2
+  hs_manifest:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/source-manifest.json
+    records: null
+    sha256: 7dec14e2d9c3979ad5f40f75a490a3a68e4a8382bad8691784f3facafb2f8a4e
+  hs_metadata:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/metadata.csvw.json
+    records: null
+    sha256: 4e59b782504796c4b027d242e4f3136ee10e7f21f7425f21359552cb12646bb7
+  hs_report:
+    path: artifacts/registries/sources/hs/ukgt-v4.0.1590/raw/commodities-report.csv
+    records: null
+    sha256: 13fa169f822ec9e985ffe0e18af2557e3e09ffb4c58de9499a4c8b3df52c8513
+  localities:
+    path: artifacts/registries/compiled/geonames-cities15000-current-v1/localities.jsonl
+    records: 34106
+    sha256: a0990a5711685444c6a7fe61f079e06a5a6b30af6a83fc8a571719be52dbf8bc
+  locations:
+    path: artifacts/registries/compiled/unlocode-2025-1-all-functions-v1/locations.jsonl
+    records: 111561
+    sha256: c5feda51b7a8e39bb97bdd107fc5d96eed4e973461c27adf053a134c7090c278
+  thermal:
+    chilled:
+      maximum: 0
+      minimum: 0
+      step: 0.5
+    chilled_chapters:
+    - '02'
+    - '03'
+    frozen:
+      maximum: -18
+      minimum: -24
+      step: 0.5
+    frozen_chapters:
+    - '02'
+    - '03'
+    - '07'
+    - 08
+    - '16'
+    - '20'
+    package_categories:
+    - PACKAGE_CARTON
+    - PACKAGE_BOX
+    - PACKAGE_PACKAGE
+  transport_capacity:
+    forty_five_high_cube_payload_kg: 27650
+    forty_five_high_cube_volume_m3: 86
+    forty_high_cube_payload_kg: 28690
+    forty_high_cube_volume_m3: 76.4
+    forty_standard_payload_kg: 28870
+    forty_standard_volume_m3: 67.7
+    out_of_gauge_payload_kg: 47300
+    policy: source_type_aware_maersk_upper_bounds_v1
+    published_reference_margin_fraction: 0
+    twenty_standard_payload_kg: 28300
+    twenty_standard_volume_m3: 33.2
+    unclassified_payload_kg: 47300
+    unclassified_volume_m3: 86
+  world_ports:
+    path: artifacts/registries/compiled/nga-world-port-index-current-v1/port-whitelist.jsonl
+    records: 3032
+    sha256: b7d9d33450992bf13ee6fe5d137de4bc768a2df9dcb7d9840f7232a1974563fb
+sampling_mode: independent
+seed: 2026102907
+source_contracts: artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases
+source_ids:
+- doc_1149521ede78a0527c6a82ca4db69a97a2ad6c6da9a2c6ecb4db9be5d65b7a37
+- doc_951024129bf38a16234b6b31e924e0bf72ec56207be8d68bb9af51927447a358
+- doc_ede7dfe3ae6509d0389e46d4686578ffe82fa2302f0f943aee875ead8648a4aa
+task_constraints: artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json
+task_constraints_sha256: a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77
+variants_per_source: 3

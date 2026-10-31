@@ -62,6 +62,8 @@ class ReflowContext:
     boxes: dict
     dimensions: dict
     groups: list
+    source: str = ""
+    package_proof: dict | None = None
 
 
 def groups_for(source: str, proof: dict, receipt: dict, alignment: dict) -> list[dict]:
@@ -138,9 +140,22 @@ def propose_groups(c, page, calibration, policy, metrics):
     regions = page_regions(c.alignment, page, c.dimensions[str(page)])
     boxes = c.boxes[page]
     replacements, reasons = [], []
+    from document_ocr.synthesis.curated_package_geometry import (
+        declared_package_lines,
+        merged_package_lines,
+    )
+
+    merged = merged_package_lines(c.source, c.package_proof, c.alignment)
+    declared = declared_package_lines(c.source, c.package_proof)
     for group in c.groups:
         src, output = group["source"], group["output"]
-        if src[0]["page_index"] != page or len(src) == len(output) or not output:
+        package_merged = len(src) == 1 and src[0]["line_number"] in merged
+        package_expanded = len(src) == 1 and src[0]["line_number"] in declared
+        if (
+            src[0]["page_index"] != page
+            or (len(src) == len(output) and not package_merged and not package_expanded)
+            or not output
+        ):
             continue
         key = ":".join(str(r["line_number"]) for r in src)
         reason = {
@@ -155,7 +170,27 @@ def propose_groups(c, page, calibration, policy, metrics):
         bbox = union(ob)
         own_set = {tuple(b) for b in ob}
         foreign = [b for b in boxes if tuple(b) not in own_set]
-        if any(overlap(bbox, b) for b in foreign):
+        intrusions = [b for b in foreign if overlap(bbox, b)]
+        # A certified merged line can have a slight pre-existing right-edge
+        # OCR overlap with its neighbouring column. Its measured neighbour is a
+        # hard wrapping boundary, not grounds to guess ownership or shrink text.
+        right_intrusions = [
+            b for b in intrusions if b[0] > max(o[0] for o in ob) and b[2] >= bbox[2]
+        ]
+        # OCR boxes can overlap the edge of an adjacent printed row without
+        # sharing text. Accept only neighbours whose centres are outside the
+        # owner envelope and whose intersecting edge stays outside every owned
+        # region's centre. Shared page reflow then restores row clearance.
+        # Interior intrusions still cannot establish ownership.
+        top_center = min((b[1] + b[3]) / 2 for b in ob)
+        bottom_center = max((b[1] + b[3]) / 2 for b in ob)
+        edge_only = (package_merged or package_expanded) and all(
+            any(np.array_equal(b, right) for right in right_intrusions)
+            or ((b[1] + b[3]) / 2 < bbox[1] and b[3] <= top_center)
+            or ((b[1] + b[3]) / 2 > bbox[3] and b[1] >= bottom_center)
+            for b in intrusions
+        )
+        if intrusions and not edge_only:
             reasons.append({**reason, "reason": "foreign_text_inside_owner_envelope"})
             continue
         if any(src[i + 1]["xy"][1] <= src[i]["xy"][1] for i in range(len(src) - 1)):
@@ -174,6 +209,10 @@ def propose_groups(c, page, calibration, policy, metrics):
             + [1000 - height * policy.column_guard_height_fraction]
         )
         right = max(float(bbox[2]), right)
+        if package_merged and not package_expanded:
+            right = min([float(bbox[2])] + [float(b[0]) for b in right_intrusions])
+        elif package_expanded and right_intrusions:
+            right = min(right, *(float(b[0]) for b in right_intrusions))
         width = right - bbox[0]
         units = [
             (regions[ix]["box"][2] - regions[ix]["box"][0]) / metrics.length(regions[ix]["text"])
@@ -226,6 +265,15 @@ def run_layout(
     results = []
     for page, boxes in sorted(c.boxes.items()):
         reps, reasons = propose_groups(c, page, calibration, policy, metrics)
+        from document_ocr.synthesis.curated_package_geometry import propose_package_regions
+
+        package_reps, package_reasons = propose_package_regions(
+            c, page, reps, calibration, metrics, wrapped_widths
+        )
+        if any(reason["blocking"] for reason in package_reasons):
+            raise ValueError(f"package geometry needs ownership review: {package_reasons}")
+        reps.extend(package_reps)
+        reasons.extend(package_reasons)
         for r in reps:
             r["ownedBoxKeys"] = {
                 tuple(regions_by_page[page][ix]["box"]) for ix in r["regionIndices"]
@@ -260,13 +308,20 @@ def run_layout(
             "rowBands": len(bands),
         }
         if failure:
+            if package_reps:
+                raise ValueError(f"package page layout rejected: {failure}")
             results.append(record)
             continue
         proposal = dict(coords)
         # Move existing points by exact source-region identity, not their rounded
         # y value: interpolation around a row boundary can move a next-row caption
         # into an expanded block even when the underlying rectangles are sound.
-        moved = {tuple(n["source"]): n["box"] for n in nodes if n["id"].startswith("source:")}
+        moved = {
+            tuple(n["source"]): n["box"]
+            for n in nodes
+            if n["id"].startswith(("source:", "package:"))
+        }
+        package_boxes = {tuple(n["source"]) for n in nodes if "horizontalRegion" in n}
         source_records = {r["line_number"]: r for r in c.alignment["lines"]}
         generated_numbers = {number for n in nodes for number in n.get("lineBoxes", {})}
         for line in c.receipt["lines"]:
@@ -284,7 +339,11 @@ def run_layout(
                 before = union(own)
                 after = union([moved[tuple(b)] for b in own])
                 shift = ((after[1] + after[3]) - (before[1] + before[3])) / 2
-                proposal[line["line_number"]] = [round(x), round((y + shift) * scale)]
+                proposal[line["line_number"]] = (
+                    [round((after[0] + after[2]) / 2), round((after[1] + after[3]) / 2 * scale)]
+                    if any(tuple(b) in package_boxes for b in own)
+                    else [round(x), round((y + shift) * scale)]
+                )
         for n in nodes:
             if "lineBoxes" not in n:
                 continue
@@ -337,6 +396,8 @@ def run_layout(
                     failure.append(("legacy_column_order", first[2], second[2]))
         if failure:
             record["status"] = "rejected"
+            if package_reps:
+                raise ValueError(f"package page layout rejected: {failure}")
         else:
             coords = proposal
         results.append(record)
@@ -391,6 +452,8 @@ class ReflowEngine:
             boxes,
             dimensions,
             groups_for(source, proof, receipt, alignment),
+            source,
+            proof if "packagePresentations" in proof else None,
         )
         coordinates, pages, text = run_layout(context, self.calibration, self.policy, self.metrics)
         by_page = {p["page"]: p for p in pages}

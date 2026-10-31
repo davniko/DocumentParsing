@@ -1,0 +1,435 @@
+[
+  {
+    "code": "QA",
+    "kind": "PACKAGE",
+    "family": "DRUM",
+    "material": "STEEL",
+    "attributes": {"CLOSURE": "NON_REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QB",
+    "kind": "PACKAGE",
+    "family": "DRUM",
+    "material": "STEEL",
+    "attributes": {"CLOSURE": "REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QC",
+    "kind": "PACKAGE",
+    "family": "DRUM",
+    "material": "ALUMINIUM",
+    "attributes": {"CLOSURE": "NON_REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QD",
+    "kind": "PACKAGE",
+    "family": "DRUM",
+    "material": "ALUMINIUM",
+    "attributes": {"CLOSURE": "REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QF",
+    "kind": "PACKAGE",
+    "family": "DRUM",
+    "material": "PLASTIC",
+    "attributes": {"CLOSURE": "NON_REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QG",
+    "kind": "PACKAGE",
+    "family": "DRUM",
+    "material": "PLASTIC",
+    "attributes": {"CLOSURE": "REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QH",
+    "kind": "PACKAGE",
+    "family": "BARREL",
+    "material": "WOOD",
+    "attributes": {"CLOSURE": "BUNG"}
+  },
+  {
+    "code": "QJ",
+    "kind": "PACKAGE",
+    "family": "BARREL",
+    "material": "WOOD",
+    "attributes": {"CLOSURE": "REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QK",
+    "kind": "PACKAGE",
+    "family": "JERRICAN",
+    "material": "STEEL",
+    "attributes": {"CLOSURE": "NON_REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QL",
+    "kind": "PACKAGE",
+    "family": "JERRICAN",
+    "material": "STEEL",
+    "attributes": {"CLOSURE": "REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QM",
+    "kind": "PACKAGE",
+    "family": "JERRICAN",
+    "material": "PLASTIC",
+    "attributes": {"CLOSURE": "NON_REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QN",
+    "kind": "PACKAGE",
+    "family": "JERRICAN",
+    "material": "PLASTIC",
+    "attributes": {"CLOSURE": "REMOVABLE_HEAD"}
+  },
+  {
+    "code": "QP",
+    "kind": "PACKAGE",
+    "family": "BOX",
+    "material": "WOOD",
+    "attributes": {"WOOD_TYPE": "NATURAL", "TRADE_FORM": "ORDINARY"},
+    "notes": ["Ordinary is the explicit definition variant; it does not assert absent sift-proofing, coating, lining or closure."]
+  },
+  {
+    "code": "QQ",
+    "kind": "PACKAGE",
+    "family": "BOX",
+    "material": "WOOD",
+    "attributes": {"WOOD_TYPE": "NATURAL", "SIFT_PROOF": "YES"}
+  },
+  {
+    "code": "QR",
+    "kind": "PACKAGE",
+    "family": "BOX",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "EXPANDED"}
+  },
+  {
+    "code": "QS",
+    "kind": "PACKAGE",
+    "family": "BOX",
+    "material": "PLASTIC",
+    "attributes": {"CONSTRUCTION": "SOLID"}
+  },
+  {"code": "RD", "kind": "CARGO_FORM", "family": "ROD"},
+  {"code": "RG", "kind": "CARGO_FORM", "family": "RING"},
+  {
+    "code": "RJ",
+    "kind": "PACKAGE",
+    "family": "RACK",
+    "attributes": {"PURPOSE": "CLOTHING_HANGER"}
+  },
+  {"code": "RK", "kind": "PACKAGE", "family": "RACK"},
+  {
+    "code": "RL",
+    "kind": "PACKAGE",
+    "family": "REEL",
+    "notes": ["The official definition describes a cylindrical rotating support with a rim at each end for wound material; it does not declare body material."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {"code": "RO", "kind": "CARGO_FORM", "family": "ROLL"},
+  {
+    "code": "RT",
+    "kind": "PACKAGE",
+    "family": "NET",
+    "attributes": {"CONSTRUCTION": "MESH", "COLOUR": "RED"},
+    "notes": ["COLOUR and mesh construction preserve the official red-netting definition. The net's fibre or polymer is not specified."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "RZ",
+    "kind": "CARGO_FORM",
+    "family": "ROD",
+    "attributes": {"GROUPING": "BUNDLE_BUNCH_TRUSS"},
+    "notes": ["The definition retains bundle/bunch/truss alternatives without selecting one of them or asserting a packaging-body material."]
+  },
+  {"code": "SA", "kind": "PACKAGE", "family": "SACK"},
+  {"code": "SB", "kind": "CARGO_FORM", "family": "SLAB"},
+  {
+    "code": "SC",
+    "kind": "PACKAGE",
+    "family": "CRATE",
+    "attributes": {"PROFILE": "SHALLOW"},
+    "notes": ["PROFILE describes the explicitly shallow crate form, not a measured depth or an inferred material."]
+  },
+  {"code": "SD", "kind": "PACKAGE", "family": "SPINDLE"},
+  {
+    "code": "SE",
+    "kind": "PACKAGE",
+    "family": "CHEST",
+    "attributes": {"TRADE_FORM": "SEA_CHEST"}
+  },
+  {"code": "SH", "kind": "PACKAGE", "family": "SACHET"},
+  {
+    "code": "SI",
+    "kind": "PACKAGE",
+    "family": "SKID",
+    "notes": ["The official definition is a low movable handling platform or pallet; no wood, wheels or dimensional values are asserted."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "SK",
+    "kind": "PACKAGE",
+    "family": "CASE",
+    "attributes": {"CONSTRUCTION": "SKELETON"}
+  },
+  {
+    "code": "SL",
+    "kind": "PACKAGE",
+    "family": "SLIPSHEET",
+    "material": "PLASTIC",
+    "attributes": {"RIGIDITY": "RIGID", "PURPOSE": "LOAD_BASE"},
+    "notes": ["The adopted official definition specifically describes hard plastic sheeting used as a load base. This definition is narrower than every colloquial use of slipsheet; no inference rule for arbitrary source wording is introduced."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "SM",
+    "kind": "CARGO_FORM",
+    "family": "SHEET",
+    "attributes": {"COMMODITY_MATERIAL": "METAL"},
+    "notes": ["COMMODITY_MATERIAL describes the sheet cargo, not the body material of an enclosing package."]
+  },
+  {
+    "code": "SO",
+    "kind": "PACKAGE",
+    "family": "SPOOL",
+    "notes": ["The official definition describes a transport package for wound items such as cable or yarn; it does not establish a particular body material."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "SP",
+    "kind": "PACKAGE",
+    "family": "SHEET",
+    "material": "PLASTIC",
+    "attributes": {"PURPOSE": "WRAPPING"},
+    "notes": ["A wrapping sheet is expressly named. This is not a claim that the enclosed commodity is plastic."]
+  },
+  {"code": "SS", "kind": "PACKAGE", "family": "CASE", "material": "STEEL"},
+  {"code": "ST", "kind": "CARGO_FORM", "family": "SHEET"},
+  {"code": "SU", "kind": "PACKAGE", "family": "SUITCASE"},
+  {"code": "SV", "kind": "PACKAGE", "family": "ENVELOPE", "material": "STEEL"},
+  {
+    "code": "SW",
+    "kind": "PRESENTATION",
+    "family": null,
+    "attributes": {"PACKAGING_PROCESS": "SHRINKWRAPPED"},
+    "components": [
+      {
+        "role": "OUTER_ENCLOSURE",
+        "family": "FILM",
+        "material": "PLASTIC",
+        "attributes": {"CONSTRUCTION": "FILM", "TRANSPARENCY": "TRANSPARENT"}
+      }
+    ],
+    "notes": ["WRAPPING records the explicit shrink-wrapping treatment; the component preserves its defined transparent plastic film. No underlying box, bag, pallet or other package family is established."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {"code": "SY", "kind": "PACKAGE", "family": "SLEEVE"},
+  {
+    "code": "SZ",
+    "kind": "CARGO_FORM",
+    "family": "SHEET",
+    "attributes": {"GROUPING": "BUNDLE_BUNCH_TRUSS"}
+  },
+  {
+    "code": "T1",
+    "kind": "CARGO_FORM",
+    "family": "TABLET",
+    "attributes": {"PACKING_STATE": "LOOSE_OR_UNPACKED"},
+    "notes": ["PACKING_STATE preserves the official loose/unpacked article definition. Tablet is a cargo form here, not an inferred medicinal product, composition or outer package."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {"code": "TB", "kind": "PACKAGE", "family": "TUB"},
+  {
+    "code": "TC",
+    "kind": "PACKAGE",
+    "family": "CHEST",
+    "attributes": {"TRADE_FORM": "TEA_CHEST"}
+  },
+  {
+    "code": "TD",
+    "kind": "PACKAGE",
+    "family": "TUBE",
+    "attributes": {"CONSTRUCTION": "COLLAPSIBLE"},
+    "notes": ["Collapsible is explicitly the tube's construction. No plastic, metal, nozzle or closure is inferred."]
+  },
+  {
+    "code": "TE",
+    "kind": "CARGO_FORM",
+    "family": "TYRE",
+    "attributes": {"COMMODITY_MATERIAL": "RUBBER_OR_METAL"},
+    "notes": ["The official tyre definition permits rubber and/or metal; COMMODITY_MATERIAL preserves those alternatives without selecting a primary packaging-body material or asserting both constituents."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "TG",
+    "kind": "EQUIPMENT_FORM",
+    "family": "TANK_CONTAINER",
+    "attributes": {"PURPOSE": "BULK_LIQUID_OR_GAS_TRANSPORT"},
+    "notes": ["The definition is equipment-shaped; a code occurrence alone does not determine whether it is carrying equipment, goods or the declared package in a particular document. No pressure, temperature, size, material or contents choice is supplied."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "TI",
+    "kind": "PACKAGE",
+    "family": "TIERCE",
+    "notes": ["The saved application's trailing TI is retained in its display label by the loader, not interpreted as a material, dimension or separate standard."]
+  },
+  {
+    "code": "TK",
+    "kind": "PACKAGE",
+    "family": "TANK",
+    "attributes": {"SHAPE": "RECTANGULAR"}
+  },
+  {
+    "code": "TL",
+    "kind": "PACKAGE",
+    "family": "TUB",
+    "attributes": {"CLOSURE": "LID"}
+  },
+  {
+    "code": "TN",
+    "kind": "PACKAGE",
+    "family": "TIN",
+    "notes": ["Tin is retained as the named package family; the noun alone does not establish a body made of elemental tin or a particular alloy."]
+  },
+  {"code": "TO", "kind": "PACKAGE", "family": "TUN"},
+  {"code": "TR", "kind": "PACKAGE", "family": "TRUNK"},
+  {
+    "code": "TS",
+    "kind": "CARGO_FORM",
+    "family": "TRUSS",
+    "notes": ["The unqualified trade form is preserved without assuming a wooden body, a particular commodity, or equivalence to every bundled package."]
+  },
+  {
+    "code": "TT",
+    "kind": "PACKAGE",
+    "family": "BAG",
+    "attributes": {"TRADE_FORM": "TOTE"},
+    "notes": ["The named tote-bag variant remains distinct; its official capacious bag/basket description does not supply a specific body material or a numeric capacity."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {"code": "TU", "kind": "CARGO_FORM", "family": "TUBE"},
+  {
+    "code": "TV",
+    "kind": "PACKAGE",
+    "family": "TUBE",
+    "materialAlternatives": ["PLASTIC", "METAL", "CARDBOARD"],
+    "attributes": {"NOZZLE": "PRESENT", "CONTENTS_FORM": "LIQUID_OR_SEMI_LIQUID"},
+    "notes": ["The official dispensing-tube definition permits plastic, metal or cardboard bodies and liquid or semi-liquid contents. No single material is selected from those alternatives; the compound CONTENTS_FORM value preserves the stated disjunction."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "TW",
+    "kind": "PACKAGE",
+    "family": "PALLET",
+    "material": "CORRUGATED_BOARD",
+    "attributes": {"CONSTRUCTION": "CORRUGATED", "TRADE_FORM": "TRIWALL"},
+    "notes": ["The official definition supplies heavy-duty corrugated board. CORRUGATED_BOARD preserves that material wording rather than silently equating cardboard and fibreboard or inferring a numeric layer count."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "TY",
+    "kind": "PACKAGE",
+    "family": "TANK",
+    "attributes": {"SHAPE": "CYLINDRICAL"}
+  },
+  {
+    "code": "TZ",
+    "kind": "CARGO_FORM",
+    "family": "TUBE",
+    "attributes": {"GROUPING": "BUNDLE_BUNCH_TRUSS"}
+  },
+  {
+    "code": "UC",
+    "kind": "PRESENTATION",
+    "family": null,
+    "attributes": {"CAGING": "ABSENT"},
+    "notes": ["Uncaged explicitly states absence of a cage, not an affirmative package family. It does not establish absence of every other support or wrapping."]
+  },
+  {
+    "code": "UN",
+    "kind": "COUNTING_UNIT",
+    "family": "UNIT",
+    "attributes": {"COUNT_FORM": "SINGLE_UNIT"},
+    "notes": ["The official definition counts a single item/object not otherwise specified as a transport-equipment unit. It supplies no package body or material, and does not itself assign a document's cargo or carrying-equipment role."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {"code": "VA", "kind": "PACKAGE", "family": "VAT"},
+  {
+    "code": "VG",
+    "kind": "CARGO_FORM",
+    "family": "BULK",
+    "attributes": {"CONTENTS_FORM": "GAS"},
+    "measurements": [
+      {"property": "PRESSURE", "values": [1031], "unit": "MILLIBAR", "relation": "EQ"},
+      {"property": "TEMPERATURE", "values": [15], "unit": "CELSIUS", "relation": "EQ"}
+    ],
+    "notes": ["Pressure and temperature are explicit conditions in this bulk-gas code's definition, not inferred operating settings for carrying equipment."]
+  },
+  {"code": "VI", "kind": "PACKAGE", "family": "VIAL"},
+  {
+    "code": "VK",
+    "kind": "PACKAGE",
+    "family": "CRATE",
+    "material": "WOOD",
+    "attributes": {"TRADE_FORM": "VANPACK"},
+    "notes": ["The official definition identifies a wooden crate; Vanpack here is not a road vehicle, carrier, brand inference or container-equipment alias."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "VL",
+    "kind": "CARGO_FORM",
+    "family": "BULK",
+    "attributes": {"CONTENTS_FORM": "LIQUID"}
+  },
+  {
+    "code": "VN",
+    "kind": "EQUIPMENT_FORM",
+    "family": "VEHICLE",
+    "attributes": {"PROPULSION": "SELF_PROPELLED"},
+    "notes": ["PROPULSION preserves the official self-propelled-conveyance definition without inferring fuel, hazard or packing state. Equipment-shaped kind does not assign carrying-equipment rather than cargo ownership in a document."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "VO",
+    "kind": "CARGO_FORM",
+    "family": "BULK",
+    "attributes": {"CONTENTS_FORM": "SOLID", "PARTICLE_FORM": "LARGE_PARTICLES"}
+  },
+  {
+    "code": "VP",
+    "kind": "PRESENTATION",
+    "family": null,
+    "attributes": {"PACKAGING_PROCESS": "VACUUM_PACKED"},
+    "notes": ["PACKAGING_PROCESS records the explicit treatment without inventing a bag, box or other enclosure family, a body material or a numeric vacuum pressure."]
+  },
+  {
+    "code": "VQ",
+    "kind": "CARGO_FORM",
+    "family": "BULK",
+    "attributes": {"CONTENTS_FORM": "LIQUEFIED_GAS", "TEMPERATURE_PRESSURE_CONDITION": "ABNORMAL"},
+    "notes": ["TEMPERATURE_PRESSURE_CONDITION preserves the definition's joint 'abnormal temperature/pressure' wording. It does not independently assert which condition differs, numeric thresholds, a pressure comparator or an equipment temperature/pressure setting."]
+  },
+  {
+    "code": "VR",
+    "kind": "CARGO_FORM",
+    "family": "BULK",
+    "attributes": {"CONTENTS_FORM": "SOLID", "PARTICLE_FORM": "GRANULAR"}
+  },
+  {
+    "code": "VS",
+    "kind": "CARGO_FORM",
+    "family": "BULK",
+    "attributes": {"CONTENTS_FORM": "SOLID", "PARTICLE_FORM": "SCRAP_METAL", "PACKING_STATE": "LOOSE_OR_UNPACKED"},
+    "notes": ["Scrap metal describes bulk cargo, not the material of a package body. PACKING_STATE preserves the official loose/unpacked definition without inventing an enclosing container or package."],
+    "definitionSources": ["oasis_ubl21_rec21_9e"]
+  },
+  {
+    "code": "VY",
+    "kind": "CARGO_FORM",
+    "family": "BULK",
+    "attributes": {"CONTENTS_FORM": "SOLID", "PARTICLE_FORM": "FINE_POWDER"}
+  }
+]

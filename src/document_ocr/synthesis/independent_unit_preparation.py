@@ -17,7 +17,8 @@ from document_ocr.atomic import atomic_publish_json
 from document_ocr.synthesis import independent_article_profiles as articles
 from document_ocr.synthesis import independent_composed_profiles as composed
 from document_ocr.synthesis.independent_campaign import IndependentCampaign, unit_profile_capacities
-from document_ocr.synthesis.independent_dg_context import physical_form
+from document_ocr.synthesis.independent_dg_context import physical_form, physical_forms
+from document_ocr.synthesis.independent_numeric import required_packing_levels
 from document_ocr.synthesis.independent_preparation import (
     _complete_groups,
     _evidence,
@@ -49,7 +50,11 @@ def minimum_groups_per_load(certificate: dict[str, Any], relation: str) -> int:
     loads = max(1, certificate.get("sourceContainerCount", 0))
     minimum = 1
     for region in certificate.get("regions", []):
-        if region["role"] not in {"component_package", "component_measurement"}:
+        if region["role"] not in {
+            "component_package",
+            "component_measurement",
+            "subset_component_packing",
+        }:
             continue
         parts = region["componentCount"]
         if region.get("scope", {}).get("kind", "shipment") == "shipment":
@@ -147,6 +152,8 @@ async def prepare_unit_profiles(
             ),
         )
         article_groups = frozen.get("cargoPresentation", {}).get("articleGroups")
+        if "dgComponents" in frozen:
+            values["componentPhysicalStates"] = physical_forms(frozen, context.sampler.hmt_states)
         if article_groups is not None:
             values["articleGroups"] = article_groups
         if minimum_groups > 1:
@@ -158,10 +165,15 @@ async def prepare_unit_profiles(
             values["reviewFeedback"] = review_feedback[key]
         is_composed = plans[key]["privatePackingRelation"] != "NONE"
         if is_composed:
+            packing_levels = required_packing_levels(context.certificates[sid])
             request = composed.TopologyRequest(
-                **values, privatePacking=composed.packing_roles(plans[key])
+                **values,
+                privatePacking=composed.packing_roles(plans[key]),
+                packingLevels=packing_levels,
             )
-            model = composed.topology_output_type(plans[key]["privatePackingRelation"])
+            model = composed.topology_output_type(
+                plans[key]["privatePackingRelation"], packing_levels
+            )
             topology_jobs[key] = (
                 composed.TOPOLOGY_STAGE,
                 model,

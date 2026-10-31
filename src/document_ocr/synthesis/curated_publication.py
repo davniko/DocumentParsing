@@ -28,6 +28,7 @@ from document_ocr.synthesis.curated_wording import (
     review_output_type,
     unpack_review,
 )
+from document_ocr.synthesis.package_presentations import PackagePresentations
 from document_ocr.training.tasks import RelationExplicitTaskConstraints, get_training_task
 
 DECODER_TASK = "bill_of_lading_extraction_v7_reduced_direct"
@@ -161,6 +162,7 @@ class PublicationCampaign(Protocol):
     config: dict[str, Any]
     rows: dict[str, dict]
     calls: _Spend
+    package_presentations: PackagePresentations | None
 
     def replay_candidate(self, candidate: dict) -> None: ...
 
@@ -295,6 +297,14 @@ def publish_campaign(campaign: PublicationCampaign, *, publish: bool = True) -> 
     before, current = _source_snapshot(campaign)
     counts = source_variant_counts(config, current)
     selected = list(counts)
+    if "declared_packages" in config:
+        from document_ocr.synthesis.declared_package_acceptance import require_certified
+
+        require_certified(campaign, counts)
+    if config.get("aliases", {}).get("presentations") is not None:
+        if campaign.package_presentations is None:
+            raise ValueError("configured package presentations were not loaded")
+        campaign.package_presentations.require_certified(selected)
     constraints_path = campaign.root / config["task_constraints"]
     constraints_bytes = constraints_path.read_bytes()
     if digest(constraints_bytes) != config["task_constraints_sha256"]:

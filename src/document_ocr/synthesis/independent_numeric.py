@@ -14,7 +14,7 @@ import hashlib
 import json
 import random
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from itertools import pairwise
@@ -41,6 +41,8 @@ POUNDS_TO_KG = Decimal("0.45359237")
 SUPPORTED_REGION_ROLES = frozenset(
     {
         "three_level_chain",
+        "nested_count_summary",
+        "unit_inner_packing",
         "packing_clause",
         "unit_net_prefix",
         "unit_mass_suffix",
@@ -60,6 +62,7 @@ SUPPORTED_REGION_ROLES = frozenset(
         "support_statement",
         "mixed_package_equation",
         "component_package",
+        "subset_component_packing",
         "component_measurement",
         "mixed_package_ranges",
     }
@@ -67,6 +70,9 @@ SUPPORTED_REGION_ROLES = frozenset(
 _COMPOSITION_ROLES = frozenset(
     {
         "three_level_chain",
+        "nested_count_summary",
+        "unit_inner_packing",
+        "subset_component_packing",
         "packing_clause",
         "receptacle_statement",
         "support_mass_breakdown",
@@ -76,6 +82,18 @@ _COMPOSITION_ROLES = frozenset(
     }
 )
 _RELATIONS = frozenset({"NONE", "CONTAINS", "SUPPORTS", "ON_SUPPORT"})
+
+
+def required_packing_levels(certificate: Mapping[str, Any]) -> int:
+    """Presentation depth, not the source's goods, nouns or count ratios."""
+    return (
+        3
+        if any(
+            region["role"] in {"nested_count_summary", "subset_component_packing"}
+            for region in certificate["regions"]
+        )
+        else 2
+    )
 
 
 class SourceReadinessHold(BaseModel):
@@ -647,6 +665,7 @@ def _build_scope_ledger(
     nominal_capacity_litres: Decimal | str | int | None = None,
     capacity_authority: str | None = None,
     composition_facts: Mapping[str, Any] | None = None,
+    noun_renderer: Callable[[str, int], str] = _noun,
 ) -> dict[str, Any]:
     """Render current facts into one certificate scope without source ratios."""
 
@@ -656,7 +675,7 @@ def _build_scope_ledger(
     quantity = draw["package"]["packageQuantity"]
     if not isinstance(category, str) or type(quantity) is not int or quantity < 1:
         raise ValueError("numeric draw requires category and positive package quantity")
-    counted = f"{quantity} {_noun(category, quantity)}"
+    counted = f"{quantity} {noun_renderer(category, quantity)}"
     relation, related_category = _typed_relation(typed_plan, category)
     # Keep the reviewed deterministic namespace so production promotion does
     # not change previously validated facts for the same source/seed/variant.
@@ -704,7 +723,7 @@ def _build_scope_ledger(
             fixed_count=quantity,
         )
     related = (
-        f"{related_quantity} {_noun(related_category, related_quantity)}"
+        f"{related_quantity} {noun_renderer(related_category, related_quantity)}"
         if related_quantity is not None and related_category is not None
         else None
     )
@@ -784,19 +803,19 @@ def _build_scope_ledger(
             )
             if role == "mixed_package_equation":
                 text = (
-                    f"{counted}={outer} {_noun(typed_plan['supportPackageType'], outer)}/"
-                    f"{packed} {_noun(related_category, packed)}+"
-                    f"{loose} {_noun(related_category, loose)}="
-                    f"{total_related} {_noun(related_category, total_related)}"
+                    f"{counted}={outer} {noun_renderer(typed_plan['supportPackageType'], outer)}/"
+                    f"{packed} {noun_renderer(related_category, packed)}+"
+                    f"{loose} {noun_renderer(related_category, loose)}="
+                    f"{total_related} {noun_renderer(related_category, total_related)}"
                 )
             else:
                 text = (
-                    f"{_noun(related_category, 1)} NOS.:1-{total_related}\n"
-                    f"{_noun(typed_plan['supportPackageType'], 1)} NOS.:1-{outer}; "
-                    f"LOOSE:{loose} {_noun(related_category, loose)}"
+                    f"{noun_renderer(related_category, 1)} NOS.:1-{total_related}\n"
+                    f"{noun_renderer(typed_plan['supportPackageType'], 1)} NOS.:1-{outer}; "
+                    f"LOOSE:{loose} {noun_renderer(related_category, loose)}"
                 )
             result["relatedQuantity"] = total_related
-        elif role in {"component_package", "component_measurement"}:
+        elif role in {"component_package", "component_measurement", "subset_component_packing"}:
             group = item["factGroup"]
             parts = item["componentCount"]
             if group not in result["facts"]:
@@ -815,8 +834,41 @@ def _build_scope_ledger(
                 "component count ownership disagrees",
             )
             count = fact["quantities"][item["componentIndex"]]
-            if role == "component_package":
-                text = f"{count} {_noun(category, count)}"
+            if role == "subset_component_packing":
+                _require(
+                    relation in {"SUPPORTS", "CONTAINS"} and related_quantity is not None,
+                    "component packing needs an independently selected inner/support relation",
+                )
+                _require(
+                    related_quantity % quantity == 0,
+                    "component packing requires complete integral groups",
+                )
+                inner = count * (related_quantity // quantity)
+                _require(
+                    composition_facts is not None and "contents" in composition_facts,
+                    "three-level component packing requires native innermost package authority",
+                )
+                contents = composition_facts["contents"]
+                deepest = inner * contents["unitsPerRelated"]
+                from document_ocr.synthesis.independent_composed_profiles import InnerContents
+
+                nouns = InnerContents.model_validate(
+                    {k: v for k, v in contents.items() if k != "quantity"}
+                )
+                text = (
+                    f"{count} {noun_renderer(category, count)} (OVERPACK USED) CONTAINING: "
+                    f"{inner} {noun_renderer(related_category, inner)}, EACH CONTAINING "
+                    f"{contents['unitsPerRelated']} {nouns.noun(contents['unitsPerRelated'])}; "
+                    f"TOTAL {deepest} {nouns.noun(deepest)}; {count * unit_net} KG NET"
+                )
+                fact["unprintedRemainder"] = fact["quantities"][-1]
+                fact.setdefault("innerContents", {})[str(item["componentIndex"])] = {
+                    "intermediateQuantity": inner,
+                    "innermostQuantity": deepest,
+                    "innermostPackage": contents["packageSingular"],
+                }
+            elif role == "component_package":
+                text = f"{count} {noun_renderer(category, count)}"
             else:
                 unit = {
                     "grossKg": unit_gross,
@@ -824,6 +876,46 @@ def _build_scope_ledger(
                     "volumeM3": _decimal(draw["physical"]["unitVolumeM3"]),
                 }[item["fact"]]
                 text = format_measure(item["source_text"], _decimal(item["baseline"]), unit * count)
+        elif role == "unit_inner_packing":
+            _require(
+                relation in {"SUPPORTS", "CONTAINS"} and related_quantity is not None,
+                "unit packing requires a contained or supported inner unit",
+            )
+            _require(
+                related_quantity % quantity == 0,
+                "per-unit packing requires an integral related-unit count",
+            )
+            per_unit = related_quantity // quantity
+            text = (
+                f"PACKING: {per_unit} {noun_renderer(related_category, per_unit)} / "
+                f"{noun_renderer(category, 1)}; {_number(unit_net)} KG NET / {noun_renderer(category, 1)}"
+            )
+            result["facts"].setdefault(
+                "unitInnerPacking",
+                {
+                    "innerPerCounted": per_unit,
+                    "countedUnitNetKg": _number(unit_net),
+                    "sourceRatioUsed": False,
+                },
+            )
+        elif role == "nested_count_summary":
+            _require(
+                relation in {"SUPPORTS", "CONTAINS"} and related_quantity is not None,
+                "nested counts require counted units with contained/supported packages",
+            )
+            _require(
+                composition_facts is not None and "contents" in composition_facts,
+                "three-level counts require native innermost package authority",
+            )
+            inner = composition_facts["contents"]["quantity"]
+            text = item["presentation"].format(inner=inner, outer=related_quantity)
+            result["facts"][item["factGroup"]] = {
+                "outerQuantity": related_quantity,
+                "innerQuantity": inner,
+                "sourceCountRatioUsed": False,
+                "publicPackageRowsAdded": False,
+                "innermostPackage": composition_facts["contents"]["packageSingular"],
+            }
         elif role == "three_level_chain":
             if relation in {"SUPPORTS", "CONTAINS"} and related_category in {
                 "PACKAGE_CARTON",
@@ -860,8 +952,8 @@ def _build_scope_ledger(
             text = f"{counted} X {_number(unit_net)} KG NET EACH OF "
         elif role == "unit_mass_suffix":
             text = (
-                f", {_noun(category, quantity)}, WITH {_number(unit_net)} KG NET AND "
-                f"{_number(unit_gross)} KG GROSS PER {_noun(category, 1)}."
+                f", {noun_renderer(category, quantity)}, WITH {_number(unit_net)} KG NET AND "
+                f"{_number(unit_gross)} KG GROSS PER {noun_renderer(category, 1)}."
             )
         elif role in {"support_mass_breakdown", "component_mass_pair"}:
             surplus = gross - net
@@ -920,14 +1012,14 @@ def _build_scope_ledger(
             text = f"N.W. {_number(net)} KG."
         elif role == "unit_mass_pair":
             text = (
-                f"GROSS WT / {_noun(category, 1)}: {_number(unit_gross)} KG\n"
-                f"NET WT / {_noun(category, 1)}: {_number(unit_net)} KG"
+                f"GROSS WT / {noun_renderer(category, 1)}: {_number(unit_gross)} KG\n"
+                f"NET WT / {noun_renderer(category, 1)}: {_number(unit_net)} KG"
             )
         elif role == "dual_unit_net_statement":
             pounds = (unit_net / POUNDS_TO_KG).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             text = (
                 item.get("prefix", "")
-                + f"NET CONTENT PER {_noun(category, 1)}: {_number(unit_net)} KG ({pounds} LB),"
+                + f"NET CONTENT PER {noun_renderer(category, 1)}: {_number(unit_net)} KG ({pounds} LB),"
                 + item.get("suffix", "")
             )
             result["facts"]["explicitDualUnitNet"] = {
@@ -1048,7 +1140,7 @@ def _build_scope_ledger(
                 if rendered is not None and row_index != rendered:
                     continue
                 lines.append(
-                    f"{_noun(range_category, 1)} NOS.: {fact['prefix']}"
+                    f"{noun_renderer(range_category, 1)} NOS.: {fact['prefix']}"
                     f"{row['start']:0{digits}d} - {fact['prefix']}{row['end']:0{digits}d}"
                 )
                 if item.get("lotCaptions"):
@@ -1066,13 +1158,13 @@ def _build_scope_ledger(
             )
             result["facts"]["inclusiveRange"] = fact
             text = (
-                f"{_noun(category, 1)} NOS. {fact['prefix']}{fact['start']:0{digits}d} - "
+                f"{noun_renderer(category, 1)} NOS. {fact['prefix']}{fact['start']:0{digits}d} - "
                 f"{fact['prefix']}{fact['end']:0{digits}d}{item.get('suffix', '')}"
             )
         elif role == "receptacle_statement":
             text = composition
             if capacity is not None:
-                text += f", NOMINAL CAPACITY {_number(capacity)} LITRES PER {_noun(category, 1)}"
+                text += f", NOMINAL CAPACITY {_number(capacity)} LITRES PER {noun_renderer(category, 1)}"
                 result["facts"]["nominalCapacity"] = {
                     "litres": _number(capacity),
                     "authority": capacity_authority,
@@ -1095,7 +1187,7 @@ def _build_scope_ledger(
         append = owner.get("append")
         if append == "dual_unit_net":
             pounds = (unit_net / POUNDS_TO_KG).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            clause = f"NET CONTENT PER {_noun(category, 1)}: {_number(unit_net)} KG ({pounds} LB)."
+            clause = f"NET CONTENT PER {noun_renderer(category, 1)}: {_number(unit_net)} KG ({pounds} LB)."
             result["wordingAppends"][owner["key"]] = clause
             result["facts"]["dualUnitNet"] = {
                 "kg": _number(unit_net),
@@ -1105,7 +1197,7 @@ def _build_scope_ledger(
             }
         elif append == "count_unit_net":
             result["wordingAppends"][owner["key"]] = (
-                f"{composition}; {_number(unit_net)} KG NET PER {_noun(category, 1)}."
+                f"{composition}; {_number(unit_net)} KG NET PER {noun_renderer(category, 1)}."
             )
         elif append is not None:
             raise ValueError("unknown complete-product projection kind")
@@ -1362,7 +1454,11 @@ class IndependentNumericCertificates:
             IndependentNumericCertificates._validate_role(source_id, region)
         component_groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
         for region in certificate["regions"]:
-            if region["role"] in {"component_package", "component_measurement"}:
+            if region["role"] in {
+                "component_package",
+                "component_measurement",
+                "subset_component_packing",
+            }:
                 key = (
                     json.dumps(region.get("scope", {"kind": "shipment"}), sort_keys=True),
                     region["factGroup"],
@@ -1370,9 +1466,16 @@ class IndependentNumericCertificates:
                 component_groups.setdefault(key, []).append(region)
         for regions in component_groups.values():
             counts = {region["componentCount"] for region in regions}
-            declared = [r for r in regions if r["role"] == "component_package"]
+            subset = any(r["role"] == "subset_component_packing" for r in regions)
+            if subset and any(r["role"] != "subset_component_packing" for r in regions):
+                raise ValueError(
+                    "partial packing and complete component accounting need separate fact groups"
+                )
+            declared = [
+                r for r in regions if r["role"] in {"component_package", "subset_component_packing"}
+            ]
             if len(counts) != 1 or {region["componentIndex"] for region in declared} != set(
-                range(next(iter(counts)))
+                range(next(iter(counts)) - int(subset))
             ):
                 raise ValueError("additive component certificate must own every component")
         mixed = [r for r in certificate["regions"] if r["role"] == "mixed_package_equation"]
@@ -1423,7 +1526,21 @@ class IndependentNumericCertificates:
             role == "private_ranges" and region.get("countRole") == "related"
         ):
             raise ValueError(f"certificate {source_id} has invalid optional-region role")
-        if role == "packing_clause":
+        if role == "nested_count_summary":
+            from string import Formatter
+
+            presentation = region.get("presentation")
+            if (
+                not isinstance(presentation, str)
+                or sorted(
+                    field for _, field, _, _ in Formatter().parse(presentation) if field is not None
+                )
+                != ["inner", "outer"]
+                or not isinstance(region.get("factGroup"), str)
+                or not region["factGroup"]
+            ):
+                raise ValueError("nested count summary needs exactly its inner/outer owners")
+        elif role == "packing_clause":
             repeats = region.get("repeats", 1)
             if (
                 type(repeats) is not int
@@ -1466,7 +1583,11 @@ class IndependentNumericCertificates:
             or not isinstance(region.get("factGroup"), str)
         ):
             raise ValueError(f"certificate {source_id} has invalid shared range")
-        elif role in {"component_package", "component_measurement"} and (
+        elif role in {
+            "component_package",
+            "component_measurement",
+            "subset_component_packing",
+        } and (
             not isinstance(region.get("factGroup"), str)
             or not region["factGroup"]
             or type(region.get("componentCount")) is not int
@@ -1513,6 +1634,12 @@ class IndependentNumericCertificates:
         allowed: tuple[str, ...] = (
             ("NONE", "CONTAINS", "SUPPORTS", "ON_SUPPORT") if visible else ("NONE",)
         )
+        if any(
+            region["role"]
+            in {"nested_count_summary", "unit_inner_packing", "subset_component_packing"}
+            for region in certificate["regions"]
+        ):
+            allowed = tuple(value for value in allowed if value in {"CONTAINS", "SUPPORTS"})
         if any(
             region["role"] == "private_ranges"
             and region["countRole"] == "related"
@@ -1586,6 +1713,8 @@ class IndependentNumericCertificates:
         *,
         nominal_capacity_litres: Decimal | str | int | None = None,
         capacity_authority: str | None = None,
+        noun_renderer: Callable[[str, int], str] = _noun,
+        allow_empty_group_scopes: bool = False,
     ) -> dict[str, Any]:
         """Build shipment and child-scope receipts from current sampled facts."""
 
@@ -1727,6 +1856,11 @@ class IndependentNumericCertificates:
         )
         if child_composition:
             for row_index in range(len(draw["allocations"])):
+                if (
+                    allow_empty_group_scopes
+                    and not draw["allocations"][row_index]["packageQuantity"]
+                ):
+                    continue
                 local_draw = self._container_draw(draw, row_index)
                 local_certificate = {**certificate, "regions": [], "wordingOwners": []}
                 local_blueprint = replace(
@@ -1742,6 +1876,7 @@ class IndependentNumericCertificates:
                     typed_plan,
                     _digest([seed, "container-composition", row_index]),
                     variant,
+                    noun_renderer=noun_renderer,
                 )
         groups: dict[tuple[str, int | None, str], list[tuple[int, dict[str, Any]]]] = {}
         for index, region in enumerate(runtime_regions):
@@ -1776,6 +1911,8 @@ class IndependentNumericCertificates:
                 if row_index is None:
                     raise ValueError("container scope is missing its row index")
                 local_draw = self._container_draw(draw, row_index)
+                if allow_empty_group_scopes and not local_draw["package"]["packageQuantity"]:
+                    continue
             elif kind == "shared_container":
                 local_draw["package"]["packageQuantity"] = shared_facts["rowQuantity"]
             local_certificate = dict(certificate)
@@ -1838,6 +1975,7 @@ class IndependentNumericCertificates:
                 nominal_capacity_litres=nominal_capacity_litres,
                 capacity_authority=capacity_authority,
                 composition_facts=composition_facts,
+                noun_renderer=noun_renderer,
             )
             ledger["surfaces"] = {
                 f"{NUMERIC_REGION_PREFIX}:{global_index}": ledger["surfaces"][
@@ -1874,7 +2012,11 @@ class IndependentNumericCertificates:
                     "packageQuantity"
                 ]
                 for _, region in regions
+                if not allow_empty_group_scopes
+                or draw["allocations"][region["scope"]["index"]]["packageQuantity"]
             }
+            if not counts:
+                continue
             quantity = sum(counts.values())
             pattern, digits = next(iter(patterns))
             if quantity > 9 * 10 ** (digits - 1):
@@ -1895,6 +2037,8 @@ class IndependentNumericCertificates:
                 cursor += count
             for index, region in regions:
                 row_index = region["scope"]["index"]
+                if row_index not in facts:
+                    continue
                 fact = facts[str(row_index)]
                 surface = (
                     f"{_noun(draw['internalCategory'], 1)} NOS. {fact['prefix']}"

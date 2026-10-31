@@ -34,6 +34,7 @@ from document_ocr.synthesis import independent_dg_context as dg_context
 from document_ocr.synthesis.curated import Runner, digest
 from document_ocr.synthesis.curated_auxiliary import validate_identifier_privacy
 from document_ocr.synthesis.curated_campaign import Campaign
+from document_ocr.synthesis.curated_dg_wording import validate_product_ownership
 from document_ocr.synthesis.curated_equipment_inventory import (
     compile_equipment_inventory,
     rebase_equipment_inventory_headers,
@@ -55,11 +56,15 @@ from document_ocr.synthesis.independent_campaign import (
     IndependentCampaign,
     source_equipment_readiness,
 )
+from document_ocr.synthesis.independent_dg_group import components, declarations, refresh
 from document_ocr.synthesis.independent_geography import (
     IndependentGeographyGate,
     load_independent_geography_certificates,
 )
-from document_ocr.synthesis.independent_numeric import IndependentNumericCertificates
+from document_ocr.synthesis.independent_numeric import (
+    IndependentNumericCertificates,
+    required_packing_levels,
+)
 from document_ocr.synthesis.independent_packages import (
     PACKAGE_CHOICE_SYSTEM,
     PackageChoice,
@@ -142,7 +147,7 @@ class _SourceContext:
 class _CompiledSource:
     capability: SourceCapabilities
     regime: str
-    dg_requirements: dict[str, bool | int] | None
+    dg_requirements: dict[str, bool | int] | list[dict[str, bool | int]] | None
     relations: tuple[str, ...]
     fixed_mix: bool
     container_count: int
@@ -237,6 +242,7 @@ def _compile_source(context: _SourceContext, sid: str, mixed: Set[str]) -> _Comp
             "; ".join(f"{hold.category}: {hold.reason}" for hold in readiness),
         )
     ordinary = context.source.blueprint(sid)
+    validate_product_ownership(ordinary)
     validate_private_person_coverage(ordinary)
     validate_identifier_privacy(ordinary)
     bp = context.numeric.apply_blueprint(ordinary, sid)
@@ -372,6 +378,8 @@ def _source_pins(
         root / config["auxiliary"],
         root / config["task_constraints"],
     }
+    if "declared_packages" in config:
+        paths.add(_pin(root, FilePin.model_validate(config["declared_packages"]["contracts"])))
     for sid in source_ids:
         paths.add(root / config["source_contracts"] / sid / "contract.json")
         paths.add(root / config["historical_catalog"] / sid / "template.json")
@@ -390,20 +398,24 @@ def _verify_pins(pins: Mapping[str, str | None]) -> None:
             raise ValueError("preparation authority changed during execution: " + name)
 
 
-def _dg_requirements(goods: Mapping[str, Any], regime: str) -> dict[str, bool | int] | None:
+def _dg_requirements(
+    goods: Mapping[str, Any], regime: str
+) -> dict[str, bool | int] | list[dict[str, bool | int]] | None:
     if regime != "dg":
         return None
     declarations = goods.get("dangerousGoods", [])
-    if len(declarations) != 1:
-        raise ValueError("joined DG preparation requires exactly one declared DG identity")
-    fields = declarations[0]
-    result: dict[str, bool | int] = {
-        "flashPoint": "flashPoint" in fields,
-        "packingGroup": "packingGroupCategory" in fields,
-    }
-    if "subsidiaryHazardCategories" in fields:
-        result["subsidiaryCount"] = len(fields["subsidiaryHazardCategories"])
-    return result
+    if not declarations:
+        raise ValueError("DG preparation requires a declared DG identity")
+    results = []
+    for fields in declarations:
+        result: dict[str, bool | int] = {
+            "flashPoint": "flashPoint" in fields,
+            "packingGroup": "packingGroupCategory" in fields,
+        }
+        if "subsidiaryHazardCategories" in fields:
+            result["subsidiaryCount"] = len(fields["subsidiaryHazardCategories"])
+        results.append(result)
+    return results[0] if len(results) == 1 else results
 
 
 def _package_validator(request: PackageChoiceRequest) -> Callable[[JsonObject], PackageChoice]:
@@ -420,6 +432,38 @@ def _private_validator(
         return validate_private_packing_plan(request, value)
 
     return validate
+
+
+def packing_presentation_context(certificate: Mapping[str, Any], relations: Sequence[str]) -> str:
+    """Tell package choice its accounting role before it picks a direct receptacle."""
+    if tuple(relations) in {("NONE",), ("MIXED",)}:
+        return ""
+    meanings = {
+        "CONTAINS": "counted outer packages enclosing related inner packages",
+        "SUPPORTS": "counted support platforms carrying related packages",
+        "ON_SUPPORT": "counted packages resting on related support platforms",
+        "NONE": "directly filled counted packages with no separate inner/support packages",
+    }
+    text = (
+        "The chosen category is the DECLARED COUNTED UNIT in this required presentation, "
+        "not necessarily the direct-contact receptacle. It must permit at least one of: "
+        + "; ".join(meanings[relation] for relation in relations)
+        + ". For example, a liquid can be in inner receptacles inside counted boxes or on "
+        "counted pallets; do not reject outer packaging merely because it cannot directly "
+        "hold the loose liquid. Choose a plausible complete arrangement for the supplied "
+        "goods, not a changed commodity. No original package nouns, counts or ratios are required."
+    )
+    if required_packing_levels(certificate) == 3:
+        text += (
+            " THREE levels are required: counted outer/support unit, related INTERMEDIATE "
+            "packages, and innermost receptacles/packages inside each intermediate package. "
+            "Select relatedPackageType for the INTERMEDIATE package, not the final filled "
+            "receptacle. Plan distinct physical packages at every level (for example, "
+            "pallets supporting boxes of bottles). Do not count the same receptacle twice "
+            "by giving it a generic name at one level and a material-qualified name at "
+            "the next. Do not collapse the middle and innermost levels."
+        )
+    return text
 
 
 async def _native_batch(
@@ -444,7 +488,10 @@ async def _native_batch(
         )
         started, output, error = time.perf_counter(), None, None
         try:
-            value = await runner.call(stage, key, model, system, prompt)
+            if stage == dg_context.HS_STAGE and runner.retry_invalid_output:
+                value = await runner.call(stage, key, model, system, prompt, output_retries=1)
+            else:
+                value = await runner.call(stage, key, model, system, prompt)
             output = value.model_dump(mode="json")
             validate(output)
         except (ArtifactReadError, AtomicConflictError, json.JSONDecodeError):
@@ -514,14 +561,12 @@ def _runnable_config(
     result["independent"]["private_plans"] = _publish(
         root, directory / "private-plans.json", ready_plans
     )
-    for name in ("wording_certificates", "locality_owner_reviews", "distinct_actor_reviews"):
+    # Wording certificates are a shared admission authority. Re-publishing even
+    # identical selected entries under a new pin breaks certified publication.
+    # The campaign reads only the selected sources from this immutable catalogue.
+    for name in ("locality_owner_reviews", "distinct_actor_reviews"):
         value = _load_pin(root, config["independent"][name])
-        if name == "wording_certificates":
-            value["sources"] = {
-                sid: item for sid, item in value["sources"].items() if sid in groups
-            }
-        else:
-            value = {sid: item for sid, item in value.items() if sid in groups}
+        value = {sid: item for sid, item in value.items() if sid in groups}
         result["independent"][name] = _publish(root, directory / (name + ".json"), value)
     # Existing equipment policy is a source scope, not permission to reassign
     # the omitted groups' policies to another source during filtering.
@@ -552,6 +597,38 @@ async def prepare_campaign(
     a normal runnable publication contract. The complete inventory preserves
     those siblings as blocked_by_source_group, never as failed or replacements.
     """
+    if "declared_packages" in config:
+        from document_ocr.synthesis.declared_package_preparation import prepare
+
+        ordinary = copy.deepcopy(config)
+        policy = ordinary.pop("declared_packages")
+        base = await prepare_campaign(
+            root,
+            ordinary,
+            package_targets=package_targets,
+            mixed_source_ids=mixed_source_ids,
+            mixed_probability=mixed_probability,
+            accepted_counts=accepted_counts,
+            unit_profile_source_ids=unit_profile_source_ids,
+            retry_rate_limited=retry_rate_limited,
+            retry_invalid_output=retry_invalid_output,
+            retry_failed_receipt_sha256s=retry_failed_receipt_sha256s,
+        )
+        if base["config"] is None:
+            return base
+        expanded = copy.deepcopy(base["config"])
+        expanded["declared_packages"] = policy
+        groups = await prepare(root, expanded)
+        inventory = copy.deepcopy(base["inventory"])
+        inventory.update(groups["inventory"])
+        return {
+            **base,
+            **groups,
+            "inventory": inventory,
+            "counts": dict(Counter(row["status"] for row in inventory.values())),
+            "singleRowPreparation": base["summaryPath"],
+            "datasetMutation": False,
+        }
     root = await asyncio.to_thread(Path(root).resolve)
     if type(retry_rate_limited) is not bool or type(retry_invalid_output) is not bool:
         raise ValueError("native retry permissions must be explicit booleans")
@@ -640,6 +717,7 @@ async def _prepare_locked(
     jobs: dict[str, NativeJob] = {}
     dg_jobs: dict[str, NativeJob] = {}
     dg_native_requests: dict[str, BaseModel] = {}
+    dg_owners: dict[str, tuple[str, JsonObject, str]] = {}
     compiled_sources: dict[str, _CompiledSource] = {}
     proposed: Counter[str] = Counter()
     spent_before = source.calls.spent
@@ -672,7 +750,10 @@ async def _prepare_locked(
                     source_document_id=sid,
                     variant=variant,
                     regime=regime,
-                    identity_count=cap.identity_count,
+                    identity_count=max(
+                        cap.identity_count,
+                        len(requirements) if isinstance(requirements, list) else 1,
+                    ),
                     seed=config["seed"],
                     equipment_mode="mixed"
                     if fixed_mix or (sid in mixed and draw < probability)
@@ -697,7 +778,7 @@ async def _prepare_locked(
                     equipment_slots=compiled.equipment_slots,
                 )
                 previous_identities = (
-                    [request["dangerousGoods"]["recordId"]]
+                    [entry["recordId"] for entry in declarations(request["dangerousGoods"])]
                     if regime == "dg"
                     else [g["hs6"] for g in request["goods"]]
                 )
@@ -707,8 +788,8 @@ async def _prepare_locked(
                 excluded.extend(item for item in previous_identities if item not in excluded)
                 requests[key] = request
                 inventory[key].update(status="identity_prepared", sourceRelations=list(relations))
-                if regime == "dg":
-                    record_id = request["dangerousGoods"]["recordId"]
+                for component in components(request):
+                    record_id = component["dangerousGoods"]["recordId"]
                     for (
                         suffix,
                         needed,
@@ -723,10 +804,10 @@ async def _prepare_locked(
                             "hs",
                             record_id not in sampler.hs_links,
                             dg_context.hs_request,
-                            dg_context.hs_output_type(request, sampler.phrases),
+                            dg_context.hs_output_type(component, sampler.phrases),
                             dg_context.HS_SYSTEM,
                             dg_context.hs_prompt,
-                            lambda output, frozen=request: dg_context.validate_hs(
+                            lambda output, frozen=component: dg_context.validate_hs(
                                 frozen, output, sampler.phrases
                             ),
                             dg_context.HS_STAGE,
@@ -738,15 +819,18 @@ async def _prepare_locked(
                             dg_context.PhysicalProposal,
                             dg_context.FORM_SYSTEM,
                             dg_context.form_prompt,
-                            lambda output, frozen=request: dg_context.validate_form(
+                            lambda output, frozen=component: dg_context.validate_form(
                                 frozen, output, sampler.hmt_states
                             ),
                             dg_context.FORM_STAGE,
                         ),
                     ):
                         if needed:
-                            native_request = request_factory(request)
-                            job_key = key + ":" + suffix
+                            native_request = request_factory(component)
+                            job_key = (
+                                f"{component['sourceDocumentId']}:{component['variant']}:{suffix}"
+                            )
+                            dg_owners[job_key] = (key, component, suffix)
                             dg_native_requests[job_key] = native_request
                             dg_jobs[job_key] = (
                                 stage,
@@ -762,35 +846,18 @@ async def _prepare_locked(
                     reason=f"{type(exception).__name__}: {exception}",
                 )
     dg_answers = await _native_batch(source.calls, dg_jobs, directory / "dg-context")
-    if retry_invalid_output:
-        rejected_hs = {
-            key: dg_jobs[key]
-            for key, answer in dg_answers.items()
-            if key.endswith(":hs")
-            and str(answer["error"]).startswith(
-                ("UnexpectedModelBehavior:", "RuntimeError: UnexpectedModelBehavior:")
-            )
-        }
-        if rejected_hs:
-            # One authorized new wire attempt, fully receipted. Explicit
-            # UNKNOWN/null is a successful answer and is never retried here.
-            dg_answers.update(
-                await _native_batch(
-                    source.calls, rejected_hs, directory / "dg-context-validation-retry"
-                )
-            )
     _verify_pins(pins)
     for job_key, answer in dg_answers.items():
-        key, suffix = job_key.rsplit(":", 1)
+        key, component, suffix = dg_owners[job_key]
         if answer["error"] is not None:
             inventory[key].update(status="held_dg_context", reason=answer["error"])
             continue
         evidence = _evidence(dg_native_requests[job_key], answer)
         if suffix == "hs":
-            requests[key]["goods"][0]["hs6"] = answer["output"]["hs6"]
-            requests[key]["nativeDgHsEvidence"] = evidence
+            component["goods"][0]["hs6"] = answer["output"]["hs6"]
+            component["nativeDgHsEvidence"] = evidence
         else:
-            requests[key]["nativeDgPhysicalEvidence"] = evidence
+            component["nativeDgPhysicalEvidence"] = evidence
     for key, request in requests.items():
         if inventory[key]["status"] != "identity_prepared":
             continue
@@ -798,6 +865,7 @@ async def _prepare_locked(
         variant = request["variant"]
         relations = compiled_sources[sid].relations
         try:
+            refresh(request)
             sampler.validate_request(request)
             context: JsonObject = {
                 "goods": request["goods"],
@@ -810,6 +878,11 @@ async def _prepare_locked(
                 context["installedTank"] = True
             if regime == "dg":
                 context["packingContext"] = dg_context.packing_context(request, sampler.hmt_states)
+            nesting_context = packing_presentation_context(authorities.certificates[sid], relations)
+            if nesting_context:
+                context["packingContext"] = (
+                    context.get("packingContext", "") + "\n" + nesting_context
+                )
             article_groups = request.get("cargoPresentation", {}).get("articleGroups")
             if article_groups is not None:
                 context["packingContext"] = (

@@ -13,7 +13,7 @@ from collections.abc import Mapping, Sequence
 from decimal import ROUND_FLOOR, Decimal
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, model_validator
 
@@ -105,6 +105,28 @@ def source_unit_profile_precision(blueprint, numeric_regions=()) -> dict[str, st
             else "massKg"
         )
         quanta[kind].append(printed_quantum(region["source_text"], Decimal(str(baseline))))
+    # A source-only mass is still printed and must participate in the lattice.
+    # Omitting these owners made e.g. three-decimal tonnes receive gram-level
+    # values that their original typography cannot represent.
+    factors = {
+        "kilogram": Decimal(1),
+        "metric_tonne": Decimal(1000),
+        "pound": Decimal("0.45359237"),
+        "cubic_metre": Decimal(1),
+    }
+    for key, owner in blueprint.ownership_data.get("measure_owners", {}).items():
+        kind = "volumeM3" if owner["measure"] == "volume" else "massKg"
+        presentation = owner.get("numeric_presentation")
+        surfaces = (
+            [presentation["text"]]
+            if presentation is not None
+            else [o["source_text"] for o in blueprint.historical_bindings[key]["occurrences"]]
+        )
+        for surface in surfaces:
+            quantum = (
+                printed_quantum(surface, Decimal(str(owner["baseline"]))) * factors[owner["unit"]]
+            )
+            quanta[kind].append(Decimal(1).scaleb(quantum.normalize().as_tuple().exponent))
     return {
         key: str(max(items) if items else Decimal("0.01" if key == "massKg" else "0.0001"))
         for key, items in quanta.items()
@@ -154,10 +176,15 @@ class UnitProfileRequest(BaseModel):
     reviewFeedback: str | None = Field(
         default=None, min_length=1, max_length=2000, exclude_if=lambda value: value is None
     )
-    dangerousGoods: dict[str, Any] | None = Field(
+    dangerousGoods: dict[str, Any] | list[dict[str, Any]] | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
-    physicalState: PhysicalForm | None = Field(default=None, exclude_if=lambda value: value is None)
+    physicalState: PhysicalForm | Literal["mixed"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    componentPhysicalStates: list[PhysicalForm] | None = Field(
+        default=None, min_length=2, exclude_if=lambda value: value is None
+    )
     articleGroups: list[list[str]] | None = Field(
         default=None, min_length=1, exclude_if=lambda value: value is None
     )
@@ -183,7 +210,18 @@ class UnitProfileRequest(BaseModel):
                 raise ValueError(
                     "DG unit planning requires its authoritative tuple and physical state"
                 )
-            if self.physicalState == "gas" and self.countedUnitContext in {
+            if isinstance(self.dangerousGoods, list):
+                if self.componentPhysicalStates is None or len(self.componentPhysicalStates) != len(
+                    self.dangerousGoods
+                ):
+                    raise ValueError("DG group planning needs a physical form for each declaration")
+                forms = set(self.componentPhysicalStates)
+                expected = next(iter(forms)) if len(forms) == 1 else "mixed"
+                if self.physicalState != expected:
+                    raise ValueError("DG group physical summary differs from its components")
+            elif self.componentPhysicalStates is not None:
+                raise ValueError("single DG planning cannot carry group physical states")
+            if self.contains_gas and self.countedUnitContext in {
                 "vehicle",
                 "discrete_article",
                 "bulk_loading_lot",
@@ -192,9 +230,17 @@ class UnitProfileRequest(BaseModel):
                     "gas cargo needs contained receptacles or installed-tank contents, "
                     "not unpackaged gas"
                 )
-        elif self.dangerousGoods is not None or self.physicalState is not None:
+        elif (
+            self.dangerousGoods is not None
+            or self.physicalState is not None
+            or self.componentPhysicalStates is not None
+        ):
             raise ValueError("non-DG unit planning cannot invent DG physical authority")
         return self
+
+    @property
+    def contains_gas(self) -> bool:
+        return self.physicalState == "gas" or "gas" in (self.componentPhysicalStates or [])
 
 
 class UnitExample(BaseModel):
@@ -273,7 +319,7 @@ def unit_profile_output_type(request: UnitProfileRequest) -> type[UnitProfile]:
         request.volumeBudgetM3,
         zero_packing_tare(request),
         packed_liquid_lot(request)
-        or (request.physicalState == "gas" and request.countedUnitContext != "tank_loading_lot"),
+        or (request.contains_gas and request.countedUnitContext != "tank_loading_lot"),
     )
 
 
@@ -316,6 +362,11 @@ def validate_profile_context(
     state = physical_form(frozen, physical_states)
     if request.physicalState != state:
         raise ValueError("native unit profile changed the authoritative DG physical state")
+    from document_ocr.synthesis.independent_dg_context import physical_forms
+
+    expected_forms = physical_forms(frozen, physical_states) if "dgComponents" in frozen else None
+    if request.componentPhysicalStates != expected_forms:
+        raise ValueError("native unit profile changed component physical states")
     for key in ("goods", "regime", "selectedCategory", "countedUnitContext", "equipment"):
         expected = frozen["equipmentSlots"] if key == "equipment" else frozen[key]
         if getattr(request, key) != expected:

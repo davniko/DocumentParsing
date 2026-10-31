@@ -148,7 +148,7 @@ def test_every_reviewed_alternate_can_be_drawn_and_rendered(category, quantity):
             "BOX(ES)",
             "PACKAGE_BOX_WOODEN_NATURAL_WOOD_ORDINARY",
             1,
-            "ORDINARY WOODEN BOX(ES) (NATURAL WOOD)",
+            "WOODEN BOX(ES)",
         ),
         ("PACKAGE(S)", "PACKAGE_BULK_LIQUID", 1, "BULK LIQUID"),
     ],

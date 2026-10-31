@@ -7,12 +7,29 @@ from decimal import Decimal
 import pytest
 
 from document_ocr.synthesis.curated import SourceContract, digest
-from document_ocr.synthesis.curated_measurements import measured_number, printed_quantum
+from document_ocr.synthesis.curated_measurements import (
+    format_measure,
+    measured_number,
+    printed_quantum,
+)
 from document_ocr.synthesis.curated_ownership import build_owned_blueprint, ownership_surfaces
 from document_ocr.synthesis.curated_physical import _owners
 from document_ocr.synthesis.curated_templates import render_sampling_blueprint
 
 PREFIX = "documentPatch.goodsItemDetails[0]"
+
+
+@pytest.mark.parametrize("source,old,new,expected", [
+    (".47 CBM", "0.47", "0.82", ".82 CBM"),
+    (".47 CBM", "0.47", "12.36", "12.36 CBM"),
+    (",47 CBM", "0.47", "0.82", ",82 CBM"),
+    ("-.47 C", "-0.47", "-0.82", "-.82 C"),
+    ("+.47 C", "0.47", "0.82", "+.82 C"),
+])
+def test_measured_decimals_without_leading_zero(source, old, new, expected):
+    assert printed_quantum(source, Decimal(old)) == Decimal("0.01")
+    assert format_measure(source, Decimal(old), Decimal(old)) == source
+    assert format_measure(source, Decimal(old), Decimal(new)) == expected
 
 
 def converted_fixture(*, pounds="1351.434", pound_unit="Lbs", volume_unit="Cbf"):

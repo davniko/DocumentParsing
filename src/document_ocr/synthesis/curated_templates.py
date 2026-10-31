@@ -54,6 +54,8 @@ from document_ocr.synthesis.template_compiler.descendant import (
 
 if TYPE_CHECKING:
     from document_ocr.synthesis.curated_countries import CountryRenderPlan
+    from document_ocr.synthesis.declared_package_rendering import PackageListRendering
+    from document_ocr.synthesis.package_presentations import PackageVocabulary
 
 _CANONICAL_MEASUREMENT_VALUE = re.compile(r"\.(?:grossWeight|netWeight|volume)\.value$")
 _PHYSICAL_SUM_DERIVATIONS = frozenset({"sum_gross_weight", "sum_net_weight", "sum_volume"})
@@ -641,6 +643,8 @@ def render_sampling_blueprint(
     target_casing: TargetCasing = "uppercase",
     phone_rendering: PhoneRenderPlan | None = None,
     country_rendering: CountryRenderPlan | None = None,
+    package_vocabulary: PackageVocabulary | None = None,
+    package_lists: PackageListRendering | None = None,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Render a sampled current target with explicit coverage and byte receipts.
 
@@ -649,6 +653,8 @@ def render_sampling_blueprint(
     Unchanged auxiliary surfaces remain unchanged, never silently regenerated.
     Unsupported changed fields or conflicting dependent values are errors.
     """
+    if package_lists is not None:
+        sampled_target = package_lists.view(blueprint, sampled_target)
     surface_values = surface_values or {}
     certified_country_codes = certified_country_codes or {}
     variables = {v.key: v for v in blueprint.contract.variables}
@@ -673,7 +679,18 @@ def render_sampling_blueprint(
     if expected_descriptions != projected_paths:
         raise ValueError("description targets require complete reviewed description_blocks")
     validate_description_regions(blueprint.description_blocks, blueprint.regions)
-    after = _aligned_sample_leaves(before, flat(sampled_target))
+    from document_ocr.synthesis.curated_hs_lists import rendering as render_hs_lists
+
+    hs_list_surfaces, hs_list_paths = render_hs_lists(blueprint, sampled_target)
+    actual_after = flat(sampled_target)
+    if hs_list_surfaces:
+        _aligned_sample_leaves(
+            {p: v for p, v in before.items() if p not in hs_list_paths},
+            {p: v for p, v in actual_after.items() if p not in hs_list_paths},
+        )
+        after = {p: actual_after.get(p) for p in before.keys() | actual_after.keys()}
+    else:
+        after = _aligned_sample_leaves(before, actual_after)
     container_rendering = prepare_container_identifier_rendering(blueprint, sampled_target)
     for path, code in certified_country_codes.items():
         if (
@@ -682,7 +699,9 @@ def render_sampling_blueprint(
             or not re.fullmatch(r"[A-Z]{2}", code)
         ):
             raise ValueError(f"invalid certified country-code mapping: {path}")
-    requested_changes = {path for path in before if before[path] != after[path]}
+    requested_changes = {
+        path for path in before.keys() | after.keys() if before.get(path) != after.get(path)
+    }
     changed = requested_changes - projected_paths
     covered: set[str] = set()
     variable_values: dict[str, str] = {}
@@ -724,7 +743,15 @@ def render_sampling_blueprint(
         )
         phone_base = phone_rendering.canonical_region(region) if phone_rendering else None
         container_base = container_rendering.direct_region(region)
-        if phone_base is not None:
+        if region.key in hs_list_surfaces:
+            if (
+                region.key in surface_values
+                and surface_values[region.key] != hs_list_surfaces[region.key]
+            ):
+                raise ValueError("HS-list owner cannot be overridden with unrelated text")
+            text = hs_list_surfaces[region.key]
+            covered.update(hs_list_paths & changed)
+        elif phone_base is not None:
             text = phone_base
             covered.update(changed_paths)
         elif container_base is not None and region.key not in surface_values:
@@ -797,7 +824,11 @@ def render_sampling_blueprint(
         else:
             text = region.source
         hs_paths = [path for path in region.target_paths if ".hsCodes[" in path]
-        if hs_paths and any(hs_digits(text) != hs_digits(after[path]) for path in hs_paths):
+        if (
+            region.key not in hs_list_surfaces
+            and hs_paths
+            and any(hs_digits(text) != hs_digits(after[path]) for path in hs_paths)
+        ):
             raise ValueError(f"printed HS digits differ from their complete target: {region.key}")
         rendered_regions.append((region, case_owned_text(text, region.target_paths, render_casing)))
     # Current contract paths, rather than stale historical array indices, own
@@ -805,8 +836,15 @@ def render_sampling_blueprint(
     covered.update(container_rendering.covered_paths)
     if missing := changed - covered:
         raise ValueError(f"changed target fields have no rendered owner: {sorted(missing)}")
+    if package_lists is not None:
+        package_lists.validate_witnesses(package_vocabulary)
     for path in changed:
         if ".numberAndTypeOfPackages[" not in path or not path.endswith(".typeCategory"):
+            continue
+        if package_lists is not None:
+            # `after` currently contains an internal aggregate rendering view.
+            # The public disjoint rows have their own exact owners/witnesses,
+            # checked above; no additional generic PACKAGE noun is required.
             continue
         category = after[path]
         supported = False
@@ -814,8 +852,12 @@ def render_sampling_blueprint(
             if path not in region.target_paths or region.curated_key is not None:
                 continue
             expected = " ".join(_package_candidate(region.source, category).split())
-            if package_category_surface_present(text, category) or re.search(
-                r"(?<!\w)" + re.escape(expected) + r"(?!\w)", " ".join(text.split()), re.I
+            if (
+                package_category_surface_present(text, category)
+                or (package_vocabulary is not None and package_vocabulary.supports(text, category))
+                or re.search(
+                    r"(?<!\w)" + re.escape(expected) + r"(?!\w)", " ".join(text.split()), re.I
+                )
             ):
                 supported = True
                 break
@@ -844,6 +886,8 @@ def render_sampling_blueprint(
     )
     if country_projection is not None:
         rendered_regions = country_projection.regions
+    if package_lists is not None:
+        rendered_regions = package_lists.compose(rendered_regions, casing=render_casing)
     raw, parts, cursor, edits = blueprint.source.encode(), [], 0, []
     for region, text in rendered_regions:
         parts.extend((raw[cursor : region.start], text.encode()))
@@ -881,6 +925,8 @@ def render_sampling_blueprint(
             covered.add(path)
     hs_presentations = {}
     for region, text in rendered_regions:
+        if region.key in hs_list_surfaces:
+            continue
         for path in region.target_paths:
             if ".hsCodes[" in path:
                 hs_presentations.setdefault(path, " ".join(text.split()))
@@ -913,34 +959,34 @@ def render_sampling_blueprint(
             else:
                 changed.discard(path)
                 covered.discard(path)
-    return (
-        result.decode(),
-        target,
-        {
-            "sourceSha256": digest(raw),
-            "renderedSha256": digest(result),
-            "changedTargetPaths": sorted(changed),
-            "coveredTargetPaths": sorted(covered),
-            "certifiedCountryCodes": dict(certified_country_codes),
-            "edits": edits,
-            "unchangedBytesPreserved": True,
-            **({"hsPresentations": hs_presentations} if hs_presentations else {}),
-            **({"descriptionProjection": description_proof} if description_proof else {}),
-            **(
-                {"phonePresentations": phone_rendering.receipt()}
-                if phone_rendering is not None and changed_phones
-                else {}
-            ),
-            **(
-                {"containerIdentifierPresentations": container_rendering.receipt()}
-                if container_rendering.records
-                else {}
-            ),
-            **(
-                {"countryPresentations": country_projection.receipt}
-                if country_projection is not None
-                else {}
-            ),
-            **({"renderCasing": render_casing} if render_casing != "preserve" else {}),
-        },
-    )
+    proof = {
+        "sourceSha256": digest(raw),
+        "renderedSha256": digest(result),
+        "changedTargetPaths": sorted(changed),
+        "coveredTargetPaths": sorted(covered),
+        "certifiedCountryCodes": dict(certified_country_codes),
+        "edits": edits,
+        "unchangedBytesPreserved": True,
+        **({"hsPresentations": hs_presentations} if hs_presentations else {}),
+        **({"hsListPresentations": hs_list_surfaces} if hs_list_surfaces else {}),
+        **({"descriptionProjection": description_proof} if description_proof else {}),
+        **(
+            {"phonePresentations": phone_rendering.receipt()}
+            if phone_rendering is not None and changed_phones
+            else {}
+        ),
+        **(
+            {"containerIdentifierPresentations": container_rendering.receipt()}
+            if container_rendering.records
+            else {}
+        ),
+        **(
+            {"countryPresentations": country_projection.receipt}
+            if country_projection is not None
+            else {}
+        ),
+        **({"renderCasing": render_casing} if render_casing != "preserve" else {}),
+    }
+    if package_lists is not None:
+        package_lists.project(blueprint, target, proof)
+    return result.decode(), target, proof

@@ -202,7 +202,7 @@ def setup_preparation(tmp_path, monkeypatch):
             return state.roles.get(sid, ("NONE",))
 
         def certificate(self, sid):
-            result = {"source": sid, "reviewStatus": "reviewed"}
+            result = {"source": sid, "reviewStatus": "reviewed", "regions": []}
             if sid in state.cargo_presentations:
                 result["cargoPresentation"] = state.cargo_presentations[sid]
             return result
@@ -405,6 +405,10 @@ def test_complete_goods_first_pipeline_is_runnable_and_keeps_final_counts_zero(s
     assert state.config == before
     assert len(state.plans) == 6
     assert (state.root / result["preparedConfig"]["path"]).exists()
+    assert (
+        result["config"]["independent"]["wording_certificates"]
+        == before["independent"]["wording_certificates"]
+    )
 
 
 def test_mixed_native_semantics_reach_verified_production_plan(setup_preparation):

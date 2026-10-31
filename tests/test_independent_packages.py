@@ -39,6 +39,47 @@ def answer(category="PACKAGE_BALE", *, context=None, compatible=True):
     }
 
 
+@pytest.mark.parametrize(
+    "change", [None, "evidence", "form", "scope", "identity", "category", "counting", "goods"]
+)
+def test_declared_group_reuses_only_the_same_verified_choice(change):
+    choice = packages.validate_package_choice(
+        packages.PackageChoiceRequest.model_validate(request()), answer()
+    )
+    native = packages.PackageChoiceRequest.model_validate(request()).model_dump(mode="json")
+    frozen = {
+        "sourceDocumentId": "source",
+        "variant": 1,
+        "nativeChoiceEvidence": {"request": native},
+        "goods": native["goods"],
+        "regime": native["regime"],
+        "goodsForm": native["form"],
+        "dangerousGoods": native["dangerousGoods"],
+        "selectedCategory": "PACKAGE_BALE",
+        "countedUnitContext": None,
+    }
+    child = copy.deepcopy(frozen)
+    if change == "evidence":
+        child["nativeChoiceEvidence"]["output"] = {"unknown": True}
+    if change == "form":
+        child["goodsForm"] = "different"
+    if change == "scope":
+        child["cargoPresentation"] = {"packageTypes": ["PACKAGE_BALE"]}
+    if change == "identity":
+        child["variant"] = 2
+    if change == "category":
+        child["selectedCategory"] = "PACKAGE_DRUM"
+    if change == "counting":
+        child["countedUnitContext"] = "tank_loading_lot"
+    if change == "goods":
+        child["goods"] = []
+    if change is None:
+        packages.validate_shared_native_choice(frozen, child, choice)
+    else:
+        with pytest.raises(ValueError):
+            packages.validate_shared_native_choice(frozen, child, choice)
+
+
 def private_request(counted="PACKAGE_PALLET", allowed=None):
     value = request(None)
     value.update(

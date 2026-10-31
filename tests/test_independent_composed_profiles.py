@@ -168,6 +168,54 @@ def test_unknown_topology_cannot_be_used_or_silently_replaced():
         )
 
 
+@pytest.mark.parametrize("relation", ["CONTAINS", "SUPPORTS"])
+def test_three_level_topology_owns_all_counts_and_complete_mass(relation):
+    data = request(relation).model_dump(mode="json")
+    data["packingLevels"] = 3
+    data["topology"]["contents"] = {
+        "packageSingular": "GLASS BOTTLE",
+        "packagePlural": "GLASS BOTTLES",
+        "unitsPerRelated": 6,
+    }
+    req = ComposedRequest.model_validate(data)
+    topology_output_type(relation, 3).model_validate(
+        {"topology": data["topology"], "basis": "Bottles in cartons inside the outer group."}
+    )
+    assert "ALL THREE levels" in composed_prompt(req)
+    for seed in range(100):
+        net, gross, cube, authority = sample_composed_profile(
+            req,
+            answer(relation),
+            [(Decimal(28000), Decimal(76))],
+            DeterministicStream(seed, "three-level", "group"),
+            mass_quantum_kg=Decimal("0.01"),
+            volume_quantum_m3=Decimal("0.0001"),
+        )
+        value = {
+            "provenance": {"numericEnvelope": authority},
+            "internalCategory": req.selectedCategory,
+            "physical": {"unitNetKg": str(net), "unitGrossKg": str(gross)},
+        }
+        counts = scope_composition(value, req.privatePacking, 3)
+        assert counts["contents"]["quantity"] == counts["relatedQuantity"] * 6
+        assert counts["contents"]["packageSingular"] == "GLASS BOTTLE"
+        assert 0 < net <= gross <= 28000 and 0 < cube <= 76
+    data["topology"].pop("contents")
+    with pytest.raises(ValueError, match="packing relation"):
+        ComposedRequest.model_validate(data)
+    with pytest.raises(ValueError):
+        topology_output_type(relation, 3).model_validate(
+            {"topology": data["topology"], "basis": "Missing inner level"}
+        )
+
+
+def test_three_levels_do_not_silently_become_a_different_relation():
+    data = request("ON_SUPPORT").model_dump(mode="json")
+    data["packingLevels"] = 3
+    with pytest.raises(ValueError, match="three-level"):
+        ComposedRequest.model_validate(data)
+
+
 def test_coarse_source_precision_preserves_small_support_in_whole_groups():
     req, value = request("SUPPORTS"), answer("SUPPORTS")
     for example in value["examples"]:

@@ -387,13 +387,21 @@ def _validate_row_capacity(
         return
     if sum(row["packageQuantity"] for row in allocations) != draw["package"]["packageQuantity"]:
         raise ValueError("independent row quantities do not conserve the counted total")
-    unit_net = Decimal(draw["physical"]["unitNetKg"])
-    unit_gross = Decimal(draw["physical"]["unitGrossKg"])
-    unit_cube = Decimal(draw["physical"]["unitVolumeM3"])
-    if not all(value.is_finite() and value > 0 for value in (unit_net, unit_gross, unit_cube)):
-        raise ValueError("independent unit loads require positive finite numeric facts")
-    if unit_net > unit_gross:
-        raise ValueError("independent net mass exceeds gross mass")
+    grouped = draw.get("declaredPackages")
+    if grouped is not None:
+        from document_ocr.synthesis.declared_packages import DeclaredPackages
+
+        groups = DeclaredPackages.from_receipt(grouped)
+        if allocations != groups.row_facts():
+            raise ValueError("independent row loads differ from declared package groups")
+    else:
+        unit_net = Decimal(draw["physical"]["unitNetKg"])
+        unit_gross = Decimal(draw["physical"]["unitGrossKg"])
+        unit_cube = Decimal(draw["physical"]["unitVolumeM3"])
+        if not all(value.is_finite() and value > 0 for value in (unit_net, unit_gross, unit_cube)):
+            raise ValueError("independent unit loads require positive finite numeric facts")
+        if unit_net > unit_gross:
+            raise ValueError("independent net mass exceeds gross mass")
     for allocation, physical in zip(allocations, physical_rows, strict=True):
         quantity = allocation["packageQuantity"]
         if type(quantity) is not int or quantity < 1 or quantity != physical["quantity"]:
@@ -401,7 +409,7 @@ def _validate_row_capacity(
         gross = Decimal(allocation["grossKg"])
         net = Decimal(allocation["netKg"])
         volume = Decimal(allocation["volumeM3"])
-        if (gross, net, volume) != (
+        if grouped is None and (gross, net, volume) != (
             unit_gross * quantity,
             unit_net * quantity,
             unit_cube * quantity,
@@ -465,6 +473,11 @@ class IndependentCampaign(Campaign):
         )
         self.requests = _pinned_json(root, independent["requests"])
         self.private_plans = _pinned_json(root, independent["private_plans"])
+        self.declared_package_contracts = (
+            _pinned_json(root, config["declared_packages"]["contracts"])["sources"]
+            if "declared_packages" in config
+            else {}
+        )
         locality_pin = FilePin.model_validate(independent["locality_owner_reviews"])
         self.locality_owner_reviews = load_locality_reviews(
             _pin(root, locality_pin).read_bytes(), expected_sha256=locality_pin.sha256
@@ -482,6 +495,9 @@ class IndependentCampaign(Campaign):
         self._plan_lock_guard = threading.Lock()
         self._plan_locks: dict[tuple[str, int], threading.Lock] = {}
         super().__init__(root, config)
+        if "declared_packages" in config:
+            pin = FilePin.model_validate(config["declared_packages"]["contracts"])
+            self._blueprint_file_pins[_pin(root, pin)] = pin.sha256
         slots = {
             f"{sid}:{variant}"
             for sid in self.source_ids
@@ -522,7 +538,7 @@ class IndependentCampaign(Campaign):
             validate_cargo_presentation(
                 self.numeric.certificate(sid).get("cargoPresentation"), request
             )
-            verify_native_choice_evidence(
+            choice = verify_native_choice_evidence(
                 root,
                 request,
                 provider=self.calls.config["provider"],
@@ -605,6 +621,31 @@ class IndependentCampaign(Campaign):
                 sid
             ):
                 raise ValueError("private relationship lacks source-certified presentation: " + key)
+            if "declared_packages" in config:
+                from document_ocr.synthesis.declared_package_preparation import selection, verify
+
+                count = selection(config["declared_packages"], sid, int(variant))
+                authority = request.get("declaredPackageGroups")
+                if count == 1:
+                    if authority is not None:
+                        raise ValueError("single-row control cannot carry declared-group authority")
+                else:
+                    if authority is None or authority["count"] != count:
+                        raise ValueError("multi-row sampling requires prepared group authority")
+                    contract = self.declared_package_contracts[sid]
+                    bp = self.blueprint(sid)
+                    if contract["sourceSha256"] != digest(bp.source.encode()) or contract[
+                        "sourceTargetSha256"
+                    ] != digest(bp.target):
+                        raise ValueError("declared package source contract is stale")
+                    if authority["mode"] != contract["planning"]:
+                        raise ValueError("group planning mode differs from certified source")
+                    if authority["mode"] == "independent_groups":
+                        verify(self, request, authority, choice)
+                    elif authority["mode"] != "shared_units":
+                        raise ValueError("unknown declared group planning mode")
+            elif "declaredPackageGroups" in request:
+                raise ValueError("prepared groups require an explicit declared-package policy")
 
     def blueprint(self, sid: str) -> SamplingBlueprint:
         with self._blueprint_lock:
@@ -754,11 +795,21 @@ class IndependentCampaign(Campaign):
             )
         goods["description"] = "; ".join(identity.phrase for identity in identities)
         if "hsCodes" in goods:
-            goods["hsCodes"] = sample_source_hs_codes(
-                original_goods["hsCodes"],
-                [identity.hs6 for identity in identities],
-                DeterministicStream(self.config["seed"], "independent-hs-render-v1", sample_id),
+            hs_stream = DeterministicStream(
+                self.config["seed"], "independent-hs-render-v1", sample_id
             )
+            if "hs_list_blocks" in blueprint.ownership_data:
+                from document_ocr.synthesis.curated_hs_lists import sample as sample_hs_list
+
+                goods["hsCodes"] = sample_hs_list(
+                    blueprint, [identity.hs6 for identity in identities], hs_stream
+                )
+            else:
+                goods["hsCodes"] = sample_source_hs_codes(
+                    original_goods["hsCodes"],
+                    [identity.hs6 for identity in identities],
+                    hs_stream,
+                )
         drawn_rows = draw["allocations"]
         if len(drawn_rows) != len(containers):
             raise ValueError("independent loads differ from printed equipment cardinality")
@@ -771,10 +822,12 @@ class IndependentCampaign(Campaign):
                     by_identifier[placement["equipmentIdentifier"]]
                 ]["packageQuantity"]
         if "dangerousGoods" in goods:
-            declaration = draw["dangerousGoods"]
-            if declaration is None:
-                raise ValueError("DG source received a non-DG independent declaration")
-            for entry in goods["dangerousGoods"]:
+            from document_ocr.synthesis.independent_dg_group import declarations
+
+            entries = declarations(draw["dangerousGoods"])
+            if len(entries) != len(goods["dangerousGoods"]):
+                raise ValueError("DG source and sampled declaration cardinalities differ")
+            for entry, declaration in zip(goods["dangerousGoods"], entries, strict=True):
                 for field in entry:
                     if field not in declaration:
                         raise ValueError("independent DG declaration lacks printed field " + field)
@@ -878,19 +931,29 @@ class IndependentCampaign(Campaign):
             }
             provenance["ventilationCbmPerHour"] = draw["thermal"]["ventilationCbmPerHour"]
         if draw["dangerousGoods"] is not None:
-            declaration = draw["dangerousGoods"]
-            provenance["dgHmtRecordId"] = declaration["recordId"]
-            provenance["dgPrintedFacts"] = {
-                "properShippingName": declaration["properShippingName"],
-                "unNumber": declaration["unNumber"],
-                "class": declaration["exactHazardClass"],
-                "packingGroup": declaration["packingGroupCode"],
-                "subsidiaryHazards": declaration["exactSubsidiaryHazards"],
-            }
-            if "flashPoint" in declaration:
-                provenance["dgPrintedFacts"]["flashPointAuthority"] = self.sampler.flash[
-                    declaration["recordId"]
-                ].model_dump(mode="json")
+            from document_ocr.synthesis.independent_dg_group import declarations
+
+            entries = declarations(draw["dangerousGoods"])
+            facts = []
+            for declaration in entries:
+                fact = {
+                    "properShippingName": declaration["properShippingName"],
+                    "unNumber": declaration["unNumber"],
+                    "class": declaration["exactHazardClass"],
+                    "packingGroup": declaration["packingGroupCode"],
+                    "subsidiaryHazards": declaration["exactSubsidiaryHazards"],
+                }
+                if "flashPoint" in declaration:
+                    fact["flashPointAuthority"] = self.sampler.flash[
+                        declaration["recordId"]
+                    ].model_dump(mode="json")
+                facts.append(fact)
+            provenance["dgHmtRecordId"] = (
+                entries[0]["recordId"]
+                if len(entries) == 1
+                else [entry["recordId"] for entry in entries]
+            )
+            provenance["dgPrintedFacts"] = facts[0] if len(facts) == 1 else facts
         scenario = ShipmentScenario(
             source_id=blueprint.document_id,
             variant=variant,
@@ -1003,7 +1066,20 @@ class IndependentCampaign(Campaign):
                         self._equal_container_loads(draw)
                     draw = self.numeric.prepare_draw(blueprint, draw, private, request)
                     ledger = self.numeric.build_ledger(
-                        blueprint, draw, private, self.config["seed"], variant
+                        blueprint,
+                        draw,
+                        private,
+                        self.config["seed"],
+                        variant,
+                        **(
+                            {
+                                "noun_renderer": self.package_presentations.noun_renderer(
+                                    sid, self.config["seed"], variant
+                                )
+                            }
+                            if self.package_presentations is not None
+                            else {}
+                        ),
                     )
                     if sid in self.wording_certificates:
                         overlap = set(ledger["surfaces"]) & set(phrase_surfaces(blueprint))
@@ -1028,10 +1104,28 @@ class IndependentCampaign(Campaign):
                         retained_tares,
                         request,
                     )
-                    self.numeric.validate_composed_capacity(
-                        draw, result[1].provenance["physicalRows"]
+                    if "declaredPackageGroups" in request:
+                        from document_ocr.synthesis.declared_package_planning import expand
+
+                        result = expand(
+                            self,
+                            result,
+                            request["declaredPackageGroups"],
+                            self.declared_package_contracts[sid],
+                            request,
+                            attempt=attempt,
+                            equipment_domain=equipment_domain,
+                        )
+                    if "declaredPackageGroups" not in request:
+                        self.numeric.validate_composed_capacity(
+                            draw, result[1].provenance["physicalRows"]
+                        )
+                    _validate_row_capacity(
+                        result[1].provenance["independentDraw"]
+                        if "declaredPackageGroups" in request
+                        else draw,
+                        result[1].provenance["physicalRows"],
                     )
-                    _validate_row_capacity(draw, result[1].provenance["physicalRows"])
                     self.physical_render(result[0], result[1], result[3])
                     prepare_phone_rendering(
                         blueprint,
@@ -1168,15 +1262,31 @@ class IndependentCampaign(Campaign):
             "packageQuantity": draw["package"]["packageQuantity"],
             "privatePacking": semantic_private_packing(ledger),
         }
+        if "declaredPackages" in scenario.provenance:
+            facts["declaredPackageGroups"] = target["documentPatch"]["goodsItemDetails"][0][
+                "numberAndTypeOfPackages"
+            ]
+            facts["accountingScope"] = (
+                "These are disjoint public groups. The aggregate family is only an accounting "
+                "summary, not a replacement for their types. Inner/support packing remains "
+                "nonadditive. Do not copy package declarations or per-unit facts "
+                "into product prose."
+            )
         frozen = self.requests[f"{blueprint.document_id}:{scenario.variant}"]
         if frozen["regime"] == "dg":
             facts["dangerousGoodsPhysicalForm"] = physical_form(frozen, self.sampler.hmt_states)
-            facts["hsContextAuthority"] = (
-                "unverified synthetic HS proposal; DG identity and form override "
-                "classification context"
-                if "nativeDgHsEvidence" in frozen
-                else "exact pinned registry join"
-            )
+            from document_ocr.synthesis.independent_dg_group import components
+
+            authorities = [
+                (
+                    "unverified synthetic HS proposal; DG identity and form override "
+                    "classification context"
+                    if "nativeDgHsEvidence" in component
+                    else "exact pinned registry join"
+                )
+                for component in components(frozen)
+            ]
+            facts["hsContextAuthority"] = authorities[0] if len(authorities) == 1 else authorities
         article_groups = (
             self.requests[f"{blueprint.document_id}:{scenario.variant}"]
             .get("cargoPresentation", {})
@@ -1328,6 +1438,35 @@ class IndependentCampaign(Campaign):
             for key, value in ledger["surfaces"].items()
         ):
             raise ValueError("review private packing differs from rendered numeric surfaces")
+        if "declaredPackages" in scenario.provenance:
+            from document_ocr.synthesis.declared_package_rendering import public_rows
+            from document_ocr.synthesis.declared_packages import DeclaredPackages
+
+            groups = DeclaredPackages.from_receipt(scenario.provenance["declaredPackages"])
+            contract = scenario.provenance["declaredPackageContract"]
+            expected_rows = public_rows(groups, contract["projection"])
+            if (
+                candidate["target"]["documentPatch"]["goodsItemDetails"][0][
+                    "numberAndTypeOfPackages"
+                ]
+                != expected_rows
+            ):
+                raise ValueError("review package groups differ from their private ledger")
+            return {
+                "authority": "pinned independent disjoint declared-package ledger",
+                "sampleId": sample_id,
+                "declaredPackageGroups": expected_rows,
+                "privateLoads": groups.row_facts(),
+                "privatePacking": semantic_private_packing(ledger),
+                "groupPlanning": request["declaredPackageGroups"],
+                "instruction": (
+                    "Each public row is a disjoint counted group, including repeated same-category "
+                    "groups when printed separately. Allocations are scalar totals. Never add "
+                    "inner/support quantities to public counts or demand unprinted type-specific "
+                    "splits. Check all specific material witnesses, group-conditioned physics "
+                    "and rendered wording."
+                ),
+            }
         counted = candidate["target"]["documentPatch"]["goodsItemDetails"][0][
             "numberAndTypeOfPackages"
         ][0]
@@ -1365,6 +1504,30 @@ class IndependentCampaign(Campaign):
                 "privatePlanAuthoritySha256": private_evidence,
             },
         }
+        subsets = {
+            key: facts for key, facts in ledger["facts"].items() if "unprintedRemainder" in facts
+        }
+        if subsets:
+            context["partialPackingStatements"] = {
+                "facts": subsets,
+                "instruction": (
+                    "The source prints only these packing subsets, not a complete product "
+                    "allocation ledger. Their counts intentionally leave the stated unprinted "
+                    "remainder. Do not require printed subsets to sum to shipment total, "
+                    "or assume separate Marks-column partitions identify these products."
+                ),
+            }
+        dg_rows = blueprint.target["documentPatch"]["goodsItemDetails"][0].get("dangerousGoods", [])
+        if len(dg_rows) > 1:
+            context["dgPresentationScope"] = {
+                "fieldsByDeclaration": [sorted(row) for row in dg_rows],
+                "instruction": (
+                    "Each DG declaration retains its own source-supported field presence. "
+                    "Registry context can contain additional hazards, but only fields "
+                    "printed for that declaration belong in its target. Do not require "
+                    "unprinted registry subsidiaries or flash points to be added."
+                ),
+            }
         numeric_evidence = request.get(
             "nativeUnitProfileEvidence",
             request.get(
@@ -1424,6 +1587,10 @@ class IndependentCampaign(Campaign):
             view._projection_originals = {identity: original}
             geography = self.geography.locality_projection_view(original[0], projected[0])
             view.geography = geography
+            if self.package_presentations is not None:
+                view.package_presentations = self.package_presentations.locality_projection_view(
+                    original[0], projected[0]
+                )
             candidate = Campaign.render(view, sid, variant, persist=False)
             candidate["compositeLocalityProjection"] = projection
         ledger = original[1].provenance["freshPrivatePacking"]

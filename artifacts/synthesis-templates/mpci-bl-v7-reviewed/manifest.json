@@ -2266,6 +2266,58 @@
       },
       "sourceCount": 453,
       "trainingDatasetChanged": false
+    },
+    {
+      "campaignConfigFileSha256": "c782b51f32e2310350667e5804eeaff8203311025a904bacc0c75a7ecbb888dc",
+      "cohort": {
+        "authority_relative": "source-authorities/multi-dg-20261029/source-dataset",
+        "cohort_id": "multi-dg-20261029",
+        "groups": {
+          "multi_dg": 3
+        },
+        "production_config": "configs/synthesis/mpci_bl_curated_v7_multidg_validation.yaml",
+        "registry": "artifacts/synthesis-templates/mpci-bl-v7-reviewed",
+        "registry_sources_before": 453,
+        "regression_controls": {
+          "path": "docs/analysis/r28-multidg-integration-20261029/regression-controls.json",
+          "sha256": "a2ebd4d27bdd2e0f366e6db1a020993c44e1bb5b26f8cea367a0786dd8f33fa7"
+        },
+        "report": "docs/analysis/r28-multidg-integration-20261029/REPORT.md",
+        "schema_version": 1,
+        "selection": {
+          "path": "docs/analysis/r28-multidg-integration-20261029/selection.json",
+          "sha256": "303c94cd1a613bc31b6f69723dd1ba906904592630f759951aec2257094300d4"
+        },
+        "variants_per_source": 3
+      },
+      "newWiderSources": 3,
+      "oldCaseMetadataUnchanged": true,
+      "reviewReceipts": {
+        "manual-review.json": {
+          "path": "docs/analysis/r28-multidg-integration-20261029/manual-review.json",
+          "sha256": "8f75b2436db004084e6a4b97928c31be64b2f8e5fc0f94ec97d37060c15fbe58"
+        },
+        "source-policy-review.json": {
+          "path": "docs/analysis/r28-multidg-integration-20261029/source-policy-review.json",
+          "sha256": "dd5b5f30bb327337bb98bb56b3c260b2fb2204f60c24952b8187f3e4eef47fed"
+        },
+        "validation.json": {
+          "path": "docs/analysis/r28-multidg-integration-20261029/validation.json",
+          "sha256": "622a515227a99251b7e0b6032494ee9083ffb38946ca34be957c6c761bea7e49"
+        }
+      },
+      "revisedUnregisteredSourceRows": 0,
+      "samples": 9,
+      "sourceAuthority": {
+        "files": {
+          "manifest.json": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
+          "train.jsonl": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350",
+          "validation.jsonl": "75918520914fadd581d2e6bb853af4b0f1d9b42c39e0acfa164e06eaee5786c9"
+        },
+        "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset"
+      },
+      "sourceCount": 456,
+      "trainingDatasetChanged": false
     }
   ],
   "analogousInvoicePrivacyClosure20261019": {
@@ -2657,10 +2709,10 @@
       },
       "files": {
         "alignment.json": "d75f5078d1229f4c2718e91eb8b5a246abb60c1c005f4cdb7cbe4f9e2839d3a0",
-        "contract.json": "a78e2ef38b38ab816465e0c4e6b51643da1de201c5b6ce3b3e6eecb531107a82",
+        "contract.json": "53dd2922e4773cb4e10fc18127ecd41fd2ec4c96fdabcab91351d2de71c3023a",
         "source-positioned.txt": "e5c8d0c3c7797b3917c27e6287e47ca50ba069a438abda3c056a8762d88e40d5",
         "source.txt": "3e11274d6ad5b2ba5b5d33764c6cbf0f02ed403c27fc7256b43acff8ebaecfc5",
-        "target.json": "053455157d9aba4ef505cf6ad8c455427702e6ad072f015b07e203a34733f8c4",
+        "target.json": "273dc74fdea1f1012adb3fce397ea0100726c7e4862c0354f58303dcdf576552",
         "template.json": "7825422824cd4df3532915487c3064d8fc96ed6a20a84dae10e29685a1365594"
       },
       "mixedEquipment": {
@@ -2673,7 +2725,7 @@
       },
       "sourceInputSha256": "3e11274d6ad5b2ba5b5d33764c6cbf0f02ed403c27fc7256b43acff8ebaecfc5",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "06811f755cec24060a9cecf21794e2f3848048364b65830d03d40a2113e0fa10"
+      "targetSha256": "d472f0e84e0e9aa862262e417871c21416c307c78d7de49c8308ce887f0c7888"
     },
     "doc_06744b8fb1ec13f5d717e09621238d401a2e33b00ec7c5a31bf4878873438137": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -2868,15 +2920,15 @@
       },
       "files": {
         "alignment.json": "477dca6348ca0ea32e7ea83017f567e588a598a1db72cb25abbf49c4312731fe",
-        "contract.json": "ed5b19dbc94221fe39b192faefc9adeb0ecb33cce6be02670814c84fb33c11ca",
+        "contract.json": "e16db3383944f1e00eb4772d3d94365f28f60e42bb5fbce83fc036b84b2b2c2c",
         "source-positioned.txt": "bd3209a8231edc8af1b9827aaf275fec876f9acc3a56841b058f8e5544bb6d06",
         "source.txt": "f9de6d952731876566c1071717ec0395e1bcf7c3b7fa979a51b42904f9538c58",
-        "target.json": "39344a17143b61886650be7ac9762203ea886cba571e4c436f69a657e6fe7498",
-        "template.json": "926cfae2b91979aa542fbf69637d489659c0711c93a666f042a546b495dbf6a8"
+        "target.json": "f7178eea2d21c3803a33ec4d5dc10eb465c7f0445fdb12f38b5350b4f726bfad",
+        "template.json": "180ba7912422eb289bcd054cab79c0bd347f68ab1467bbeac64a935fd6902212"
       },
       "sourceInputSha256": "f9de6d952731876566c1071717ec0395e1bcf7c3b7fa979a51b42904f9538c58",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "73f7334eef3db70328ca666ce700587feece720b6af59926a62ae6d79479c8ee"
+      "targetSha256": "ed420b2886b273258728ccbfb5146f9dec861b0e8fba4ade6d865f7a7d52d1c9"
     },
     "doc_0ad3c6b54ee1a15a71a254cfedb9fa4852fe748080dc46b6b431ad192956346e": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -3091,17 +3143,17 @@
       "cohort": "template-expansion60-r27-batch02-20261016",
       "files": {
         "alignment.json": "9491b1137a358bd3f9b457b1fffb4b4a49ed7926aebe61b1a5e7a55eacf42fa6",
-        "contract.json": "ff04f5c65ce131602e444bea0ec81b5d98e889f161ac4d6e5853297129af31d3",
+        "contract.json": "e3e42ef1090ed584c4062c018eba4fa7f144ca90597314dc9a7cb9ba9bf81a3a",
         "source-positioned.txt": "f06fb1b1bb11a917a38f34ba2e2f9fb46e94edd7da3f3b80004f480b725f1949",
         "source.txt": "83652d4110471606785d2d13edd4c955d38230e0c511732d13a04becc3dc729d",
-        "target.json": "0809bcefb97ce28527c9fff58dc341e5562d03fe7ae1cf71a39f6f95d1935661",
+        "target.json": "86edb293b99b6af5916c10b6d858074cff4d91cabe44b699276cce5851d76506",
         "template.json": "5d1635fc0e5cddc40296b0e720ea4c89e664e588408179c07f7b7d5474413ffa"
       },
       "group": "ambient",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/template-expansion60-r27-batch02-20261016/real704",
       "sourceInputSha256": "83652d4110471606785d2d13edd4c955d38230e0c511732d13a04becc3dc729d",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "d421022af89ce165e971d8616e4e1e6af630fb01168d045342271a5d01d02533"
+      "targetSha256": "0a3f8ff718c77823d42ac7b9a47a6f9a73f0c1a0dc5eb382a95a14365f1f7d77"
     },
     "doc_0d102efa83bb466726dbb0d481a7e38f535f3e7972f1c18888e8d5cd390c4cef": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -3128,15 +3180,15 @@
       },
       "files": {
         "alignment.json": "d8cf06f5130e4ed217f3acfb3755cdb9a25819e63c4a893b211e62b05a5ec528",
-        "contract.json": "1e731cbde80760febcf657bdeb3a0fe582d20e5d93b8452e3a3cdf42016edc1c",
+        "contract.json": "c297fdb2673c0c3361ff7e6259a3b7922a85db821a3b030ccac628b1dfc7912d",
         "source-positioned.txt": "01ceb8692672a874edef0c8a3434235300f155cf59ea1f8f44e6aff3fd8d43a0",
         "source.txt": "f73e09e31f4cc931234a8bec872f51c1252bac0be0393cc9246dbc1965e4167d",
-        "target.json": "5a74f9fdb30cbd6036cb2d547c67a365298bd1c9be489828c9682cc904c907fa",
-        "template.json": "ef92ad0fdc425b5ae05fe05d4b3369c2d112d9b77ec33b403838d43fafb93c02"
+        "target.json": "621919dc9cd8b830915dcc63b107bd9ca9e9f3be2f5b24e42b44ade4da1d4ad8",
+        "template.json": "d3173960618fae86657f739dd0c4ae9c8c0319920090da55e43a698907f639f1"
       },
       "sourceInputSha256": "f73e09e31f4cc931234a8bec872f51c1252bac0be0393cc9246dbc1965e4167d",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "242f6b7199c78208b1faac5f1f249e5b07bdefed60043b5ceccf4dab2c4457ae"
+      "targetSha256": "4526c599c9dc3cda0a79e25548e591a3b94f81f7d5813d7bc82ede874ec2f41b"
     },
     "doc_0d495914aac6a093ebfa8be71ba642fcaa8fde8014cc7beb9e5da728d2bf290f": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch01",
@@ -3255,17 +3307,41 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "4219747663cf8dcd7cf836ac50bdf6940849b744aff7718753ad90e6cbc263ec",
-        "contract.json": "24b2d0d9c2186906a3dc6793ca7fca23d22f3ea1cba18a37ec0810ab2e9d01d1",
+        "contract.json": "d7a7d4f00eba91903f7333c7c531532d1b69e4351848f319ae33d180d95e4392",
         "source-positioned.txt": "6f264528251bddb774fda55656e820017e947afaea32fcebf8d09823601e7524",
         "source.txt": "583aaa9c66f82dba1936953cd17205031918c89d7cdfe17e7ccc060171bc0466",
-        "target.json": "b508c4f53018ed9411142bc9cfddc307f52731e83afe0edb8c0537bf0f72cc01",
-        "template.json": "56d4050f8268919a8d1bc7dc89e09d10ff4d5fa087a520561141aff214f18422"
+        "target.json": "3970e19a2d91ba551985a1d4e8073aa28c44ed85a0f30b4082741b3210b19300",
+        "template.json": "0c1f01c6d3ccfcea9119324b12cf349c58057ea1561199e58ebee98a7664e502"
       },
       "group": "thermal",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "583aaa9c66f82dba1936953cd17205031918c89d7cdfe17e7ccc060171bc0466",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "59c16018b99a24349898dda959b8588ad7636f5a5262271f2339f5c40a4d647b"
+      "targetSha256": "70c462be5bb6b6275e437ad2180220d96406a3008e93d645c5835460925993fb"
+    },
+    "doc_1149521ede78a0527c6a82ca4db69a97a2ad6c6da9a2c6ecb4db9be5d65b7a37": {
+      "admissionCampaign": "docs/analysis/r28-multidg-integration-20261029/native-synthesis-v2",
+      "capability": {
+        "family": "dg_chemical",
+        "identity_count": 2,
+        "location_sides": {
+          "documentPatch.freight.paymentPlace": "origin"
+        }
+      },
+      "cohort": "multi-dg-20261029",
+      "files": {
+        "alignment.json": "6728043bd54c296e6620d65401b7d1f1140c1b79a5342d8a4f8859f0c5193af7",
+        "contract.json": "a0e7972ac5383956a22386d6736ce4648fc748fc533de7a036e7d919891588e0",
+        "source-positioned.txt": "fc995ea38a0f3d58d9aa7a7027429d345a5fec4782d3b8b4cb4d917a706bcd8e",
+        "source.txt": "5e4039df990004449726e027b0bf5b498fc1551f0c82f39eda59ccfb3cdda729",
+        "target.json": "585c6eb2c0796875715fec69ea1efd824f9be9865f9c1069e2e7cfa277d8f744",
+        "template.json": "6b5f415fb750192ab709f76d18151e372a5976a63ae7da9caf30f4c3fb711391"
+      },
+      "group": "multi_dg",
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "sourceInputSha256": "5e4039df990004449726e027b0bf5b498fc1551f0c82f39eda59ccfb3cdda729",
+      "status": "admitted_3_variants_content_and_geometry_reviewed",
+      "targetSha256": "f10a9b4c34e8424dae4361344d15e5ece57e4fd6f4138f39bb158eb99b3a0d35"
     },
     "doc_11c21de2133e425f792ff209249c38808b2701f3b1970d6485cb33189af24b83": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -3296,10 +3372,10 @@
       },
       "files": {
         "alignment.json": "e482cdb8ec55f90ada00b577a2038677ef644491ae7d0cbda9ebb7a8b2646405",
-        "contract.json": "3ada35cbd2f52c166973f0dad1feefd6ca4eeb099147f2726b45328c7d4e749a",
+        "contract.json": "959b95ec4c5519d4fcfa4d007d33ad5c880491e81167cffaa8d47c11c82e20e9",
         "source-positioned.txt": "22f6e8335ec0c3a40904ac689da4d7188d1e3f15f772bf4b6fb765588ceef11c",
         "source.txt": "bee3ef2e805df121adec24cfe1089e54ee9dc2ad822803601fd135d419c3b15e",
-        "target.json": "3f873e1919306bdba9b8cd01761395a67acc7a89c383cb1106f54a52511f7b33",
+        "target.json": "fa32dfa81f3847f640614480a8a8598b0e4a4ccf8209c73c82a677ad8376c7dd",
         "template.json": "f063e760db380c8d064906a59c57c73b060542288d638c6b8dc3ced865be82f9"
       },
       "mixedEquipment": {
@@ -3313,7 +3389,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "bee3ef2e805df121adec24cfe1089e54ee9dc2ad822803601fd135d419c3b15e",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "9663cfd4c2cd245ee819a4c9dededffe982768427c1147ecbc29104770c1c713"
+      "targetSha256": "07b2b9510d598fe74ef983e459f730fdfbfed38a6bf5431e9d30ca086ec0d369"
     },
     "doc_13280227dd27777efe2aea6d700e0a3e6ad755cd1e9c7ac54736596f6deb3cd1": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -3395,17 +3471,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "999dbc9ea57dbec5e282efc62e99cc15c5c5af6fe5b979db9a24746f41f34e1d",
-        "contract.json": "2ceb53c5762716be927a4a261acf07d2f508d1fca1b8c48351ce95fbd5f79bf2",
+        "contract.json": "2dc0469361ee8562102ab8284bae7ab6ead42dd341b1e3ea14624240506d3362",
         "source-positioned.txt": "5d29056eddddb76c0f349b42f061c1c67ee60fc68b076e3314ba190bd33537e2",
         "source.txt": "61b9dccaf2ac1bcc31be8ea79534bf5d3d19fae3c06b5e33584abc9fdaece0dd",
-        "target.json": "157fef70e43e1865a1f560aeffec93ff898d98a360a9038040e1662a59e8415c",
-        "template.json": "4c7656bfdbb7a5ce11c61bb5cbef37e41692232204874e48f8a739ef84532503"
+        "target.json": "e0af1bf217f4e49c0673c98930376b4418724a78016b1a7d173f7b123be97e67",
+        "template.json": "95f6a874a057af7fa8fe97907e509a68a9bf900d619a271bb7937da729d0ce7a"
       },
       "group": "thermal",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "61b9dccaf2ac1bcc31be8ea79534bf5d3d19fae3c06b5e33584abc9fdaece0dd",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "42e4c95e1ce3d44e9f2e9717d9c38b575a82dfd04daf655941c0d26dca00cbb5"
+      "targetSha256": "fdf71e22b086830b6ed9bf010378e1348562ff31b38165c360c1899b34b22c1e"
     },
     "doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092": {
       "capability": {
@@ -3424,15 +3500,15 @@
       },
       "files": {
         "alignment.json": "afdddae1d5054cada5831e94155a0dd2af1e4e0c48ff6a9fa8f658566c36be93",
-        "contract.json": "9c8f0a7eb714c16e7de880ce9c9d8bacd864aa8c7ea7cda04fb687e49eeab0d4",
+        "contract.json": "b2918fb5c0be4aaa643e912d0685c0ce38528f9ce5b3f7f57de0cab52b893cda",
         "source-positioned.txt": "cdc674578532a4933c85fe7c1b827c6a2474722e8f5a6dfb17b5e541b1b768ac",
         "source.txt": "ffdf0b80b8e2ac4ce95b69473fbfad4ee8421f4906199c8365e477f47fb21207",
-        "target.json": "e211350aed8e474fb91979e25854b793b08ee320be99b4b0bbda7a1512055776",
-        "template.json": "fea3512eeb90e07cee4dd9a03db2f6ed87d697cbdf843865758b2a6c149b9f23"
+        "target.json": "0bdc8fec10d1da6e212fa9ab716024039258db874ebab2cca06c711ec78452b2",
+        "template.json": "c901d7c55c38ddf40d0ef7e15aff91a4e0cc7b6b937367b2ed9aac2c141238a2"
       },
       "sourceInputSha256": "ffdf0b80b8e2ac4ce95b69473fbfad4ee8421f4906199c8365e477f47fb21207",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "146e42c9c37f9ef777e4931cea0fa8dc9c221ff937badbd65b03f0251e18ebbe"
+      "targetSha256": "348b365978d6cb90582753885f287c751fce05c4be1df2243ed2d3a568e1b952"
     },
     "doc_147a26262d50ea52c96fabd869b4f47c8a0187cc40526de515a0e64370475c7d": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -3646,15 +3722,15 @@
       },
       "files": {
         "alignment.json": "9e831c6c6435806bc1776ac6fe788ab794faec94569159a010aba51ac2313406",
-        "contract.json": "ad067b48a8eec99b67e28530db0aaff4e83dd50410e27a3fc6fee6cd744108a8",
+        "contract.json": "d670d9cd91793dd762f23de8cc7488be7930c90b6907371dce2de77b55afa81a",
         "source-positioned.txt": "271c11cbc5d7c77774aa0bf05bf43f7543ce37d3772a168d30761445d2e3056c",
         "source.txt": "9e94ac7ffe6cae11898ff506cbc64e613bfc4ad0629d4f0866b97136cdad56c3",
-        "target.json": "0103911e403be0cd8f68ddbbd804e6ce6a380fc1ad5e25cc6639df1f784ea2e2",
-        "template.json": "7b9efd4c8a454cd2b336bb577fa16d62a9ab41917b22d2db6abc7177bf42d151"
+        "target.json": "ea85906b5dba8efc1dc136b2fcc60b29942171f146d70bb8a2f4b22a76f774ab",
+        "template.json": "e35035af31b18daa1f451a14b9309ecd797c6a0babafb50106fba3d0c610b2ba"
       },
       "sourceInputSha256": "9e94ac7ffe6cae11898ff506cbc64e613bfc4ad0629d4f0866b97136cdad56c3",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "c9cbab15bf4c38a4991835dfbacb62378bbd67f10e885cfab717602f69009a67"
+      "targetSha256": "e63657e071acf5a04a91d2aa138fb389664cbc36054ce620957eabb34a63782f"
     },
     "doc_19acdcf6116e25167f4b64278bf825f05438431c2344a77a3061d88dfff80d27": {
       "capability": {
@@ -3680,15 +3756,15 @@
       },
       "files": {
         "alignment.json": "b9a5bd583254a291263e34b1b01f67270259cb821f11cdb65c164cb6916af3f0",
-        "contract.json": "d540b2d069a42fdaa3dbcf07719b8e987753396c22ac1873a18d2e7da5568500",
+        "contract.json": "63b07688727e3614186f407d5982ff2fdd9da69a8cb6e5b7c3f6db2b5916e3a3",
         "source-positioned.txt": "55260b1a3743ad020ae061562af6658438f784241fdcb6511ff415b9b7e39a4b",
         "source.txt": "24cc85a2e2925b8bdaeff52e529418f9e2ba6f9d906df813b629060c9513fefb",
-        "target.json": "d171f7046cfc91df64eaa57e4383a670511e4d4314c484add9329ecb6176dc3b",
+        "target.json": "7d1bb82df6858145d6c73411e3159de5d640a8474a50d72ba6bc9c6ae7f7c69f",
         "template.json": "1ac5ae59b4228eb4257155f389ad1e20e27ac6821d5fdd3436c14a0acf75d63f"
       },
       "sourceInputSha256": "24cc85a2e2925b8bdaeff52e529418f9e2ba6f9d906df813b629060c9513fefb",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "b7eef40fac0417dc19b3ca62bc88ed4682a4fbf97ebea377564871d9eb67122b"
+      "targetSha256": "b9a3977187fc21bf38fce69835b336b743b3616156b5f6cde62484a692b78246"
     },
     "doc_1b176673edbe31b74ba03995b85ee9be6d0d22218f2764df4648462f7cfd15fa": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -3698,15 +3774,15 @@
       },
       "files": {
         "alignment.json": "9218ec91e489ed194a35a6d12ccf74d62fd7477605244ccb15330b7683a6e272",
-        "contract.json": "90d3a50d327eb4d9e0a697190f0296e10ad7c0fcfc477191a87115f1679b1097",
+        "contract.json": "2d443998bba38a37c8def200d874e2f27140f65550f1234791cee382cb389fdb",
         "source-positioned.txt": "dfb28898ed7944c64f490264b03e0ed2df969e6b0b45c7d6427b694a56c823a9",
         "source.txt": "0d590ec18151baf5245debc8dc9884578efdd8a4eae706b247aacc0bb523d833",
-        "target.json": "25c5d94099d1d385c731210d584cd3b4b5ff33b09c8615499afa0a6f0d9fd6dd",
+        "target.json": "1efb6440b16f83e4407e3366dc9dd78af7401adfa17b5d565eeea27154dd5fb9",
         "template.json": "3ea20405c43e8e91cdf72b098abfd6ad412c097a582bc443cd5e9cb00a55746c"
       },
       "sourceInputSha256": "0d590ec18151baf5245debc8dc9884578efdd8a4eae706b247aacc0bb523d833",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "ef72debf35f7943930939d717ceefb94dda69fb4073a7e37f5d1d8fc33044c69"
+      "targetSha256": "790bdf861c10e41fb60088ee17b3db66e698b54886ddacfcbe2bb30ab80f8d0d"
     },
     "doc_1b796092eb37f8f7fc1b236f83728dcbb396bc73f5e521e82fdfb39256054448": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -3822,17 +3898,17 @@
       "cohort": "template-expansion60-r27-batch02-20261016",
       "files": {
         "alignment.json": "f46a26bcee9610cbdbcb5d9340f309cc17231e40722db5d1e005f6059b7e003f",
-        "contract.json": "e669cfd6d53b96c6b493f73e650fc1a56f9a3c1f556ecfdcf7986d8bec4f6a8a",
+        "contract.json": "1dfe921df58c0c589abb3e1fd6e936fbe939690a2fc54c2e1189b917a1ae87ec",
         "source-positioned.txt": "a2413cac5fd9ec45950bbb256779207c2e4c5494130b10c5e0f9d0759ee52a3d",
         "source.txt": "67dbe51c7d30dac95bd59f5f9584433b6c557ccc07998b6653493506bfb0a0a0",
-        "target.json": "90821717a547bc108dd987cba5e92bc3c8f5bbeef90b0e04a25998fc5a9fbb5c",
-        "template.json": "5f6b6637ce0dcfb337f89d4a4fc0925dac39086f0710d142093b431c133ffe6a"
+        "target.json": "ac1427299e4ec74b780dd340c6e86e86d9ef22696a68b5200760aac588947b04",
+        "template.json": "bc86aff3cf06314782225ddcff54acbbe4e9f1aabafb8e046cd4e04e138f97ae"
       },
       "group": "ambient",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/template-expansion60-r27-batch02-20261016/real704",
       "sourceInputSha256": "67dbe51c7d30dac95bd59f5f9584433b6c557ccc07998b6653493506bfb0a0a0",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "004a2b06aee95910f813bbfeb48e14c0a262a649098ee1880388f503334d2d61"
+      "targetSha256": "e485f4fcebb146c09002c771f71b636b168a816a626a2d53a7cec3041ef7400b"
     },
     "doc_1e9d32e5bed47af2601329c7fbb2f15649300f58e2b20962a1de99acc9fddf2c": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -4122,16 +4198,16 @@
       },
       "files": {
         "alignment.json": "06dd09c6f4df2c1575a8e0a6feb22013b71465614c393cb6666a1145e7b61d29",
-        "contract.json": "91172dc7f6b02c0679d3e7d502808fe9fd1d90fab137e0dcbcebe8fd026f3225",
+        "contract.json": "b834b70a4e398dd3740521b7e7101ddd8b01094ba8462484fd4b6637363405f9",
         "source-positioned.txt": "26535758c174aad135ca07d9003ac4f69283c1454be79825a768520ac4ef14ad",
         "source.txt": "1a07ee4fe7f0237fead7a5a26fa5e8c96142a8567e174d082718c0d4f10af196",
-        "target.json": "743593346377c4239b41ce28b9f1a93597f155c06feddbe3fe443005a3dd699c",
+        "target.json": "9973a44ef7a8f07556f135529910be7f34f3944911b3c8402bf9dcdcf92a77f7",
         "template.json": "265f4c55343e4bce00609d14b001b86f2536477dc3d74a3d29ab7e44b3ffd04a"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "1a07ee4fe7f0237fead7a5a26fa5e8c96142a8567e174d082718c0d4f10af196",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "4624f60e62d7a8af6366ab64b8e9a016e238d410c6f12d59896d9eab54814b24"
+      "targetSha256": "ecaff9004f1464429b6eb94c9c0be4f5630d5ceabaa4d57b09e32c14a5b63c01"
     },
     "doc_234df0afb308c9c24a1b75a4937fe287e3d8365e0aa369a5915ae3bb4a102eca": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch03",
@@ -4141,16 +4217,16 @@
       },
       "files": {
         "alignment.json": "e5eeaa6a5da5c27f094f54d275bdfe2190abacf00d33d472fb3e821b234b348f",
-        "contract.json": "cbd0201feb20eb0864d341dc0284ce12c5a7534b6c7ca1a5e35e84d8762031da",
+        "contract.json": "4f74f0b84533c59efb66d5900be8bfa848fca923867fe5c0d999e3e6eb4d6b65",
         "source-positioned.txt": "e041201af7c0758b75b23310c71998705835c6d7b5feb2025ec39134c96c621b",
         "source.txt": "a5c8b83c652ec4249577ebdc3148bc72910da18941bf4af8d99873d21c94b6ce",
-        "target.json": "fe850f5559c614c1a237eb6e50d33174a1b450c40ae70ccded86f86cf29c91d6",
+        "target.json": "725789ef33c767b6c097ff43c6c4ab09e10a5b94c73ffbb68ea2feaa3342c476",
         "template.json": "f31b8609b52db84003ad9daf8833875eebc07a5de023e7052a52f9ff3cace542"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "a5c8b83c652ec4249577ebdc3148bc72910da18941bf4af8d99873d21c94b6ce",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "11539a4272e6cce8206a13dd6a703dbf9dcc6aa74426aec967d2477071154b00"
+      "targetSha256": "c08905eae4f5074145175dbf4694cd0a52dea8b56368886e5dfb4b62117ae3c2"
     },
     "doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -4447,15 +4523,15 @@
       },
       "files": {
         "alignment.json": "3d3bb5533cf1fd6c27c42d7da6eaa2ae130582140373a6c0865905a6cded256d",
-        "contract.json": "2875fd483102836c3313ad264fd74d0fa8c25e452d435c88ee929be1740fdb92",
+        "contract.json": "ad97be4dee1563f1e6e79ce1b0fcc57f39f824f5a141c5b37a2831e1db0aa8c0",
         "source-positioned.txt": "c630337412dc23a60bca661998608235e4827b502b57645e3532b1b406edb9fd",
         "source.txt": "607321707fc88e78341d5c6e63381dfd5718752f611eca8e623e79e1955a1ca3",
-        "target.json": "a0464d06155f21c6f754c2373a099516589c90c1b3089725ca076ae975350498",
+        "target.json": "891f6c17342cc90e67659ca60006bb0fe0a4c9d5e1bb956fa09c957dbb2b2696",
         "template.json": "0648887869cfcdd9d008b58514817d33ee79cddd148bcc4cd83d67cebbaf1149"
       },
       "sourceInputSha256": "607321707fc88e78341d5c6e63381dfd5718752f611eca8e623e79e1955a1ca3",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "bfb07bfaa170b6eed731998ca624aeb0032f757f0e4521e93ff7aa2b8839946a"
+      "targetSha256": "de96e51cb62e25041c921fbeb720f5bc96c0fd7a5cc3f13cc3a1e0a72ed39ab6"
     },
     "doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -4465,10 +4541,10 @@
       },
       "files": {
         "alignment.json": "5dee56b370c810424b16928d5a73cee3d638cbcaa43b3e2794f230b9ebbad12a",
-        "contract.json": "06d3fa102344b18018d4b6cbcff5dd9103f683b0a0ecea9068d3c22ffdf48721",
+        "contract.json": "27d133c27da538305bfbcc93cf153762e4929cb8fcffcdf479d9add13d6674d4",
         "source-positioned.txt": "2728051a7f0870c5c700f6667fa3a20cef43f673170e573d7b0b78707919fbb4",
         "source.txt": "b63d6982cc5562d3436f9a9d8598e38552faf8f39ec3b8fcb8d5dea4e83cd049",
-        "target.json": "6942591f9ef911398dbcea893d64b829101d41065b622c118cd5e1afc843dccd",
+        "target.json": "0a4b5be9855ca3c5858614526219fc0bd14d713d9cef9e435361a36d84001de1",
         "template.json": "a767f67257faf63df6e6e9fbefb5593293c0b69411b286891c9e8abeb6e47831"
       },
       "mixedEquipment": {
@@ -4481,7 +4557,7 @@
       },
       "sourceInputSha256": "b63d6982cc5562d3436f9a9d8598e38552faf8f39ec3b8fcb8d5dea4e83cd049",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "ca9b99d8b9e99756e9d0b74e0fd58e8708e7fb995b2ca9877aa59b35eb4fb400"
+      "targetSha256": "f8781d9db21801099576152b0653d135b7e8ccecac42a91e66977cf822f1297c"
     },
     "doc_27e75cc82b67666232bebbf1a02758707ead92c60859283ba7600fbb02ed0515": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -4589,15 +4665,15 @@
       },
       "files": {
         "alignment.json": "9e4f4faf09d8120d589b9c14cb26b17c19367d96449c2844263f67daad6cf07c",
-        "contract.json": "c8f9196bbca9d263716e37a43947aa0b233e6b1ddea8d814789423cb64353ff8",
+        "contract.json": "5bf5cf39a36ae3c0f02b1be16fb67b23ae62f60faa7965ff5ea37f066aba1ed7",
         "source-positioned.txt": "b55f01b51f4d31ccb99c485d3f116d372fc08cd0daeaf209d5c5dc4272367d9a",
         "source.txt": "ab9c44fb7b8c3b3f73ad5e4ff16be63de536e7e7fa9c00d229306898662bfa40",
-        "target.json": "52bda39ebb350f9bd49aa20de0a2042325b783449cabb7ebe28e17f9d303fb6a",
+        "target.json": "9e1db50984aee6649c5ef236533502ea39716ae9c4d95e1089e00c818e17e00e",
         "template.json": "d648a7c9b2ab0d16502cffbdc5b5adc1a1feba348c880136ae2daa4574564568"
       },
       "sourceInputSha256": "ab9c44fb7b8c3b3f73ad5e4ff16be63de536e7e7fa9c00d229306898662bfa40",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "95f634ec4bcea69486258c1f3ee6e4bcdf3e56b16769e3bc904fee76d6f11d7e"
+      "targetSha256": "184d36abed8a98116ab5ece654c2f7a0ceacc44e685fb674f3d4091373691b64"
     },
     "doc_2b88d69f06717c214c31562ab8a6bf6fce245d11525aa7f492539172e2513498": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion60-r27-batch02-validation-v1",
@@ -5009,16 +5085,16 @@
       },
       "files": {
         "alignment.json": "6491b8c595ae3e3c7fb7737c3753ecc3282f78259c906e5ff19b3775624c2985",
-        "contract.json": "00689e604fe618d92c68aba1834b8c921f89d037eaabc77c5ae08a5c4ba5d7f3",
+        "contract.json": "4ac84d05b09893d946ab01e66b400b8ca51326b72e7d5e872b0148fda6c3dff4",
         "source-positioned.txt": "f0e38de7fc3e88ca1a36c1985f8207d1349caa5b7aa65582eb0de0d6a1a890ea",
         "source.txt": "eb8c1d6f8448dbdb39c4bda33ab3d75148c9426dd6e9826777fc0481b269712d",
-        "target.json": "99d3ef46bc4909a55f9b1ceb0bf83a8045644bbc46eff928c50da7932737d613",
+        "target.json": "de4173e1be3e9791d803d56ea1386f986fadb35bce9920b315adc9ee2ffe9251",
         "template.json": "77611257280ac58310c9758024d329cbdfbf2a66fedd64e80870dc43f0d4567d"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "eb8c1d6f8448dbdb39c4bda33ab3d75148c9426dd6e9826777fc0481b269712d",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "8bae20aa06abb26ab91bf81778733162496b32fc56539ed27982cf79a2e4c497"
+      "targetSha256": "0ba0fead7014195271bcd87ae0d572383aa3e07ca9a6e46026cb353bd635d065"
     },
     "doc_31dc9be88e3c73319bf9de0112c548d981226431f7661422ec8831574dcfaf32": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion60-r27-batch01-validation-attempt02-v1",
@@ -5084,16 +5160,16 @@
       },
       "files": {
         "alignment.json": "d8c1502cdc3d631fc52442b355fd79e2303fabce56d14cc031206951270f1312",
-        "contract.json": "f2a6c0c812b490c02984acffd94aafb4aeabf444daad06a748cec168fa3b3fd2",
+        "contract.json": "a7ca8d4391892d11ce4434d28c5158b4f3f744d6efebf969268c465161c987fd",
         "source-positioned.txt": "b1111ff4e68d09e124e66fb30e6409983a49dd176f36f6636b1f5ffc74383664",
         "source.txt": "ffef8e7bedad04e34f6c357769e41afa995eb63f286187f28de60ac80364260e",
-        "target.json": "64ea314b24bf9133a3c512af93e12f4c9e0578e7b1fcd4364da00d0e0fe4f8d8",
+        "target.json": "f388650984c4c939d58a4bd289faa4fe636e77437ccf54fc6074af3bcce2c09f",
         "template.json": "dd22b830dd44a52e27af524c11492ed4a14700f904df552830e8ca31c660306d"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "ffef8e7bedad04e34f6c357769e41afa995eb63f286187f28de60ac80364260e",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "65eeca6e839eb950b9ae026877505a14bf62cba2f95061c535eb6a353593c4d2"
+      "targetSha256": "a4556c6a4679ae0ba43878fcdfb38e82f44f624dac8e6ca65eb7d4a5a9d97102"
     },
     "doc_341a94a03293bf3089367dc6aa3aa9914247c1664ccd2f8e749ba7c9d11b63cf": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -5127,17 +5203,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "2d654f2ad83690dd36a9a065d67c850903fb175271618ea1d4186c6d26c0c9d3",
-        "contract.json": "3c90e8f56d7ccccdfb9fc6dbebb82e2fb511ff3349bd2c8894af5f6eef27fbc2",
+        "contract.json": "352ad2289bf8c677fbec6f7ad611a6cb6c80b6b55fbd4afb251878440d704de7",
         "source-positioned.txt": "ecaa7626482ab00379fd2446021b2846ad7271c8dd7089a22b2d46cede1d1a75",
         "source.txt": "9a3073079d4756b0c1967f94c3ca8ae9a876a491963d8dbe7ccf4557cd0fb6c0",
-        "target.json": "8e7d4ed8564442f22071d1f05bf7af5cc2bdc544fd4b5ccafd6629a8dd3279a7",
-        "template.json": "6b36a2a5075a9d4620c7707ef23fddb6a84d4931c46aa2e1c8622a38072732fa"
+        "target.json": "b4f4b8b808b3af0bf7272b70a72b51c3786ddcdae3aa07f8b69592899fe01193",
+        "template.json": "acdb149b8e1aad2db94e90b3a14d904e8612b89fd32fed92d5ec7f9bb419018c"
       },
       "group": "nor",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "9a3073079d4756b0c1967f94c3ca8ae9a876a491963d8dbe7ccf4557cd0fb6c0",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "bbb7b1882949dcefba11673c6b9b33f5760712b289feb5a6034e8c0a83bd30c8"
+      "targetSha256": "9a1521e1fa55d814a7de3091581d25265e339d539d93cb1c89fdeae7f261b3d8"
     },
     "doc_34dba06a8e4cb812cfbe760974294df5b9e915c36bb9f3f58a1b0fe254156d46": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -5331,15 +5407,15 @@
       },
       "files": {
         "alignment.json": "85e4998bd348757c622acb50c46ee424b6bf2085c5339c68e819e4e2d3b3655d",
-        "contract.json": "a018c340becd6891113a2e1e05669b9852fa6bf9cc960000235ac3079b8f23d0",
+        "contract.json": "7573d26d73d4163ef09ff8734e34fce00cf9346ec4af2f64f33ed0f7a2a4022a",
         "source-positioned.txt": "36a9bca050fdb3bad841664d91bbe09b0c38520f07d3be1f073ba34c12db8daf",
         "source.txt": "3264ca04716c241959a21a72d6d6e8056240ea05bc47b8876c2088f800eee4cc",
-        "target.json": "5e2848fafa00340265915acce96c149acffbaf917325720221e8b90fa6c3c8a9",
+        "target.json": "095fcb15e0e0298b2377d3cbdcf6a36340e19336b76834c5ed47a8fb5852917f",
         "template.json": "6356e50a8d661cd9cd183049b793b260cc391f538d368781495825a31c59dc93"
       },
       "sourceInputSha256": "3264ca04716c241959a21a72d6d6e8056240ea05bc47b8876c2088f800eee4cc",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "e30603cfadbe1e57bc0f890432377fa843c9cc5c354ecd297aba4b0fcc280552"
+      "targetSha256": "75add1ce87a501f54a619bf47c331f864fd3c6aee34c1912ae296eb8b41682dc"
     },
     "doc_361e7fedebcee73017bb5db0ed3ea4e70d6aa64c9a2b0c0cdfa2258db165b4aa": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -5493,10 +5569,10 @@
       },
       "files": {
         "alignment.json": "8e568cf42128263565f2f23bec1b112a007cc1aeae14623a2b1c73fb5bfb87c8",
-        "contract.json": "f5dd46c48fc9d606006c47b3acf98980b38eff4058299d0b62ef496dbc4217c7",
+        "contract.json": "0e52b28c9c600f7c401aa96af9f09c2f5ad4024bafdd8f08968b44ed0de72830",
         "source-positioned.txt": "9da811def6f0e5051a662c15772ed2d0679a61414778e9bcf6524b29f3630fb8",
         "source.txt": "5124e4fd7041fb1829cd56ab4afd515182daa1e660e2d321c81c756ed1e37e42",
-        "target.json": "25ccfdbe8f887e03ce98d8b61dad6fddeee4fd5dcec1ba9cd37ad4a5e59ee6e8",
+        "target.json": "8f379854023a165ad7dca9c00e3ded3102fba9dfa5c7fe285f903b51020fbfb0",
         "template.json": "b66cb8f4d09f21ae694327a1998d077f08763ef997e9a9cc9a905a4c57aa6a6b"
       },
       "mixedEquipment": {
@@ -5510,7 +5586,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "5124e4fd7041fb1829cd56ab4afd515182daa1e660e2d321c81c756ed1e37e42",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "4c0c4720b2e09af757810379bec68ddcd5bf2aca4c65529732110569118a0250"
+      "targetSha256": "88ed99b34eddaa5f19163827dfbccaa65258f0622746242d4e7a0373eabb9cab"
     },
     "doc_37c9635406d2aa9b1fd0b710d4c975609ca479400f6a43d0b1fe7fe5d40281f7": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -5523,16 +5599,16 @@
       },
       "files": {
         "alignment.json": "739fe4b1c89c78ae39515c172cd75ddfb99d619c9b1208be6144295b3a58e4e5",
-        "contract.json": "02b656d4bc19165039818a53ed562ccf4478fe31cda1d61cbb7a74bb93221fbe",
+        "contract.json": "bd6ac539a57293a53d8cde0c6a109fb0348ae2806a901a81e87c28fac75ce01e",
         "source-positioned.txt": "3ad3c5d3b373eb522d127ee07bb31f9adbd234a081783031d1b3a5cd048d1398",
         "source.txt": "af3e8ac5b57004be121c5028bbfcf6a7f51abec8ccfe9d8bd3acdfc58e83744a",
-        "target.json": "29c0d287766548ab38056fb1370d31a0425fac34e6f8f21c67bf2d21a1f404cc",
+        "target.json": "f61088aa6a4b7897b80d0fd8201adf82e9be12bf5916d9cbb412f7b2c763401b",
         "template.json": "38ca992a2cc7f9c8efecf97f2584adbfbb4d4c4f6741f50e35d82c6747babb19"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "af3e8ac5b57004be121c5028bbfcf6a7f51abec8ccfe9d8bd3acdfc58e83744a",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "e9a1f985d4ac385f009a24058304c55521d8b8fa4920b56c45a69df0180a2d30"
+      "targetSha256": "4ace58105511f6e3307ed44cb129698b19ad26cde3a4bd3409c1d29cc557bd78"
     },
     "doc_381ea09fc895afd58d149ee9280baf2cf7d8d004cb8ebbf78e53c0701cc94fc8": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -5572,7 +5648,7 @@
         "source-positioned.txt": "304bd33a5cccf94d37cd5f92d1d737c3c907eddb939e94f4620f3198741ab8c1",
         "source.txt": "a0989935bdf55687d955400c386615b885a5e08bc3796bbbaa10cac0dbbb6817",
         "target.json": "5f1425c920bf2ec9515b5cd1fc87605cd1a1f8bc278135f47b5507f6227ddf5d",
-        "template.json": "f11b831e28e095f795761cccb982ddb0ff752f8fca5520bf8136453c4d27b9a4"
+        "template.json": "45245dc972f264f4dfe3a85ba0a2438417e629ea4c5065dd987935d64af42f89"
       },
       "mixedEquipment": {
         "candidateHashes": {
@@ -6193,7 +6269,7 @@
         "source-positioned.txt": "6518224793e70862cae52b560557ce785b583e46008b5cc442c6d0ea5510c3d3",
         "source.txt": "fb8f57b65e9ce331217b13422a9b3f965f03b74fb2e211bae2cc87ad49bbb1ee",
         "target.json": "2ac41bf21e1134106387738410aa780159e7d83bdca6ecaf383d2560a84cd5e5",
-        "template.json": "adfe0eed10a06e3223b1d3f063a0e37bbe94ec56c3ac009333abed8dfbf1c1fd"
+        "template.json": "e56a1b11918f082bd50113592d12f6c4d9105bae37dc8db814cdb0869711e33e"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "fb8f57b65e9ce331217b13422a9b3f965f03b74fb2e211bae2cc87ad49bbb1ee",
@@ -6626,15 +6702,15 @@
       },
       "files": {
         "alignment.json": "fc77762d51b7980ea1ee26049b6af1877cac8dc8c76620d1aff1445a6c002bc2",
-        "contract.json": "cca5d0405a9ee80b7235bec023a7af3ec5ebc0380ee997e196bcf1c2a393b72a",
+        "contract.json": "80c20ec376c0508e674dd229a86c6088c085707c8db8bf03e529a683e9ded162",
         "source-positioned.txt": "5fe9ea35251ef7760594b98469ba1e2c3903bf692bca99cc1fcbfb10daf9ffa9",
         "source.txt": "974d55ade361200f8a705682d2a3654b75fe01a8f096e966243fd87e182e1f2f",
-        "target.json": "89b9c367df33cf22f9cbb5bffa6f17bee1378a47113d0deeaf3f91ff4c8e5e83",
+        "target.json": "1c92df69d59978adfcb6c7d076f712b22558ae41a5327c067140393e459536f1",
         "template.json": "455fe66fc36e72af84c6e04fd81aa8789e2afe54c3b2b21b8a464cf9aa0b6631"
       },
       "sourceInputSha256": "974d55ade361200f8a705682d2a3654b75fe01a8f096e966243fd87e182e1f2f",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "ebd16b200b1772c6d24632b5b910152e55fd2d8abe7b50c105c59a62a585d68e"
+      "targetSha256": "b708721b5e93ee05eb72b8002a2dfcf950ce6672a221e68bbb2d53b1d2b1e816"
     },
     "doc_4d2079f3818cad059ffc67bcabab200a25e6dc9fbdf9edc63e263e188d9256c7": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -6682,16 +6758,16 @@
       },
       "files": {
         "alignment.json": "f4542e705268d652d58f3d312067fc038f165fa7e031b0f973f235dc0e558fef",
-        "contract.json": "bc3eb9d47b3cb1c6569dfcff1fd0d9de5201ded1e7934cbef931edaf352b125a",
+        "contract.json": "73f8e4df0a9989b87ee8c5826cd8f31f14ce5d6ece4831329c282ac59466ca5a",
         "source-positioned.txt": "74964f4fc09472d13189ae2bbd9205a93f77ed659a6f9bde7d6e8e0adef01534",
         "source.txt": "51ebc5fe1a050de35e37fe93b11641e471c600ef290b99da6a50e2a5d135d8d8",
-        "target.json": "7aef9cc527fd3f1a4604d35a9dbf487d017398314ad6bf6439ba2ed1b5dd2ff1",
+        "target.json": "ec39153d38e84415c6f25f0a682ba3c5a1dd312e849584ca6db576dc1f942235",
         "template.json": "bb1feeb8f0e9ba04442f12a11e18cde90da715f793e831597b4c36a9e293486a"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "51ebc5fe1a050de35e37fe93b11641e471c600ef290b99da6a50e2a5d135d8d8",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "07df5ceb9afbce8bbc715abb8e8ca26d14647fd2946f67b3ae727357a19e521b"
+      "targetSha256": "9f38bbd65cf6fd9f41d3c9b5e4b38cf2c749dc56af1978ad7856adec710fac12"
     },
     "doc_4dffbaeef977af11b22d9712aa770be1f3e5ed377060e0d1fd082d49b7a37870": {
       "capability": {
@@ -6737,15 +6813,15 @@
       },
       "files": {
         "alignment.json": "0db2bc332e363779d1f97dc197a19420ad53061e609088cfe68518db3cd10d26",
-        "contract.json": "e724b5061f14c9c068e939a2d7661b0dc34a238bd3d997dd46c52cb22d638a46",
+        "contract.json": "3f8d5b648bb504bd92c8ed0f0aaec24cd1bec5a4f903d8162a531f8336a5a23d",
         "source-positioned.txt": "072b9167ae45020780a25479600439f5f74cabfbc5c4230dd01422cdfac2b6ff",
         "source.txt": "08ab65a91544033b8d4678b5db9ed8e34bcbb70740c3e74759316572478807bf",
-        "target.json": "620dd6d758a3e22e12c9e570cba02a76e6a5e9677d57d266ebbb19a65c88b218",
+        "target.json": "a78f3194c4802d8c8c0a8ac4c4eb9bf7f85e3ef53e68c8551ba3387608097d4e",
         "template.json": "1c963f9d19f61b5f45df44d2db04d4827bcd799e97fedf423690109f602d4c7e"
       },
       "sourceInputSha256": "08ab65a91544033b8d4678b5db9ed8e34bcbb70740c3e74759316572478807bf",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "66565d87f6aba6df000d5b2a175d22e32de85cb6d2ca93b3189f35fc1e5aa4be"
+      "targetSha256": "35e97d5ffd1c7e10e266399666c9cd3a08aa0ce66152c934e6c3ebc1e1ced966"
     },
     "doc_4f210d63ddf9d0045dc1d402764d11c989a4053e1416eca0ee379ccff20421c2": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -6872,15 +6948,15 @@
       },
       "files": {
         "alignment.json": "0341a71cefb905ca4194a0c6c9fe5cebe290d9e2e9db7742bb5ea4ddccf914d8",
-        "contract.json": "33d2ed3d04be95a239f9a1b8ae8bd40a97a270a326b78799a89da06677550e4d",
+        "contract.json": "2a3a41666f5dd775a502707a3e18c6dcff448d77e392106f14ad10ba31513dc2",
         "source-positioned.txt": "9d18049ecb4a9a4165ab5b5fbba035842df96e4f038888f4ec65793301e4775c",
         "source.txt": "e7261482031549ac3805d27035153daa07e420a504c303de5f5caa478ea0c9ed",
-        "target.json": "da5a7cba471786cd670aee857e9fd8e71e08256834aafcf13005717da0ea2694",
+        "target.json": "166dbff71b8da2db8ec3fec61c6b31f5a6f4f03ce41ae0df5adabeb340ee9990",
         "template.json": "b17a1bcc4f94b6eba38634a25faf11f8c28b556e42d3878168a672b970726972"
       },
       "sourceInputSha256": "e7261482031549ac3805d27035153daa07e420a504c303de5f5caa478ea0c9ed",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "6faa462cdb9c53bdd94807f178dd8b49030b120a51396fa516b98b7b438626a3"
+      "targetSha256": "08da05429e4b3bbef5a3cf1c46be6fd7a5d05caa90b6a58a66325d2b52c458e1"
     },
     "doc_5242647c15b8d9847aef3c4321fb5d93df660576d1aaab7e6e4e2f261124de04": {
       "capability": {
@@ -7104,15 +7180,15 @@
       },
       "files": {
         "alignment.json": "b46c48d4b1efb489c952d91f21980d474eaa9d1aa9b9b3dbc08877012265e179",
-        "contract.json": "9cade8a697949ffbbf65d86777c185058c9bf4c1b3a59a47e286e6dfca986f52",
+        "contract.json": "c1028d8aaf74144a6c989bf369fdd79189fa0dd19292835f9f747ae815b597ec",
         "source-positioned.txt": "fa2a22a55a08afffafcb01a7a893f191db15caf64e19adb207d4d355025bcd7b",
         "source.txt": "859676a846cffd7725c4f164e01b1d8d57ac9d3485d3f978f61855f706591da7",
-        "target.json": "d986ff36b37b09d5ddd5f09e7ba86c57f8d10196c437800771d466621b7487ad",
+        "target.json": "f7520f0831b5a2201f33129970697c3d6da77eb0c2e6b773835d74d6b9c1ef8d",
         "template.json": "5a6dd0f9ebbc5b645f452e70aba436c56176eacd350d9df65f3402b14eea0bc9"
       },
       "sourceInputSha256": "859676a846cffd7725c4f164e01b1d8d57ac9d3485d3f978f61855f706591da7",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "5c91a0d37df35e29356e29da6c73d83d5b8f1f6a14b1f0b6489030ba20851821"
+      "targetSha256": "b97100f91d5dc655f75ad9ce6b302a62f82058d4eb3fc56e63acb7fc4ab6481d"
     },
     "doc_5431122bcb4e479fc7cc03dc97c023878061f64199df6c666c4cc3f6c1fcd90e": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -7145,10 +7221,10 @@
       },
       "files": {
         "alignment.json": "dc6de934dd4eb79e624561476feb04f2a19b6803e239fa34c79894d996aa7048",
-        "contract.json": "0c8eb9d72e0aeac91c6f614d9efa4990e064ba043b8c281082b2a66c6a58db62",
+        "contract.json": "339f495b5c490949cda56083e55645f211e6c41981c7307ab1807633abf854f2",
         "source-positioned.txt": "baba4126994cc1ad19b1a20e692df42168324c0d44fff1f4e96bedcb4562b1ef",
         "source.txt": "8bb53092d808fc52151a8f3fba4e2060e7562cd97719c63e8958418982d1f02b",
-        "target.json": "e2fc5f572d606a57735abb176e1c66083474a4111a8068f864f7f1b8e89be8d1",
+        "target.json": "0b07f5cdf714a9f67a723c8d0d46d2060fbaed12a15f9a682c289fa1f37a1960",
         "template.json": "4a9615d768fee26fb1b1ff24114e471fa0968494fab62a62c0cdb1618cc127af"
       },
       "mixedEquipment": {
@@ -7156,7 +7232,7 @@
       },
       "sourceInputSha256": "8bb53092d808fc52151a8f3fba4e2060e7562cd97719c63e8958418982d1f02b",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "aa3d86f58d19b07bb01fbd397d4d0a95fc5adddd5e836f39f768e239ea6bc723"
+      "targetSha256": "396796ed1ecaf498b5fe97800b3cc6d4b7e904476dc2f2facc1c313563957564"
     },
     "doc_54aadfb29fc4c35253f4313a03891c6de0b7d73bc4a6be7dda12aefd87d7ea6c": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -7338,17 +7414,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "a586a3f0e91a327b4ed24e8a1b806e1d0a49349b6a03968f5979e7bbc9f4abb6",
-        "contract.json": "174f3e17c074a946c24326c21178a74cec0f95da765740daa23e9b6397e23895",
+        "contract.json": "b0d3f075251d8ea9867828cb662b86f011e5d335d8cc7d03e86965678f93a380",
         "source-positioned.txt": "ee46c8f15b6acc512c15c2813083662711370c5a7f56a3e3732679d35ef655db",
         "source.txt": "5c31f8e3b8e46fcf9fad1c3392ccb98194d48d8df652013fcf9ddd6befbb685b",
-        "target.json": "85728dd525ff019078932f2ce33799c3d949cb0fd5ec3ae9d76e142f009c2587",
-        "template.json": "df5d54bc24745e5bacec103d3d95b0730b4b32baa9d8c290a04c8043a76dc0fb"
+        "target.json": "021a9b0dc6cdd3d886cccb709a220a1308955d624f642826e1e53775125b0562",
+        "template.json": "eba0b6c3503d702cd92b185a0e54f345ddd3bd243e5f2604822df5427598d5a2"
       },
       "group": "thermal",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "5c31f8e3b8e46fcf9fad1c3392ccb98194d48d8df652013fcf9ddd6befbb685b",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "262a6d3de794b6c6a4be607fc958282607f2a4ec8e077065c3ee92e0042bf84c"
+      "targetSha256": "9cc559cf9c8f2c23b93848fd40471bf05ea82f4c4fbe40203a49a6b76102765d"
     },
     "doc_56f7785e67d8a18fc9a891cf555c6220092ed3205251332f886aea9322e7f438": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch03",
@@ -7605,16 +7681,16 @@
       },
       "files": {
         "alignment.json": "444a0d9bf05b7208155ebc38da37c3ba6118e09a79caa507c8e4c53ad300b882",
-        "contract.json": "70852d3b95c050a23fd3d018442e12e78233190a2fbee29fcd06580b6683cdca",
+        "contract.json": "f3563252e08d5dae74506ccd9649391507fb800e643d332652d3999de69f4279",
         "source-positioned.txt": "35f867be6dd0350e80f036a36734dd381c53dba921ca5920421c283af06cdd6e",
         "source.txt": "f10a5ba164b863ff3e92a60a21a6a11857fc5806e87f9f0c964af97a4fb88e1a",
-        "target.json": "53de7f6cd91a2b5b97bd1a837d3f80c7821b040e60eab9f55ce0e3b5d2e3c997",
-        "template.json": "d9c696eb01e81d4105b06b513f2170a1d3ce475e2e739bd10dbeb623a67b1f2d"
+        "target.json": "ef6f8e2b491b8c6a37b115b12d7136a4e070178018c22e028e564c8caf67d665",
+        "template.json": "9092c86378212b0536721a1f3d42408e28eec48bf405293a4b4969e8cc82aeb1"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "f10a5ba164b863ff3e92a60a21a6a11857fc5806e87f9f0c964af97a4fb88e1a",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "3270786362279c8283e2f310e31882ad4240b1d3eb6e38b8f9d59da2ccfdb8f8"
+      "targetSha256": "5bf67074db7a326b764d006cf33d1e92313eb030f16f1a397a636588a0e52518"
     },
     "doc_5df38b71e397c55219552b7da5cf0072a0cf2cf0731f71e75e0dc924f7e71dad": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion60-r27-batch02-validation-v1",
@@ -7682,15 +7758,15 @@
       },
       "files": {
         "alignment.json": "6028a89dcef06f43625a00664c0dc921406ba7e181074241ce522a9dc10032d0",
-        "contract.json": "b0aada47985f36177c4a48a3876e963950159b63aec61b3d7a2e280c2e54425e",
+        "contract.json": "67e0911481b0611e1a3391c4865c7ec621bad94320f799a816a4c6291f8c3472",
         "source-positioned.txt": "79665511d3952346fa7c318d8c937ff85699cca7f1766eff7f1108a4bdc28e1e",
         "source.txt": "51736dd68184092af4c6b1c2ecb49315275709544c06e1354ae31af4a7b66d13",
-        "target.json": "67e392585eace73269fd5664fe8c4220bed4398b9afd457bcb316587883e7df7",
+        "target.json": "2fc3460460cdf9482637015f361a11069cc20d81bc71c4aa086ed7228f12991d",
         "template.json": "6de715c9aff404caa4c71005bc7e0545baa3f7e58d2ded773bc0a1413429ab25"
       },
       "sourceInputSha256": "51736dd68184092af4c6b1c2ecb49315275709544c06e1354ae31af4a7b66d13",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "ce335e29fd9266c01642973261ffd924c706e906b8438a4e1cfa6c3d5bea2114"
+      "targetSha256": "174010b093b7e63ea262561bdafffedec94a5dfde3fe2f548b90c54ecab58641"
     },
     "doc_5ffbf8421800ef773833ad581145fbdb266e358a5e83a15880a07c741ef4d9e4": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -7860,15 +7936,15 @@
       },
       "files": {
         "alignment.json": "559e639d55330ea76fb9c8c508e3f2f70d54f93ea7135d4b70fad29980e68806",
-        "contract.json": "c8e1cce9ad6487081cdd218f2c94c4ef85ed606929723ad15f553d5456046317",
+        "contract.json": "c2585b00ad34d513f1630a13a2e7d32355e20d526668020d99803b7cfc1521f3",
         "source-positioned.txt": "939b2a869cf01f3bdd2add50655410bc4c51056a7107252cd041ea62d6c239eb",
         "source.txt": "e6d9a6041d846103ab097e70bb0b0784e55d8574a4adbf62f158107eca351245",
-        "target.json": "1bf2e43f120e2b1fb7b92bf54f45723866fd03c1b68879105db2d24ef9a6c33d",
+        "target.json": "72e3a87a5737461334cec2bd3cc19e15d2a4c4937b1701ce9ca76b28e9184cfb",
         "template.json": "48d4352bfaf3350bc96c8bd87b76f66d91cfed418ad3bab248d8c96716ae93ac"
       },
       "sourceInputSha256": "e6d9a6041d846103ab097e70bb0b0784e55d8574a4adbf62f158107eca351245",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "fda2459149cf2a92fcf28da30e10d2ce990c17261f9f73bd888af4c41d5c4e6f"
+      "targetSha256": "1d933c1287190ad35fd9ca03432a86702647123be6dff759b7c657dc38ddf6af"
     },
     "doc_630cd1591dadcba2198970b816843a2f805294f22e57bd51d6f2b9fc2737ede4": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-dg-expansion20-validation-v1",
@@ -7883,16 +7959,16 @@
       },
       "files": {
         "alignment.json": "ae20b0255a8c57850248fa4dfa9b8f57daae6a73289185fdab59196981ca3633",
-        "contract.json": "3811e9cb42a5d839552945d459c168614527242a13e3e26b848fd8c6599670fd",
+        "contract.json": "b4eb36206b9165eaa94fedc8e9dd7860a1f741a5fca185a0c9f107b82f6fd929",
         "source-positioned.txt": "6b51ade6ba7fe5066fc0a1c277ddd85e83414c0b374dc0f0c52de2ad5c1f8dce",
         "source.txt": "347eac6c52daf0eda610e692e80e83edb7d5b124dee7b9a4e8a564eb2e1bf320",
-        "target.json": "6d4abdfafcbbd2f7eb8c9042535d5c838289156c93e6f44d04a858a1722a6547",
-        "template.json": "d0b125f047fed80802bf452c1e8f9435c4f7642dc8348364661ae5da0a759bf9"
+        "target.json": "a983986e5ad58a73aff73ffba32f27559122809ca10a89ebcb8d31137d4bd0cb",
+        "template.json": "1fb5166e035cd9e5cea105b8c98471edf4355167c67eb771a0243737409627b8"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "347eac6c52daf0eda610e692e80e83edb7d5b124dee7b9a4e8a564eb2e1bf320",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "5b67c5efe1a115ad46d4909b293edcc2c65503d781b06a5529c9da58ffc233db"
+      "targetSha256": "9411d67fa24e8fdaf32bd814148ca61363ecdf19dd886515cbe1af58ab17399d"
     },
     "doc_630ce8a875356f568ba6253832646937cfa84ec0ee70668d9bac10e449008ab3": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -7946,15 +8022,15 @@
       },
       "files": {
         "alignment.json": "9a5b58c273751d816efcedcc57707a868c3f4cba517edfa3007dc4dfacae0a8b",
-        "contract.json": "ca52efaeccf8452ecd9ffb2fa671ccb2b0b07cb85a089dc99990aff7ab97dca4",
+        "contract.json": "a6ec48995ef07a808206719c509b79a843cf2c6e521bb4b3c393318f7d70cc8c",
         "source-positioned.txt": "b2c2ee242073cf18f733ee89eca654d478c960e382e0fcf9324e95ace4739efd",
         "source.txt": "f73a598a879064e9a16430f691f2b46b42ec185ab6aead1ac128c3096cef8e3a",
-        "target.json": "ef9c3c7b8db3c9e343101ddb037be486f06e0a4f600e7ccd748677fb01171235",
+        "target.json": "8478c2a5d0f63fd3cf4db505ee34b155d0c09c5a71ff386ea4039029612c1f1d",
         "template.json": "179c389257c9ec71b679fa9c74dd1701295548e0b1d19706b87373024c06046e"
       },
       "sourceInputSha256": "f73a598a879064e9a16430f691f2b46b42ec185ab6aead1ac128c3096cef8e3a",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "8650b92424bbf6dcb5abaf3320211a21a3ead4e1f5ee49c8fae3e08280620d7d"
+      "targetSha256": "657f11283e577275cc45cb6575437f7f5cadbff714cbee59376dc60afd1fded6"
     },
     "doc_639f54cd52ea520cb71514f58b338d708c5a1e965ef8c113c3bc11f55ab8b7bf": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-thermal-expansion30-validation-v1",
@@ -8060,10 +8136,10 @@
       },
       "files": {
         "alignment.json": "8fd29e946df53623945320dfa55dd8fe6b20d7ca3f4f71e501af20b13ad9d3a5",
-        "contract.json": "14a034f20dddd34ade1ddf57fd43bdd9c19678d38e924f8e22cf92b68fce5436",
+        "contract.json": "9049e1797320134e9a5ac50962a0646ceae1be5909ee81a0fd00e30421f048c4",
         "source-positioned.txt": "d96b9786e43cc0463f883240fd6764f9301f5f999ed94fb9bbbbacfc4d444310",
         "source.txt": "a2f226960fc94ce0b84dc6af4b035be9358c450b18bfa17260ffca6e508d16cb",
-        "target.json": "3c83c31e34cdf6711e67d0066bb15d5b2fe963c22124bec239efd90e9526e6ec",
+        "target.json": "75e63174fee2cfcf48d11f2cc72329c768ddf632ed6fbe6746cf2c5c0cb8f9ac",
         "template.json": "fb2cf6b031ae132707c107536b6ff28c6429c0b47b3bde9174a8054631e9e451"
       },
       "mixedEquipment": {
@@ -8077,7 +8153,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "a2f226960fc94ce0b84dc6af4b035be9358c450b18bfa17260ffca6e508d16cb",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "c410f993724e162f9c57016cd36e30309b03b3b538c9ada55d6191f1017cd589"
+      "targetSha256": "12aedcf4b368b9c162aab6ed5048ba6d5c2186fbf33a08e6897318a2fddf9b54"
     },
     "doc_656c1a0e4a078144a49493a4ed6844d4c03ee0cbfef64ad170b9a398b409f4f9": {
       "capability": {
@@ -8418,16 +8494,16 @@
       },
       "files": {
         "alignment.json": "b7dacc2a219978468781d012a0265ad7c733f2b11a495e6161e8fa2df9d02abc",
-        "contract.json": "bf0a0be14a7469ce1ebfae2cb24e8bd4cc5bebb629d8db4d850a57b7dabb6b40",
+        "contract.json": "96d3cfdc7843ec30cd659c0ec69ef691a1a1a90341d09049689c942e64243e3e",
         "source-positioned.txt": "3dafec622440ec91014f6931b325a9ae165262921a3a4fb708ba587f2fe0a148",
         "source.txt": "391f252708cb0f3bc3dea212f606ca11b342ffcacd846cba19e67b9147c15217",
-        "target.json": "bbf625b548e23201ef27e62d6b364bcb627772d9357b2b71fbe22b1ac6c0496c",
+        "target.json": "be00d414bda57be711dc368c709fa0c7fe74aa7f6f9e9e58c30812eabc888c75",
         "template.json": "a4d374f81b7b73dcf97062af36719d6ad19387b723ae4181ad4743ec3df49101"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "391f252708cb0f3bc3dea212f606ca11b342ffcacd846cba19e67b9147c15217",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "b784cd00ed470f5e29497979ea81358dca338aaad170ea8519d50232efa02408"
+      "targetSha256": "a7dc45ff8b245ec3ba67cbc15eb53205eb8daa37f8022f8af1a507409cfbec0c"
     },
     "doc_69209200723aa933025f20f440ae0bfc4c508c001f31d6365466d7e07d602c08": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -8638,16 +8714,16 @@
       },
       "files": {
         "alignment.json": "9a0b50fa43eb58b6cda3395c34a8b7774d7e01ef824a5f3ae27b2a4e338257db",
-        "contract.json": "cd22c76f57dcb72da6759e7d690ef93bdf60df2fbdcc9cdb53412beb33a4c39e",
+        "contract.json": "47ce27f70e949fa9b56789e1a4a9f364009df5409b2a9cd574fda107a1b967e6",
         "source-positioned.txt": "35b4268ab05d745d70eabb061cec5fde4ede8bfdba8b6bbfcb161357cdfabc02",
         "source.txt": "87ba085f4ea824773aefb89e983ebe8141a8cc52192c1b26f275b1990cd6d5e3",
-        "target.json": "8b5b7a85b0b4e12a7eda2a593392b7bc38010b0e014d44c3f361d99f1a8c792b",
+        "target.json": "d97846ccc49b27d0a0a07ab65ebd57ddfc512798ef6723dfbe7573360e04495b",
         "template.json": "a35345fa598fc52655b5b80f21fc5822c012f7fa73395ba21c0b574442e227fe"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "87ba085f4ea824773aefb89e983ebe8141a8cc52192c1b26f275b1990cd6d5e3",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "094201c3bfa6e001ef45091c79e55c924b1978ee9ab58d1ad3530b5ccc7687e2"
+      "targetSha256": "15255e6cf89abb11884036d6c92519b1dc6c7361dbcba4cbfbaee0c9a72a661d"
     },
     "doc_6c5e700d90753d44af4b8dcd0df70bb24c1a3df767b7a66a23b2eb58c29ee829": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -8657,16 +8733,16 @@
       },
       "files": {
         "alignment.json": "c8bea7045aa9d7ca2bc0b4217beb5e133de4834518ce403aed248b1e4f39f322",
-        "contract.json": "6bea4cfe3fceef97b9e0f85a526e0c788a0dac5497c93701b4c1e5b5fa7e8088",
+        "contract.json": "d860be30bd244bad73368d52c3404a534ada25d6c462059bc543d250981c5ea1",
         "source-positioned.txt": "3490b993e8c68f62de0a99579fb668d0a74fae07962fb707b66883625cea6246",
         "source.txt": "c63adf67a5a7e21219fb40f3d420e317c81f63cb4b0fd2f863dd3dac4f8e9ba6",
-        "target.json": "47192037bc4f159e2c8cc9276ef15ac7fc8c5a206771ae8e9c78fe823f61db10",
+        "target.json": "abdb642cb4de05b6550ed04c5bfd706d3fd725d9eab3769f851192f9652d4648",
         "template.json": "a3914925518147a0cda781a7b41b0c040dfeb67a8eb14febfe8b171dcf2dbc5c"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "c63adf67a5a7e21219fb40f3d420e317c81f63cb4b0fd2f863dd3dac4f8e9ba6",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "7cd8294ea74ec86f2b577f9c0497ed427d7ea93d6936d6afbf69c53dabc592f4"
+      "targetSha256": "0a1f17852979e984d3346bdebcca79c03503bd3b23ebf773d11904d763bf2aa7"
     },
     "doc_6ca7fa6fcd8f3dad442b2d0e8a66cb7afdf8bb842c3b8d7656686442ac88b512": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -8857,10 +8933,10 @@
       },
       "files": {
         "alignment.json": "62ebf9ebd3c2a41e36ef35f8c37585c1c31d64c06a38b86a552ce8e61fecb96c",
-        "contract.json": "6ddbb4ffc0a6a461261a6f940d0835c539a2ec70502d2a6f8157a2dc288e607b",
+        "contract.json": "e50284d00747074172179de9cb31df63289454ac6e1789474e93928aaa13970a",
         "source-positioned.txt": "e26c950bc59975ae755d33d1ebb14edd35746f66cb51067297ef24680a0c46ec",
         "source.txt": "99f7d7063693fe139ab1eb0ec1c6aca69aac343a00cdfefbbea6404d734a694a",
-        "target.json": "9953890bd75a1e4e245c53c78df1884063b0ac3c6181136369c8d9947461a308",
+        "target.json": "c87c673d59f6161fa63038650c8960a470dfbcdb69fc60ac945cdf3cf052ff96",
         "template.json": "b14473d6cb9c326104ea9b20484571f9f083cca1b5739073b758e157af12c43d"
       },
       "mixedEquipment": {
@@ -8873,7 +8949,7 @@
       },
       "sourceInputSha256": "99f7d7063693fe139ab1eb0ec1c6aca69aac343a00cdfefbbea6404d734a694a",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "495c78e8976ae44785065a0c9a7a14a0459d84980e4f610927d075dcff900e52"
+      "targetSha256": "ca83b733b02e60f4737639eece668959d99045737ac709004230b5b364d16ff0"
     },
     "doc_70dbc7d963adde1a321af264af7f9c7ec93728a1912b72bb459ac1d6ca8cf745": {
       "capability": {
@@ -8932,16 +9008,16 @@
       },
       "files": {
         "alignment.json": "b41ea4b5e9e9359773dce3fda7c584ff621afdbf7dbe4430aefc765a5f1a4eb0",
-        "contract.json": "2448c5bd2d8e61be9159db3d00ce8c2289cef238f442e64bb3643d97f72c5f0f",
+        "contract.json": "3b420e131423fe076bb4645847bd8fa62105d3834e4f46bf742a7d23f3509644",
         "source-positioned.txt": "1a9a2041cddee2107f6b9c3180f729ce674d0818a4b07ba0f4c35ee60b3eaac7",
         "source.txt": "2ce7994362a47f78310c5be21499c04172fdba895813b989022e70050d80980c",
-        "target.json": "ed3f0c707ffb5711dbc6a4ea8c4ab9d1a74b9a0836d0ff442bd8bad908a71359",
+        "target.json": "f891d6cfc658b3c3f606136e2db6ed2e3bd0885dd629bb0215163e0b0ca474e1",
         "template.json": "595903e8a7c740c2a340ffc5b98414612b8b0d86d0bdfe1861e7d648290c15d2"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "2ce7994362a47f78310c5be21499c04172fdba895813b989022e70050d80980c",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "d32063a79f6f6c3e2c563e0e2133229ee02b96ab20d8760e6f0fdf21305f1954"
+      "targetSha256": "bfe5814fec4b58befe58a4c2396b13c52d7c6fba7ad1d773470f43417da703c2"
     },
     "doc_7102f18f70bcc943a7544de908aa8c9cc9b4a31f0dc175ee9fe93ae19bb5766c": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-thermal-expansion30-validation-v1",
@@ -9120,15 +9196,15 @@
       },
       "files": {
         "alignment.json": "fad3b014147c7dc560397d75aa461fe0fc203a32874e4e06774d7cd45a167a48",
-        "contract.json": "f58a2565eb250e56fb9fa49fadc02a1c65dee81554c958765c238574547cd31a",
+        "contract.json": "5edc6b95d59efa7cbb7a89e5a53c9abbcc5b2bc7c2fdb789d5f165a39f380c49",
         "source-positioned.txt": "11fded29fa85c7308b2104bc025f0e575c6eb6c5cc11c1464b2d106089ad98aa",
         "source.txt": "798f8b3761f8efa89f4bba211cbce8a586cd2f2dc0768242cfda830f837330e4",
-        "target.json": "7f7dd0e3c4d020723cfbb424a22f4f2028e853a913c88185573223f2f7580fe3",
+        "target.json": "c20da9ae6355258013178f6623d79f0d1759c2321feacfdb0335acfc23b3a44e",
         "template.json": "6ee20065ee76c6b80594e272a0bb7f560cc7dbe0a04ca9fe371a9a184a44173e"
       },
       "sourceInputSha256": "798f8b3761f8efa89f4bba211cbce8a586cd2f2dc0768242cfda830f837330e4",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "65c79950115aa7dfeee20c3d8c263204c2d04c0dcafa9f1ccf24214324ab7dc2"
+      "targetSha256": "63f8de7abe0d334cd18298d22a6ff08e79360c22879a3e284e51d3ab23b2315d"
     },
     "doc_738b9fde206a8a90d6ef0155513300da4e7cb8de736be39e750d684b7a335c47": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -9295,17 +9371,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "689c7b7fbf5d30406b353244f6bb8eba240037e80fc2b3660cecf95ed9655a4c",
-        "contract.json": "95b74206c0441b7ef649e8a65affa6ee998c98aa707e863fa968bf651abf15a9",
+        "contract.json": "89f6d46edd7069da671e7be504234f4f837552694e6f8c615bcb1046491aa8a9",
         "source-positioned.txt": "c6b9835c0a54280b49f5de5ebea27c337692db025da6f9850700f9f1b2282d51",
         "source.txt": "ac83a3cf27655518da3449550b1856f181ba512f150f91e36c01129747e14b69",
-        "target.json": "e1bff0e4e21c0cb8f55cdfd778d1af1adb384098775bda4fc20377f6ba446c6b",
-        "template.json": "68abe161237eb5394f41bc3f5cc2f81ccf9970167b367f52fce2fd8991f4fab0"
+        "target.json": "0f3acacded78a94832ed8671f16d1f8b346faa6d0f23ed11220dadbbe6a08a4f",
+        "template.json": "5a069792a7fd712c1010c692df9f4d68eec755449b73195017f0cba776d17a5a"
       },
       "group": "nor",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "ac83a3cf27655518da3449550b1856f181ba512f150f91e36c01129747e14b69",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "679c7d42aea04539f91fa38cf7dac2f6026c16e7a3b0d4a77c08591020a601ef"
+      "targetSha256": "c9ac236500fd423212d41a79c37dc0eb600ab327c74433c476079d078718888a"
     },
     "doc_74860ac93c4ff471c2eba6032feaf8e3ce0cf30f34f5347bf1834781f42e192b": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -9486,15 +9562,15 @@
       },
       "files": {
         "alignment.json": "527e2d6cfa63622cf5840639fb695c909cadfa3cdcba8b2641eed020313f78a5",
-        "contract.json": "ea94e2952b184cc5418834af4aeb9568bdf09fc9d933c56541d044096cfd478c",
+        "contract.json": "3edf1ffed00320aed0ff49d6c811e2ab76554c777f3a207eccdf3a40906b7a07",
         "source-positioned.txt": "0f51ef8b3914b0d82a0bedd861cb5f4a034b11150e1000eb3a9f54f519c42cd1",
         "source.txt": "bda8749e69fb6c79bbd2ea0dd8486e36c0532e99aa141dd353ccc9b4bb56cf42",
-        "target.json": "0ae4815ceda2de20b11c7ad3a2abc8a0f7f70af7208a0d5a47b1497fa79e8982",
+        "target.json": "4ded9c6a823f30fc1567e677c41a1238ce8ebab1932f76af537efdc7c9588b25",
         "template.json": "b33b6f938d36c3d1a8758b44657d57b4a366cfd870b02302238e8732837a211a"
       },
       "sourceInputSha256": "bda8749e69fb6c79bbd2ea0dd8486e36c0532e99aa141dd353ccc9b4bb56cf42",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "330ae02b49d45a27d0a2de7f7081dff857fb4eb202a7acdcaef1ad7811d468e3"
+      "targetSha256": "ed726ac0b2a3dbc98dc43d9c51d423d2ca1158dcee2dc9e9ab32a34cb13ff23b"
     },
     "doc_76e93c16eabc55cacc7f2f6c8018e42776289390a41cb4ba392443744b01ca25": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -9717,10 +9793,10 @@
       },
       "files": {
         "alignment.json": "fbc25bff9bb9e3933b7197cb15488aca94e6134e2ed4f2e1b859c308382c3aca",
-        "contract.json": "9a229851fa592cfdc5c140aeff731b4002456566aaf8c1b0708e0d93b09ec146",
+        "contract.json": "0339235435640b176cffbbe70e4683c4011c69a29bfbdfc1dc7e7662e1e742f3",
         "source-positioned.txt": "2968bbc2f9dd06fce4097b2213a7b52038bdd9e04f1d093059b2ab00dd854a12",
         "source.txt": "251eae68284737ab5f652d9be662227b9d522bae1cd76bdcc9d856d62c661c43",
-        "target.json": "8c1d47820f7ab9d0a03ab7770f40debe05eab9ba3ee90e68387d3c6d2acd7ca7",
+        "target.json": "d864f33e86053199c662f3bdff55658f152ac09c6c111dea31c5de7b096f2e37",
         "template.json": "74d7f19dc26ba70a26388452267a993fe280c0bd404ba90b3c71f0e8694a44a5"
       },
       "mixedEquipment": {
@@ -9728,7 +9804,7 @@
       },
       "sourceInputSha256": "251eae68284737ab5f652d9be662227b9d522bae1cd76bdcc9d856d62c661c43",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "1d4036650d79a240c16c53e517c0960117d772a19dbd78eb3f2d9d36636e651e"
+      "targetSha256": "0257d88ac312b83b1574d9dd17a9bdee8940eec225aeb6c4f87bd451578baf0a"
     },
     "doc_7c1039681cb921ea4d5c5ddab591e7e1a1d568807a998be525faac1657d689a5": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-thermal-expansion30-validation-v1",
@@ -9749,17 +9825,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "fd68468a8aa9fb1dffc3837a81b18a3937287d2a03b7b91a197a69ef458fe152",
-        "contract.json": "ef63e7642c7d9916514690c19f64a5267019126443c0d7e08e89d3d204ed8e74",
+        "contract.json": "af1f2639ff9a2693537b4be6c035fc878fa5a013567bb01eb8654bdce8a0e2b7",
         "source-positioned.txt": "4a6f07355c6e1da3eb5b43f6174ca83b3b9a6cb224a1005aa70230f61c22a95f",
         "source.txt": "84c2c533d04fa7d4312f5c719111bf682a2c3f6322fd1511036ad8b9e2530cb5",
-        "target.json": "f6485291ea02208dfa561748dae06f592f42c1bb4272437a51e9729ed69f8329",
-        "template.json": "89f203defb03ef87591ea087f9951d71cf16ba56ab16684e2719d4c1ce78aff6"
+        "target.json": "031abe2c79f3f5f6b3e1c20061d20029530c71b18f1ead50e5e4a1d11a3a88f7",
+        "template.json": "974fb9feeb8b98ec0b8282b22668940b61c9bbfea1ac83ef1c63618fb50d94b8"
       },
       "group": "nor",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
       "sourceInputSha256": "84c2c533d04fa7d4312f5c719111bf682a2c3f6322fd1511036ad8b9e2530cb5",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "1f108c1fde42df26b3ee827b6482d0b9bbcdf111c99b7703a2a03a99ccd835cc"
+      "targetSha256": "364313f02f331d799dc30d32b2717ca77c1a39e4aa1b5e73353e2a6626544c08"
     },
     "doc_7c5b19dd8b6dd42a1cebf7b7d7bf5560f0cf6c72a2bf52a95f0e39c70ddfddac": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -9936,11 +10012,11 @@
       },
       "files": {
         "alignment.json": "6663cc55bc730b4d2d8e1b084c807293ecbc9f518d939e556b519d3b4d864c73",
-        "contract.json": "44948bf8d5e438081f26a464bdf80c6b391826c24f992ea7dad06a945140e5b1",
+        "contract.json": "6ef023885537b59e3f441721bac63d5b25b075f46e43c858004cdc72bd5e21a4",
         "source-positioned.txt": "3af9a4a58eb929389c4b6596a548e7866ad3f31338abd112074397fe215d0ffe",
         "source.txt": "66f419d7abd4e0a733817ae655f29d77074c80fa49a991d69b66aa2ced312c19",
-        "target.json": "db7f1569b74d0a0c33c8fdb9251e1b95ce7c42bfe304cbc247a798675f4ca1c7",
-        "template.json": "b840f4cccf8e2af3e27b81399d08ad906df16ba737db18c8b93abbd569b8fc48"
+        "target.json": "560d3bfc8e33a060d28ab2b8c980289b6aaa5300f155eb1687102015b46399b0",
+        "template.json": "2025d98c0e2a1344b3d7e1f31d9977eaf5a20db4f4455c98659d408f7ef1837c"
       },
       "reaudit": {
         "date": "2026-10-12",
@@ -9951,7 +10027,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/issue-role-closure-20261020/source-dataset",
       "sourceInputSha256": "66f419d7abd4e0a733817ae655f29d77074c80fa49a991d69b66aa2ced312c19",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "22cbe834da05b3519dbb88c3c3c6fc5d5d923df85c47ffc91bb8bf321291a868"
+      "targetSha256": "7c28ba42f5e4efd9a02b4e45db4e6467b75ff5ad5a03a2f405711e96638e0ee4"
     },
     "doc_84b8376f8ea1378bb5f300f820a1d5eedd628fdbd0fc8f15b5557b5a5d1b6cc5": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -10346,10 +10422,10 @@
       },
       "files": {
         "alignment.json": "1cc40cd014317cc256a6ec7ffd68a14add4a6c4f4a110c00827cbaccd80aabd5",
-        "contract.json": "430a4c1d007593555df60f9384b3302c707d04e0fa4522e05608326e8f9d5e48",
+        "contract.json": "0907c52c22ae18b24bf35d01998b9c6ffbdbe432a8077477faef8d7956e9b5d1",
         "source-positioned.txt": "249ae8806523469a95a6ddf7c9f09b116f7b5b86ca4690c3b59e122ffffcb5f3",
         "source.txt": "3a0afba55e9df0afa897dee62f32233e122f32adc759e4de973cf1edec14859f",
-        "target.json": "aefc56eccfe66f418a59e7ef79673b8fc20ef48f2a175bd56d7f7dfde35837c0",
+        "target.json": "0f5b8b068b1b6fb2cae32120e3952b17e0a7687bf1d55416004c4456a08adb1a",
         "template.json": "5a219616056b25cc791301036fc83a7343698179b3aeb50691ce3b4983623043"
       },
       "mixedEquipment": {
@@ -10363,7 +10439,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
       "sourceInputSha256": "3a0afba55e9df0afa897dee62f32233e122f32adc759e4de973cf1edec14859f",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "2104196e8417cc35118a38c1be28b458a35dcfa87a934acf731ecb4688ca86df"
+      "targetSha256": "f5953057aa32c1d101ab1e8f07b3eafb3e268f5122a66b9ef6bab2465eeb8a47"
     },
     "doc_88deddadf982fd5c5920c4f64487fc06a0db25f6e8a3e7cd76efd0168960a10b": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -10423,17 +10499,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "6710320346a8013dc60a822e22bc7e1cadb0205b6260fd9b3721773ca438bb1a",
-        "contract.json": "37e79814e96c1c1152506c15d8f88bb3b6a5a59a3ac3519c55312a272162bef6",
+        "contract.json": "df3b1e2c02f3835525b51c6d66ba1b1357825bd9da2cde1ca88dbd834a5da3ec",
         "source-positioned.txt": "ff1a2c945cbf2eb57488988b4018333f078a3aa465556d7af5e4840e969c004b",
         "source.txt": "4650143fde9f561626a9644f5883b61c721f57b7858fba32f31ac47bfec5e76a",
-        "target.json": "1d8de26366dc9f7657bbdcb817088fc1a814f05b6d6f054d04754f27203d9816",
-        "template.json": "2a7b1919c5302d0320913d3f8b2ec07028c71208d8d02771e90a987ba7084fb7"
+        "target.json": "0daedf833fb64f0f84029b5f68b29abd5a5d0de3b93979e35ff6cc556bc926cd",
+        "template.json": "6198269223bf02bbc54b88870b9468cb52ee122d59ef3e7b6ad4134bd535250c"
       },
       "group": "thermal",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "4650143fde9f561626a9644f5883b61c721f57b7858fba32f31ac47bfec5e76a",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "fd65f426a3466a91e4cc36edb47faa05128f8096953da6a0eb81874e65fba345"
+      "targetSha256": "0b23b80340ebf807e8c4e7fcf0b11ddc513aa633cf7b0295ece4089370d8a0fc"
     },
     "doc_8a73dafe3f20a7adedeaa66e6b12c4919396b4e38dec67d20a5ec5ddd972870e": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -10520,16 +10596,16 @@
       },
       "files": {
         "alignment.json": "1e9a88c3589c4e14046f1b82f6043dccf130abb8491f035c579ef56c840df524",
-        "contract.json": "142884972fbd13e7a9894e501d61738a17df4f3d68c2ee283b234207ea23e58f",
+        "contract.json": "b986214dfe17b1ac804c32f52b8e9280b1dfef2dad6d40dab69b0170b91ce7c6",
         "source-positioned.txt": "9ab0111ee68bd055f81b3adf159f9d00292abedeeb564b693a1bc44ab898044d",
         "source.txt": "c1a15870f39b7cb34ad479f396d8b82ae59ce286f1c1afc2ee7f944d6d31abfe",
-        "target.json": "9feece5faf1377f55a3dd8c8df7515c69691fb0b8b350a1f19a766601908a5f2",
-        "template.json": "71737b59469b1100641d392a459dbd83c20ebcacfe9baecb63efa76bdbe3b4a2"
+        "target.json": "bb7af8a34fdc6e03135bcf92db7ca93728049a11cfa76aef075a45207443491a",
+        "template.json": "e63bb06da461cbf05456fb811fa903c66922456e6a741eee0bf8fd26457a11a1"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "c1a15870f39b7cb34ad479f396d8b82ae59ce286f1c1afc2ee7f944d6d31abfe",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "0850eec27db8f7bde81d6eab4e98cef43971440faf837273faad6021faaea1fd"
+      "targetSha256": "98634da50ad07be7eb6b81d6334dc1d600da513b15cc6a1669718999f9a7fb3e"
     },
     "doc_8cafc8c13fc735f4399f07ce0f13389a987cb569a2fb4bab621e84eedffd18c4": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion60-r27-batch02-validation-v1",
@@ -10790,17 +10866,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "71e3eda31bda2bfd8a8b1975a2c55d7bd3b59af22e391271e34264802561b485",
-        "contract.json": "3edfe2f9220cfb104009b7fc98f4a5372b539cea75f8ba06c94f6d9b08f2f20c",
+        "contract.json": "2234b0a6262d76f85d675e2da912a7a189e004e85601b8efd77a0d58f031e039",
         "source-positioned.txt": "4ba3118236cc184d575d151a0bb11b0d60b29f8283ede7503b42612cdea9e4b2",
         "source.txt": "3e3c13c989fd6b8a407f3c404d44bbb6c966cdbc30d996c4c99d311e4a64ee3a",
-        "target.json": "9b173d2dc0fcbbd70b9db3f58e941f6ed55517b09b399e1e11ec486dbba4c99d",
-        "template.json": "a2712d13523232f651939f595b63b223324f84d789a244ff3bd6affc6ecf6483"
+        "target.json": "81de9942a42d43ed04bbaa0ea3f5ae0e395642ec81b353d67f6de398ab526b00",
+        "template.json": "02baee86d45ff52e347cbf8c3eb19f9ade9dadd2a21c22d1fbe7c2ca5459b2a0"
       },
       "group": "thermal",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "3e3c13c989fd6b8a407f3c404d44bbb6c966cdbc30d996c4c99d311e4a64ee3a",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "3f2446086352d5e462c531259087e797ec2790e1d88a949dc13c9a5014db1ca8"
+      "targetSha256": "82152b7ba22c095ae412c2a3084a6b3a8a877c28c5a3d6e5fdd4780d918f235b"
     },
     "doc_91c343f7c28a9b35165995c476ad114eb7c3059d118d64f885ea7f5044f80fc8": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-thermal-expansion30-validation-v1",
@@ -10958,17 +11034,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "370a0bd69bc981519b5bff819e2bff4ba2c8b962df698670520474cf27a762e2",
-        "contract.json": "bdc742da97bfeb530ae318eb9cc9741e59861bb0c21873ce3df0ba8bd00b179d",
+        "contract.json": "7cecfeaea778ae2a061cc30c2e00a1d6482fae73526963256876cad32eb49046",
         "source-positioned.txt": "ba12ecc3c34afb3a4dac456a9eec2fe8c828dd82cb79a18175c3ab0993de8c85",
         "source.txt": "0742c2a34f3da1b3f4a8c7397c86a8739209f53912524d5c102ce81e19df3440",
-        "target.json": "650dc8790ec4f404ca56be94df014b6a2f8915eeeca6b102d2fe138aee075eba",
-        "template.json": "37710bcb40dcb758ed0a5ed6361887cd5ad4195ff00591720122edf75342cc96"
+        "target.json": "4918b33b6387fab4566de7179d2668069bb56fe0c378fbb4a8b8f53025e6f122",
+        "template.json": "be4642a6b3e5420e622a92b667312a37978cafb5b75fddb157e948cd6ec6a6c3"
       },
       "group": "thermal",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "0742c2a34f3da1b3f4a8c7397c86a8739209f53912524d5c102ce81e19df3440",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "8b09bd68a75c17bd23dc26d45955df5ffb81ada309e85a145291436c4d5086a6"
+      "targetSha256": "9958294e014f71bc9ad3e1a3bc393405164b32d4c976e78ed96b1c35486729ff"
     },
     "doc_947097576fb4db13657a658d43d15b7d1ecf0abec9dede73b9a98f43cbb19bdc": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -11041,6 +11117,27 @@
       "status": "admitted_2_variants_content_and_geometry_reviewed",
       "targetSha256": "7d157d1b02aca80f5b418966025bd9f904ff8797d9d4de308c069dc6186e2498"
     },
+    "doc_951024129bf38a16234b6b31e924e0bf72ec56207be8d68bb9af51927447a358": {
+      "admissionCampaign": "docs/analysis/r28-multidg-integration-20261029/native-synthesis-v2",
+      "capability": {
+        "family": "dg_chemical",
+        "identity_count": 7
+      },
+      "cohort": "multi-dg-20261029",
+      "files": {
+        "alignment.json": "b0d28ecf500949033293809be27328aa880a0d58bd09ef017e7b5ec15ccc718c",
+        "contract.json": "1f9b564537061ba46552636d55a95af0ead95b3825848e7dd35662c34737ca52",
+        "source-positioned.txt": "f14536a6716d0f6073af1f099a4b3ed5b644da473a828bc7b8a268b9161d50d7",
+        "source.txt": "efec6def74f70e1c48bac378e6ac7bcd79a5c8b22c02be8133901783a06ba89a",
+        "target.json": "58f05dfa8668baeb54565a7683affe27369847277154239985eaa1c67c051511",
+        "template.json": "9158650533893b22b6411c064ec6c24ce955c299ef20f9df5d037a3790cccb5f"
+      },
+      "group": "multi_dg",
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "sourceInputSha256": "efec6def74f70e1c48bac378e6ac7bcd79a5c8b22c02be8133901783a06ba89a",
+      "status": "admitted_3_variants_content_and_geometry_reviewed",
+      "targetSha256": "15c7dc52352c9d4955e5cfc81f97c84b1f86658e83e307c017d05d51a0a33479"
+    },
     "doc_962ca0ba42cbd13a6883ebf92c354e837bacab41e1f407eeb4e352876dd5daa7": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch03",
       "capability": {
@@ -11070,16 +11167,16 @@
       },
       "files": {
         "alignment.json": "a17f910bf084930de9c60f78465d6f003ebcb284998462808e18a55852a47b83",
-        "contract.json": "c6314ff2842086bf65b0ebb47e3f88b6c5ecb711f3bbcad50380bb06bc5fbf16",
+        "contract.json": "2720e910d3ab947db9bca3758e3eb92f9690aff314893ae42da9210ea214941d",
         "source-positioned.txt": "3f626eb85737a1da6114c98a0c97c5e84593756347a5d0d9c0578fe251c1d77a",
         "source.txt": "85bb440525702b976f00095348ab7232b33d5ff84516f03b61eb97a89454e221",
-        "target.json": "613fed631359d952a023c580365bfc2e82e460261901cc2c0a17ec20bc5a1809",
-        "template.json": "69fc5c79036edda86085a282bdb6ba971418320011915e9b1a5630c77914a94b"
+        "target.json": "4bc13840e24ec0dd5b34b58cacef3685ecde079dc5985ab3c055e8e9d241c1e0",
+        "template.json": "e5d93b966c9d1a27e30fe795ce0d205c2a33ee91ba6aae9d0171149c1feab1ea"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "85bb440525702b976f00095348ab7232b33d5ff84516f03b61eb97a89454e221",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "cd146114cb69837185a19271bdfc11397252a302ae73d38c01b6635755b85107"
+      "targetSha256": "cdbc110eea040cae471de7dcd6163218eeb313d0b0eed2a5b33918bae5db4a01"
     },
     "doc_978a39901cfbbc5611c4c0ad4663deda05523d7ef3f947bed5ace8e19e59883c": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch01",
@@ -11292,10 +11389,10 @@
       },
       "files": {
         "alignment.json": "789e84665e67efbd14932be94692917d86c9a521546a3c1ef7ab28ed3b356e94",
-        "contract.json": "d7c9eef4ab96ed35076781b5536a1ffced5dfcb839abe386cbf4be018cfaa3eb",
+        "contract.json": "e56805c1d3bb6a4d83746dc9f50a49aa2564dfa591afebdb2cdf59bf95dc783c",
         "source-positioned.txt": "ae19f6437ac678678be13568316639bfe5ccac55d2bfee1251ff73ec516207e3",
         "source.txt": "5e0bdc34d8198513b329f79f06c64da6858b5ea5c8220c176d516a010f089e39",
-        "target.json": "5d7af482a635b5e91b73d36faf2f80f65573358857d51c6042e797a446e0935e",
+        "target.json": "319f8c10abe0e47849701952fc33e4cf66f0f212bd829a7d08d45f13e6c57a0d",
         "template.json": "5a992996f063caac1ccf6cc5ee8a4b2ee2599742bdcf60bd596566ffed67fb09"
       },
       "mixedEquipment": {
@@ -11309,7 +11406,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "5e0bdc34d8198513b329f79f06c64da6858b5ea5c8220c176d516a010f089e39",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "fd4f1edd55c7ffb8bedb8b4a8de0654382c9ac64198e2c7110a82e3dcb7f5813"
+      "targetSha256": "fe01ba3964871455c85b55acf0d0ba9b6355842c4ee868d8a3a40174b6d29328"
     },
     "doc_98f0e0e0461007b238fa574b587e2dcc4614b2f72e3724b360bc3aa345049627": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -11490,15 +11587,15 @@
       },
       "files": {
         "alignment.json": "78f8c488963fc0b6e982132a60f201f6f900ec39a379f3d7d376d00de8cc3669",
-        "contract.json": "f68ab69da8dda8080c7f2f672908dfe58708425992a7e880f39e5bb779219727",
+        "contract.json": "7724e0a7581ff2572c9903e2b6d01c3483d0560da08771dc40339fe97370e567",
         "source-positioned.txt": "676b1938c916615b2348b213d7d3ca2b67fa591e7bf604b0f7e2ca280fd00807",
         "source.txt": "ba8690f58b0177821547e61bec61558d52a03f7b227972d96b21938c94038060",
-        "target.json": "37d90cb1d53f7d7b9c1ffcda757900e348d840fc02468da4f2d561c37fac5eb1",
+        "target.json": "dd0244905647d2968b96ee360e96cd0edf58bb519d0ceb50704f2c30bf25a449",
         "template.json": "4b3ca99a8bc3fcbfa7882a77f125a4cba14f27dadf61730c2bbe12e9768296fe"
       },
       "sourceInputSha256": "ba8690f58b0177821547e61bec61558d52a03f7b227972d96b21938c94038060",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "10f1716bfdd44a74bcfb9cb76a25c6b619c6bb7b89a65f294689d067813c267b"
+      "targetSha256": "dce01248ba84477dc49b4712588c9f21f5e5426dd979287cca851e12a9d54631"
     },
     "doc_9b35d0b6f5596f9a71d2d0caa21e43ba2637608deb0ffd872d8bc2a0948ba170": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -11574,16 +11671,16 @@
       },
       "files": {
         "alignment.json": "73a56dee99cf4a51da1886b80829466ac45143a4a4fdd301205044a5ddec6414",
-        "contract.json": "4ba4216f327a6290b8b7d4876bff440386725f4761b4fbefa08cafade8349232",
+        "contract.json": "06556ad75c2c67e98c04fd952a0b301076aabe24befdd682295430a93fb355f9",
         "source-positioned.txt": "02f7e4990f9e6804902bc7b836ee3b6e3f755dca49aa8fc138c200c48a1b8031",
         "source.txt": "0216763785d0c24c3ceeb79ae37623e9106302c6994d47498eaf80f178d0490d",
-        "target.json": "2106e44e9987a86e76894351466ffe964dae037ff26f526ac4a11dae4f9b16da",
+        "target.json": "b9d92ea4502b7da774f422806b19478ee7a11123f62d76caca6a83df1d7023c9",
         "template.json": "9e4fc761820c4f94854d985ccb687f47744880a7070b5b1b8bc5d5f0986066c4"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
       "sourceInputSha256": "0216763785d0c24c3ceeb79ae37623e9106302c6994d47498eaf80f178d0490d",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "edce15078325e3f03d121af66b3c2372e12d54c2a29ac0b947c7c74fe579945d"
+      "targetSha256": "1e5f029fe50e56b0ebeb4ad0e4f573384bcda768b2cebf705e7eab77f7e4d368"
     },
     "doc_9d3de4a72498fd9f95952a8036f68167e50c7e7671786e7a029c83ec6244094b": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-thermal-expansion30-validation-v1",
@@ -11598,17 +11695,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "3d78800ce1fd717e0f8f5e9379f04854d895732b2de08c9e663ceee1c274d19e",
-        "contract.json": "6d00a3f3a33cc412beda6678117ba131d9d814e10a763629a99c6d615980987c",
+        "contract.json": "0ba690098fca2bc5c367f131c186cb87d1038ba7a31e5c62f70056cec98e35f2",
         "source-positioned.txt": "ceff37c99e2a72bf86688ce6b06b0526cdb1b6921266baa7a33fa7bc86dc7f40",
         "source.txt": "70e3acf4803f14f0561f5034b25ab934865d13eff43a3c507fbf7257c4eb5f6b",
-        "target.json": "78b4897a0e05035147a431a8a9d49456f0e31bc655e35876fde107a4a630a1c7",
-        "template.json": "658c391134ee046c84a469c33fb4f8a86b3cf3ee1c72f51403b4c0c1020ba4e2"
+        "target.json": "6fffca9160ac14d0b4679ffc1d94447cd97277802ea76d8dfde8443d8aaa619d",
+        "template.json": "6f6d365ed0a820848fa34dd435f0a19a6901aeda48857a07bec4328401ab8db8"
       },
       "group": "nor",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "70e3acf4803f14f0561f5034b25ab934865d13eff43a3c507fbf7257c4eb5f6b",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "7b5ed1a5c973b28e0eca11a64e7984cf9174e5cc1ed25c73ee83c542a6b2cfc8"
+      "targetSha256": "70e731400022c946db362c658023831c94c1014ee537c0f4c6697d4d22a68582"
     },
     "doc_9d4a6b90d6a3fd87a32103908c1e91c5d5f8844d1fdbd17fb78f1cec898a8d1e": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -11722,15 +11819,15 @@
       },
       "files": {
         "alignment.json": "6b499852d9f0bfa6ea187843324207377fc9de0099d86fef3fb625f396dc86f6",
-        "contract.json": "c7f1e3ff6c16a6d29af9f5e0a86242a66cfa997cc57b8ad9762e44f612cd036a",
+        "contract.json": "527fa0c79ce15237af735c1f251206c50880d2ba9c148ebbe8aa129bd231b6e3",
         "source-positioned.txt": "325ab34a9ed71ed2dab0bfe4c71684fc4836e95a6912daf71572aaee9bf1e4e0",
         "source.txt": "6b5ba9c3321f63bf13ff983317dace218aae4e6a5bd5f966e87cb8469c9441a6",
-        "target.json": "561e902b015a0205b814816989c0097ee6c43d42a9d07ead61b2dc2ab646d40a",
+        "target.json": "ed6b5d7053fa98b26af950d4b8d4e0b5558bad1a3f2c274457820e264885a87f",
         "template.json": "cac1f98abdeefa592c93975e3fa609ba83bdbfb6b4f168800c7d712e9a69c829"
       },
       "sourceInputSha256": "6b5ba9c3321f63bf13ff983317dace218aae4e6a5bd5f966e87cb8469c9441a6",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "3e32589018f4b58081c844d8757eba5e6abf6844cc018ed091be9fe1beeedc4f"
+      "targetSha256": "5fff0c972a4a4c5a6c4606323013ba9232c713a9bf121db2bab9a20ce715d765"
     },
     "doc_9ec60e8e32ff401b8616bbc9513bf87334259c70237dcfc5109a4b42995c77fb": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -11793,17 +11890,17 @@
       },
       "files": {
         "alignment.json": "81ad1f6d8aec5429a5d3cdf8ec73e7f90d16fdea4a3e13c550bc80c392f3b2ab",
-        "contract.json": "e26f41012ab77b0a95153da31660daa299a296b9ffebc34a14df3793231cbb19",
+        "contract.json": "aa17d3be77bb2415ac8d3d94d249b14809e6b8356cfc8c1a2adc09076f2ab58c",
         "source-positioned.txt": "9ff8b77b33e77d5832289c86666e530750c776792afc08a44f04deae2fb36828",
         "source.txt": "f2316010dcb003ad3fd3f888b330f7d023ee2d11e7de10a096763da3d65e4116",
-        "target.json": "c8e6cf5ada9a625f9f57fd68a34a7e2ff454f90051e72837b44e0c69a977d4c1",
+        "target.json": "3441965b3073c2158e696637e8ceb85e91ed75cf60f0e78210d602a89d03f723",
         "template.json": "35f0595061288b3cf0e359bf92606c7264a9852b68e976daab8a2d5144ec8721"
       },
       "recoveredHistoricalDraftNewlyReviewed": true,
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261020/source-dataset",
       "sourceInputSha256": "f2316010dcb003ad3fd3f888b330f7d023ee2d11e7de10a096763da3d65e4116",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "5f4b29fcc9ea333c7fe1f8a5dc45652d679ebc6b9a5d6302755ce29cf69723ee"
+      "targetSha256": "c8aede426d5b8e5b1d90c533c745e88d392d2ffbe221220ba690b88630dd4d52"
     },
     "doc_a177de46a81ab0e061b8bf391f74e741b70004f5b9f9dc0d6da8bde10ab853fb": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -12009,16 +12106,16 @@
       },
       "files": {
         "alignment.json": "1b2d7c1e260e15ecb8fb8deaed0996d794641b2b7976629a1aa9f9cb212d2c28",
-        "contract.json": "67dd7aacd2e876ea9718933eccb8962c5d248533782f9603e9b438ced63174b1",
+        "contract.json": "0ff4ce56e202bff9159e9af1f93c0d8ac32e3733b8805cc6749f4910d4e5c611",
         "source-positioned.txt": "eb21d9ba6081a7d76501276106a1afc65f4175861c8cd871f4069d3d657beb77",
         "source.txt": "0f0fab7ec7c25de352d6a6bf4f30a787f7279dbd7a2c75b7f3777c07298274ce",
-        "target.json": "dd887b305d95af95a35897d637751df323b6c995c0c784102f4ca26fab9247d7",
+        "target.json": "12e09f85d942595d25cb8affecb7f151fc7745488888246591de3e9e171ae46e",
         "template.json": "14637ed96a7725ac42314d264d40872e2da2135a4d0969e3bc81414452780994"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "0f0fab7ec7c25de352d6a6bf4f30a787f7279dbd7a2c75b7f3777c07298274ce",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "c29accaabb9bd5f8f6c548b7b81823ea83aa397aade5db930b9bde2846a83ada"
+      "targetSha256": "4a993fc59bca8d857ee09078b5e06be1095089e547c0c368b4ca30383a9506e3"
     },
     "doc_a4cb81c178d0efc633a9eb6ede4245755240e921e17c538d8b7d405ab2eea94e": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -12098,10 +12195,10 @@
       },
       "files": {
         "alignment.json": "4dbdf2127325600116e34c18d3c296a585357398ed9892966629c41aa0dc3255",
-        "contract.json": "5cd1f00b5798a0d8331028a0e8e115dfd85930ba658f5233ec44c56d13112737",
+        "contract.json": "3f258b749f59844fa58ed9c8fa54903dde02a9c2654fb4959fe96a2578b44af6",
         "source-positioned.txt": "3e302549ea5a2c9c38979f196cdb9871e8a50f9c850e10cbd83bc14e50c62ba1",
         "source.txt": "6d0a0c32b5c909318ee794a1642164f57c75955046d264d5e1731fad7d53010e",
-        "target.json": "369f8c0821de9ee81c868bbd256e9fea15be1958608fa528b5f67e800e840d4f",
+        "target.json": "792b0f5b4791b6752a50107c6713f48d324ce24cb75e77c7d558725f81cfc18b",
         "template.json": "317551b6c377e2672e7cb1494a181b850663e8101d260d627a9f4011baa8958c"
       },
       "mixedEquipment": {
@@ -12110,7 +12207,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "6d0a0c32b5c909318ee794a1642164f57c75955046d264d5e1731fad7d53010e",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "7674f077ac88a0976e02e5d519cc670da50191d695d18428b727a147e0aca702"
+      "targetSha256": "5647b9fa1fcdc4f48ed8a6fc921ff826cf9cef65bbc53ed065c6cbc8d02a94a7"
     },
     "doc_a65cb58e57acb4f70bc4227864cf653d982426479fe9da2cbe21329f717e100c": {
       "capability": {
@@ -12158,15 +12255,15 @@
       },
       "files": {
         "alignment.json": "12fd2fc73023ce9d6b40718ca479f85f99d02128bb39985b3c54afdc8841bea5",
-        "contract.json": "a0a51247f0dca9c66d004a8dccb4404b1e4f8a2637d0f119c61e9c8102e1cc27",
+        "contract.json": "ad509f8c591fb8aa912bc2d86e80e6b06d89e09bb07061c42f8fe9b18c7d0dc2",
         "source-positioned.txt": "3a0c6646e42ca77757ca47ed6ba2453e4c9ed6a1c4d9a6898ad8ca187ef24c83",
         "source.txt": "e8cf8b3c055f47711dbf901b140676e8b7a232511150290c17e254005837f56c",
-        "target.json": "72effcebccc02f2edbaa4fea88268d5d852cd842b60e33ec993dfbfd48b08b33",
-        "template.json": "8a74d5708d1c020ffe55734e9d979d74cefdacdcf856eff87d5df83dc65188a7"
+        "target.json": "c48f30d656eef650e178c10b6468571a10e5e9838468570699653a85bd0cf9d5",
+        "template.json": "50b9445f5bb693bb5052b0fe690b6e0ef5612e1de68652487f7cdac5fa12a03f"
       },
       "sourceInputSha256": "e8cf8b3c055f47711dbf901b140676e8b7a232511150290c17e254005837f56c",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "61a4464bce0b363dc6146decaba18abadc1dec14b506c63785f616bd27b69653"
+      "targetSha256": "7f918ff4bc0bf531dbf20aaf785ac7cc81135a8dc209a12065d143126ac8e14e"
     },
     "doc_a7ede7d8228b5677c41f6f8e8ba9a724eec8e7fc87984d802b5653166c58f149": {
       "capability": {
@@ -12243,16 +12340,16 @@
       },
       "files": {
         "alignment.json": "d78262cb36be3daa8f7be2e71a8c1f8ce86c92436274f10163244684314483a0",
-        "contract.json": "d6e56ac8d68d1e646e05b0174d6eef029b77507615b0e0aeefc9fd04d7be6a23",
+        "contract.json": "c71d96e1f640aea7d6d6151fac54c4918d901d905c686b26b03be52ed44747ae",
         "source-positioned.txt": "4aeac35971884f7a48e68f0d8266d365c0770f466fd894cd9f90fbd3354be509",
         "source.txt": "caee20e00bbb105e20912d8c7696dc72938767533dd98bea392e82acf72f26b0",
-        "target.json": "15c1ca04cf1f3c8cfcad7a112575cd8987eac813473be70e556b55e208c086eb",
+        "target.json": "9613a93095b2ae01c0474f0db81498d175241b347f688ac466b873bd980f5cf4",
         "template.json": "ac152d660707285b3417207b31e9e073847dbd2ddc4dd071f905285a8d90552c"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "caee20e00bbb105e20912d8c7696dc72938767533dd98bea392e82acf72f26b0",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "6e34e8f076f8e402c9d821a22dee442306405f1e4035272652f121e81bc564ad"
+      "targetSha256": "cd3a0a3327a71c19193a12d7c2f98762549b0745d28446b4dfbd71ddfaed044c"
     },
     "doc_a9d8521a848cd882ea8e989cb9c3addf11536c46a03575a7e3f02b429a38796d": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -12356,15 +12453,15 @@
       },
       "files": {
         "alignment.json": "3e83d0be91be2e7bfeb70a8a69c5dafbf64fba275f580d7ae7d1a744fdcf5426",
-        "contract.json": "626ed5242e3b30ca33a4fa62ac249c9d1d7785e633a6230bc5c46ed3be9c7fae",
+        "contract.json": "6d4dec6b084baee530b50f3eee2e36230fe3231238166defe49d0cc1234e5e97",
         "source-positioned.txt": "e31de5ac633f7125d259098b1e4975229be76c21e0e98c91dc858225c86ce94e",
         "source.txt": "484b6e8908f017aa325ad134563dfea312010f4a66b3db5787848d7018f80eb3",
-        "target.json": "f8107931adf6d71b12cccf6f901fdb08822a5f0d81097e21a37dd7e959517c99",
+        "target.json": "321b6bf933f481244fbe9a50a34d3e8a2e75f2a98ef96c0d2cabfeb666f377f2",
         "template.json": "2d87564265c21db91110c82117fcd41fe8a6f5129b1e760cd0c93e30a5648456"
       },
       "sourceInputSha256": "484b6e8908f017aa325ad134563dfea312010f4a66b3db5787848d7018f80eb3",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "ff324b208a3f870e48c97dc968dae47415e7f17aacce5d63446f8dfc45ca9498"
+      "targetSha256": "6ef51cf694d5aa90afcbecd8a15c80c3871c79ee76d5342079bc663b92e01176"
     },
     "doc_ab905fd40d2afadc45840dc00b569e510bfd6a1017218d16c2ce125ea38288a7": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-dg-expansion20-validation-v1",
@@ -12377,18 +12474,22 @@
         "identity_count": 1,
         "physical_profile": "source_bundle"
       },
+      "deliveryCountryContinuationRepair": {
+        "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/package-alias-rollout-20261030/delivery-country-repair/validation.json",
+        "sha256": "66de8adce13a66e23ae152594416f21857e650545fb2f6f20378651e78326801"
+      },
       "files": {
         "alignment.json": "5d7aef931790ff4827ba2609cd695f8aff68032024160f792315a25f4f5051ae",
-        "contract.json": "fda5e603cda952e50177e281840220601cdfad6782fe4d8e95984f4b0b899463",
+        "contract.json": "19f444b5dc224cdbfabb11b40deee07ec87680fa419601139f9155afff0f2a1c",
         "source-positioned.txt": "55ed82dc144ee478e21fca584ae1d32641abd3f40447b4a50b70540412edeaae",
         "source.txt": "3d21f636c804f4b684f6b8920479ee80c8f33e974734364f59b67f0e144bc36f",
-        "target.json": "7f5bbfe76a5ebdf7feba11ad7aff792cbeaf3ae3b360d92f5cb61476947a3288",
+        "target.json": "89be8ab5c42f5282c825a87b1777cc3893e0ca142de9473a5718a1e8f5212932",
         "template.json": "37da319303edb2b33757c344c66b01c047dc5aafa33414390cafa6acaa1f2b25"
       },
-      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/handling-20261030/source-dataset",
       "sourceInputSha256": "3d21f636c804f4b684f6b8920479ee80c8f33e974734364f59b67f0e144bc36f",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "768ccb64a8de85f2aaaf32bbb6122a0f32c319db877ddd8ceb93b56195857510"
+      "targetSha256": "a8fd3ce4c945e997dcf6fed042c46466c2172b6ea20bb7201c374b22d57242e6"
     },
     "doc_ad628fa28b92b94d57cbd461e44a3a1469c92468442c5ac30b028edf597c030c": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch03",
@@ -12398,16 +12499,16 @@
       },
       "files": {
         "alignment.json": "26c0c075090ead03b29e11f2058ce76415cf97ad582581c97a91d0b72a1352fd",
-        "contract.json": "faf87e63383523429ee74e7ab54cfdbbbc66759ebc905dd9f6f14651ebc74000",
+        "contract.json": "343df577d053e09f5c395390290b5ab87b9febabd4c7040c5d3842996f1156a7",
         "source-positioned.txt": "77123afa302e974968ab087b6899cbccc632bbcf0aaa021a3e529e791a5d7244",
         "source.txt": "eed714ce01f4731a91ed960575b45ff6b99fbc05954cfc424470232211548445",
-        "target.json": "8e4fddbd24b1e11352cb823de2dfabced4da7854af66bbad48701969b17ed112",
+        "target.json": "f6257c1dc0dd77532efe317cb5a6a4126973bbe2a221dca227343789d155057a",
         "template.json": "5a726417442d402f481058db146937bfc53027eb46a3607493c0df5c2324239d"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "eed714ce01f4731a91ed960575b45ff6b99fbc05954cfc424470232211548445",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "ed40f796cb9fa14d7305c0025cd203a828d79cb56060f3987a39357d7ae6b300"
+      "targetSha256": "2021729c6b07de6aead83b3621dc6236a4011ec7ad64d9757955618cd2a09238"
     },
     "doc_af151047e545127659da19f48ab14ab6c730ec3d32f046e533dd9d317059f863": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -12417,10 +12518,10 @@
       },
       "files": {
         "alignment.json": "e3e3c44627ba90c66f3ad847ebb2e7d7e56f332f3dd7cd6338e791c565b2124c",
-        "contract.json": "c580b6f3ee37aa624d091f898e9fa74a01ba10425c28b0720314dcbcbbd7f703",
+        "contract.json": "369b905a1948e256ec7d1fba181870b9821887400644cfda9246f93111c23627",
         "source-positioned.txt": "2172723b297edab83ac6c8c1ead32b2a5edf2b43c2217fa4f15ac42aff7783ca",
         "source.txt": "6c7db2de4926f2c87ed9ccea93053f3ee2c5dd4f302293e358f0ddec096d20a4",
-        "target.json": "1baa9259eeaf2d04bdcc14a00887900b0b61421af155674933580f8e1474feb5",
+        "target.json": "ee09946f3402b966d3ec935ea20abc0c1ec1ed12ebd63f41c749cc1356223db9",
         "template.json": "472d56754ecd076ab1b817beb01c6c037ac31d035c22af440c48a498ff6ce3de"
       },
       "mixedEquipment": {
@@ -12434,7 +12535,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "6c7db2de4926f2c87ed9ccea93053f3ee2c5dd4f302293e358f0ddec096d20a4",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "af19fef47973dbbd73ad6e2451071041cad21324954ce246974be9826bc4af47"
+      "targetSha256": "36b413d5b202ac726f5ddc00707b3f3b2b8e691bd9b8fa49ab275736277688b1"
     },
     "doc_b0c96c126d1e396bcc47b12eb5e37432c774503e4474985a8d96a4658d2db049": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -12760,10 +12861,10 @@
       },
       "files": {
         "alignment.json": "d394b598b3cd238744976551b8f11ec9c9ce2d4c05415134eea428f8a46e323e",
-        "contract.json": "21e17c01213c861150c8a97f23f37189470123efb79311c11138a5d6b65a3124",
+        "contract.json": "6eaf5d4dd260ada35c6f2b9a8a7ad449a1543dbda639c290a5a21db638ee8d6c",
         "source-positioned.txt": "869f769874e4f0580c88fd9d88aa602e1e5f05a5ea347fa90bfa41626f5c46b4",
         "source.txt": "33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe",
-        "target.json": "4a10ea99eb252e510527a9c41e06a297187f7e3fd28dc4edfa9b9953146971e0",
+        "target.json": "b7781430dfe2866dad0497e3c6c91ed6d90b70ec85900757fa6844fc9100b6a7",
         "template.json": "6d82c6454657b1f9b1a34ca4ee67d26d1bb6530108db388635d3f9375d4abc91"
       },
       "mixedEquipment": {
@@ -12771,7 +12872,7 @@
       },
       "sourceInputSha256": "33e0bc4a71673f33db7dcef067dc4e7a3ef759f9a50f2615bcb8191e4215bcbe",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "c443dac03837a6fd03aa0f6d90018c02f5480922f38918763f578eaf9b0dd72c"
+      "targetSha256": "f78734cf7ed955a6a44bcee2f5c04e3a95cf10a713a4414ab3462b97c004f0a0"
     },
     "doc_b60ce9db5781b204ad6f4eb5555b12c7659a5fe46eae388fc42434932b35decc": {
       "capability": {
@@ -13135,15 +13236,15 @@
       },
       "files": {
         "alignment.json": "c7855bc20870140e1c6ab417d4d4c99e42cd3cac2661fb4f59bbee4b4fa22a33",
-        "contract.json": "768503d139c8752b8efaf84d1d812916e89649cd9de4b5ee092ef5d2eb9a5741",
+        "contract.json": "cd34ffb4dc2d1620d4ecdfe834ba9fda5d887f5369f30989d5e55497c6c7b6a8",
         "source-positioned.txt": "face7ce77dcaeeb2022d5eacac69d25a15c550a470cbc52d125a54657b57229f",
         "source.txt": "2d39c25a2cbec59e4d23153de792e1b1072fbfaa3614e238c23fdbf71574bf86",
-        "target.json": "4d9f96caa6dc048e354268499ffae84891ce3b2350ac330003d5c563906be803",
+        "target.json": "8521760e8e2d61ffa5f8e3976e5cc8a2361894c548232d9ef3dba4f307f67b17",
         "template.json": "9af2d9e8468e406d6431bf5b8364836584f75887bf8cd3997d6d808719f6aecb"
       },
       "sourceInputSha256": "2d39c25a2cbec59e4d23153de792e1b1072fbfaa3614e238c23fdbf71574bf86",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "42d29aee224fb46c40a8107e5ce90a82f92543ae0621ab7824411992c2d34e47"
+      "targetSha256": "dd992fcf0db8ce32fbf9b5bc1476910add7319fb65a23c62a4a6110f448d490c"
     },
     "doc_bc52d98af4e68a4b9f15bbf27beb14652a3c6b952cbb2d8ff774f8260520ded8": {
       "capability": {
@@ -13318,15 +13419,15 @@
       },
       "files": {
         "alignment.json": "4b7629a86b718c969a29ab6b5b9947e7fa9f564cee58768e137800c549b1da57",
-        "contract.json": "b5e379642a0ce941c5d968af623a7f6a97312aeaed2f66530989c3a32c065042",
+        "contract.json": "16207a19750f75ed8ff060a39a01a067506ddce8ad46515563aca7c567bd68c1",
         "source-positioned.txt": "c2f5f653d3feb2da197551d9adc78e6a6b91430b772e3c9f8cdcfa05d85900b3",
         "source.txt": "0d08e624b43a386ebb1c6729958b6d0164ef9a8d6de1e486bd565fb03acd6129",
-        "target.json": "4f4d85f6c2a8b7942d215ce6710de1b52184ec420c5f0fa27cc20fa144dd1b32",
-        "template.json": "792b60444e8d06cd1c6b3883531accb82de115bfeec554b43f4a6a6233bb438a"
+        "target.json": "aea4e05cb77c4cacabd26ec4e47aebba2272fe6865a1df42e53e5a35923e7ccc",
+        "template.json": "082f84ba319f7fe5590c0cc155b5d1daf045342d4753434167ebd0f9ece82e01"
       },
       "sourceInputSha256": "0d08e624b43a386ebb1c6729958b6d0164ef9a8d6de1e486bd565fb03acd6129",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "99a8a77d70cbc33058bdacd53573f51b1b4e619589939af5dc8427c08cabd132"
+      "targetSha256": "4a4e39e4a1f2c602413fe671e36e8a65bc97efebc9705d27ad134d81dadd1516"
     },
     "doc_c1f612a21fa1e68e9b6bee2bb2e99148d84fc5c3059a1d5a4d45986b4be7c9e1": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion60-r27-batch01-validation-attempt02-v1",
@@ -13396,17 +13497,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "5a5e9de9da754c882c9d07f7e9670913c54215fcd2e49d9496734ee13ee36880",
-        "contract.json": "e229a789201335e1fa4e8e1c3b96de51329335ce890d2eb61444b4cc710cd03d",
+        "contract.json": "7de03cfc2e9995fd02bb99afdeb356a54f0604af462318d27817ef039ce9da8a",
         "source-positioned.txt": "604a6e70fe028f1276c083cf8064945819d873b92f420eb6571337a668b08311",
         "source.txt": "f0c12216ebe13744c7921cff0f5e5f7533a03a5bd0bfe319b99fbf8aada454ed",
-        "target.json": "02ff4f955838450964a6db372d67987e4e65062fc7c1c287ab9d614866f64e9b",
-        "template.json": "503f5ef47405b95552fe63ab886ba0534950d296697ade25e52173c940f5d19b"
+        "target.json": "92f1aae632fc60eaeee1858bc75401a987cbc99fe2eb98f75b40dc8155dfef8d",
+        "template.json": "1a077cf67bb3e22d92dc3294ad535855e40faa1abeb861c6b19ee74009c2bb5e"
       },
       "group": "thermal",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "f0c12216ebe13744c7921cff0f5e5f7533a03a5bd0bfe319b99fbf8aada454ed",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "1a91bd94861f689291d72087e03c3305a2c246e4816f9596886378de5df7c09f"
+      "targetSha256": "9fc6d99023f8a498ff4671df4be19653c1bebcde27ae14f25dd7c0967b8ee778"
     },
     "doc_c4a848d54408dafe980d88459ad1659867d8c22d20d72796010a029d979ce13d": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -13416,15 +13517,15 @@
       },
       "files": {
         "alignment.json": "6f8044f79fcfb7b27ed1cf379b79dcd575663b9cd49e4b83aab677cd2dc894ee",
-        "contract.json": "ca18a092267a7e5fec7ced02ad58e9e56f644f752dfefb0d6ff7c5910d646b2a",
+        "contract.json": "ac76e064ac0b46633985f369713241dc9dfefc34b3d4a2028cdf218469f12ab4",
         "source-positioned.txt": "823c147cb85b1cc86c24d710f116600d93701831f9b535c180b3f26dee55e2c3",
         "source.txt": "74fce7acce2031d40e1243d927a41eb7d488179dc15c474b68aab9e13416178f",
-        "target.json": "992e03f14839665162a1b47b2bec21c27f7c7dbfa78c0a61b1c305b92be69800",
+        "target.json": "aff8fa38e350440ecb87f86da341da1f83dcc379ff78926c555d3830eafb0a7a",
         "template.json": "f6d765f7f04b763e90d5c02c6e001d2cfcac1eb3dc41acb3f687507698873e7e"
       },
       "sourceInputSha256": "74fce7acce2031d40e1243d927a41eb7d488179dc15c474b68aab9e13416178f",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "236a50d41d94963d41bf1c6cb0e6bd28eeaa6fec7d08a3b3d84afbb1858a38aa"
+      "targetSha256": "0b2c9729bbc3e27a70f72d43a47a2d9fdac609b92872fc9ae12f63414b92ad71"
     },
     "doc_c4df0ac5aa163d35076de464c960fe29b4eb22e91650b1aa888a870442d58f34": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -13690,16 +13791,16 @@
       },
       "files": {
         "alignment.json": "43fb7d68873fae6b713e10a1a8e3ceb890b1452aa793ebbdd98182d4059aa49c",
-        "contract.json": "71f15c36e3d29ac7209bed74188bcbe382111314ab34eb11724e5b8c60a343bc",
+        "contract.json": "839b5320d4f1f2160a648a21c3d1041871c02a35f4c2ba9b1c03350aa04217d0",
         "source-positioned.txt": "0f3ba7960da8e47ee8692e22ad2e8548eeba8ec0d204f68858000807049cd78a",
         "source.txt": "63d713a45710c544d447c8ec7e0ed1322e03bfba1482a3f1731059679b5696d8",
-        "target.json": "f10b546d30e1d7e69322663f8c7145ab74ec2c094ed1245e44201e5b1141bf8d",
+        "target.json": "a0d158cdc4e5980e1124c5c9e2dc49728807c6149a306b02f76b3e35aaedc62a",
         "template.json": "50c89b4fe1495530e95d80c053b8d5c748aa51bfa295cca5d71f9529f9465575"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "63d713a45710c544d447c8ec7e0ed1322e03bfba1482a3f1731059679b5696d8",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "7d272d9fab8611dd820abd0c449696039acb95c4aab512867af5331bc3502d01"
+      "targetSha256": "bea484d4ba7fe6b4f98bf60dc08c56c641c514bde560dc20831f203c8fad3f83"
     },
     "doc_cc1f69abcacb3edfd96d11d938e03571e7770e3370de8ef451f2bc2cd79a7932": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -13826,15 +13927,15 @@
       },
       "files": {
         "alignment.json": "65e3e6902aab349f3283fa2aa43be8e888477b6ddc48b982beea4493e639fa5d",
-        "contract.json": "48bc6d884a31af31788edd5667e043b0f49bc81322520f17dbe09b623b26f8a1",
+        "contract.json": "45b72b5b349ca7bf55a1d8e97da3586577b95d3074e1bc75fcb47a4b0568a883",
         "source-positioned.txt": "17a9b682e7342a99187f9a0225a696825ffb28bef16425903465c34b7e58742f",
         "source.txt": "a9829807071b07b40a78493bedeebe605a2e6d221d86a1d1263313592720fd91",
-        "target.json": "952c3c03aee4a94d4ab79d5e86fa438f8987577297dc9acf48c424a6758ab11b",
+        "target.json": "4e23141f6ed74a0db9d0c24aa70431be096ff0c3b461fc4b15334bb3d831d45d",
         "template.json": "6a8d1fd4aee778d6821679f1b3f45068ff821d1cc59626638c1a56c3934f7cc0"
       },
       "sourceInputSha256": "a9829807071b07b40a78493bedeebe605a2e6d221d86a1d1263313592720fd91",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "42c23a3bc42b5d2ded03e6d69a28712999f736860485c3677ae27076707918f0"
+      "targetSha256": "67231ef175ab3577f2eefa0043e0e9c2ee2a48b0f0e9566faeb0231934fac55d"
     },
     "doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770": {
       "capability": {
@@ -13860,10 +13961,10 @@
       },
       "files": {
         "alignment.json": "add68f4ba19ffb365b64faae8b40975045c3e51f3557d7c8bba9916368ed088c",
-        "contract.json": "9d1e3a408e36840480445760f215ed624ff10299f1e4a5c73ca8cd04c77f6573",
+        "contract.json": "ca6570433c371e3378b074934636b13332b14f5679478078991ce27b474d017e",
         "source-positioned.txt": "bba96e5c693a9d8118a6f1dc3b346912bcf386e958bafbf9dd4bded909874209",
         "source.txt": "0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795",
-        "target.json": "ab238717cbd80fe3ac72b95da904d1c48b8e0b7322b41cb7a2f58adc22f44cd5",
+        "target.json": "432898e23ff852d04b045bb5d661ba2af2c6a66561b579fccf0767ba11fd1606",
         "template.json": "e8c17dca0177adf390fb6df2f4a70dd36b6f0a5e6fee333b00c3b347aa5af96b"
       },
       "mixedEquipment": {
@@ -13877,7 +13978,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "0c8fb40889224782ec6c829c9c0883eb04cacb4842e9fc2a8583585703587795",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "5d3bb69934d9c9cf8e416ef82f724d053b0b1a550390578efaffd18d5b76b532"
+      "targetSha256": "5a6f7dddebc844f8c2c780f5fd48547cf11b2294e5985085f5d27c83ebe81a97"
     },
     "doc_cf1c5acdd8ed0beb85c6592d48c13b09b4f6e84c1e733e99be6f5022d679099a": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -13887,15 +13988,15 @@
       },
       "files": {
         "alignment.json": "81cba9952b32a55ec9ac44bd2448c21193e1a7d287abbe30e6a053ff79b40039",
-        "contract.json": "5a5e8d63c6760485f7ceb36ce23c544ed22b59eed2d98184a4cae28cc27dd0d3",
+        "contract.json": "6a715c09901a2187907cc928f6d0a070d55e5e2b7cee565cf52b468901f7344d",
         "source-positioned.txt": "77fdc4b6fa2a577c2c82094f9462f7df61b7a103dda251a232df9f71c9b30741",
         "source.txt": "6c35a2edcd3230954bcbedb5b0cb6a63c0dcbf5749bb524f6c9dd6f2d323c47e",
-        "target.json": "2c07da64350bdb7c5100bf8d3fdcbec6d170a26874fff001ca2ba6968b567f52",
+        "target.json": "aecb3b13df6da3294319145f0856fe3128d2a39265b4924107e10b4f8decf8b5",
         "template.json": "be74b1760258c0fc29914749226847afb3fb840b12bff45a110a8a746a76144f"
       },
       "sourceInputSha256": "6c35a2edcd3230954bcbedb5b0cb6a63c0dcbf5749bb524f6c9dd6f2d323c47e",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "de586ba6f13ab84ed9df0dc22524117947a9e7cfde5cc04ce25a9f2d2f1423d7"
+      "targetSha256": "02d1dc99f5f3b92f17879784cea526e48360cd12253b945558a55ecf7cdc4540"
     },
     "doc_cf5d1861839f3d092d166be1296370fb2b4d2d2feb32bd90996e805a0f132c2a": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -14008,15 +14109,15 @@
       },
       "files": {
         "alignment.json": "9f57adcee9156417a6ee359317cada5f81d411c9d8f48b8d825bfc4732445a87",
-        "contract.json": "b157b10b1b12140914bbad0b0b0232e64f2ecae8f5f5774704fc7606fd9323d8",
+        "contract.json": "d6b4fe7620cccac1e8e57170573b0651f221f3077e69abfde70e60f2a0e1e019",
         "source-positioned.txt": "92e00bde3ecab5717df0b0dc6b21bc2a27fb5a65f72c795a561143e01881e394",
         "source.txt": "03f4651c952622a33e5426e3aff8415955c07197918aa0f5bbaa7b20f7ad900a",
-        "target.json": "2a16b28f90b7a9ba1212975f5b90be08a6b5d5954a726d65c082d91fe03ed969",
+        "target.json": "1168fb9141e435c398fb0091ebc25cd9ed327b4d4f0e068b41c4770579724cc9",
         "template.json": "10812089933412ed632f151388c19263831d64d6e15fd11ca4e037a357987490"
       },
       "sourceInputSha256": "03f4651c952622a33e5426e3aff8415955c07197918aa0f5bbaa7b20f7ad900a",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "d8379bae88ebc6255c0d745da53ef6310eee4f2106f12fab855161a401bc406c"
+      "targetSha256": "2482e1d5dd7226b3d6ea59408cbd290c1e8e7e6430ec80a7c2b0daa51607fb77"
     },
     "doc_d383908ff8a8d131a545d9e610fbe39c4424f566f3c77e051daa2ae45f592290": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion360-v1/batch02",
@@ -14154,16 +14255,16 @@
       },
       "files": {
         "alignment.json": "29fa08a09497d06f16b30e407c5809b352427ba962dca74a9add98145b223b3e",
-        "contract.json": "0e79bc03183bccda92f60d07b89d425ef1d4fe227f8ae1b11938273cb054725e",
+        "contract.json": "e6c957220f9fcd25f26313a1d42e7dd384a312aae3f2f41fea326f377920cdc0",
         "source-positioned.txt": "e0fd89dc42dbbfd34902877cfe027a9b0b7c88c2883132f9ae8e4bc4c69e54dc",
         "source.txt": "3e2a851fd92d2db5f8607f7f1b4997a9e29abb154605371303af2b93c5f745ba",
-        "target.json": "51a38f0e447b6afd98fc64186c15de3941025c62db2dd86f5772b9098ff24c25",
+        "target.json": "b0aa2b8528f9c3a6df1612731591e2054d6c951a1319a16232623ca74dcf52bf",
         "template.json": "5804eb7ca1739572e958ec53431936782c2d1ff3bb2ad98d4e0ea314c35a6986"
       },
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "3e2a851fd92d2db5f8607f7f1b4997a9e29abb154605371303af2b93c5f745ba",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "e7e4e2c8173aba03cc9634ed63a340673a803faf32539435ccb37249b518654d"
+      "targetSha256": "848c968964d1a4fa65691a8be1a4f191bcc0607f5f654bef1114c7db84f32248"
     },
     "doc_d684b168dd84e33c361a1a5b111efd07f1e11dc10682a2f1932b5ecd7f5e915f": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -14202,15 +14303,15 @@
       },
       "files": {
         "alignment.json": "322f2ea788814efa97dbf3d17669b01cf701db89fa8bbf151918c6ca3bc0aa53",
-        "contract.json": "d628306319226e1d7396ea28a17ba7ee0ba4b9e486c97b47bfba2707e8998761",
+        "contract.json": "50b036f92bc36f1095f5056c55265bbe4d550bf333acf611ac88f44cbc2a6591",
         "source-positioned.txt": "8e5073baeec2ed6795a1dda36597291ca50e212cf2d182069c20812959454980",
         "source.txt": "f27e2a240eadc40e4a3b92dae5fdc0bc8032d77bf70a3c47d9da398e50c4ace7",
-        "target.json": "e97f58c55d64c89c2db88c48bd4eb52edb852eb581290a0c22a90a3f3937683d",
+        "target.json": "e06bd21dbe808e31163b1a2b932a709db714a236e8672643bed53e02ba2d65c2",
         "template.json": "25c7bc1d00cc48a27129314064e6dd0c1b14d7436861657caeb5370115b0d6b4"
       },
       "sourceInputSha256": "f27e2a240eadc40e4a3b92dae5fdc0bc8032d77bf70a3c47d9da398e50c4ace7",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "29a223948476378a765bcb5738ff96a0c70421e9bb6e5e974b600b455a1b4e19"
+      "targetSha256": "9713334c14bb8e2dfc2034588fdd82e4651d6925bcd39f17df4dc25a0dc31c7c"
     },
     "doc_d6d020b7edd4a6ae8e2c25cddd9fbbe08ba497dcd60cfde59a7a00fb7d825675": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -14455,17 +14556,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "78f9956080faa0782aeecf09a6a0103da394e60d0b95835a7cdfb7d8086a63a7",
-        "contract.json": "d88a0a3c4ea04f0c664dc1e8131fc957a12c392ddec571b04034d14ca740aaaf",
+        "contract.json": "fcb054407b7e02e39787ec2f03d25aaa07c55f52ad0b7710d3fd5f87d2452a3e",
         "source-positioned.txt": "ce249dfc30e9f50b6a6ced4cf31ffc72468a306521e73e6583127b3b31606a9e",
         "source.txt": "767ce8f90dee9ff2c51f39231231c110f3e869fb12df110f9c3bba072dbe4735",
-        "target.json": "b61cc2fe027d85f1cd9d5849e0bc8f82c97ac114a100bf8e565e410ef728d268",
-        "template.json": "8c13443111bba2ef2f5e65796fc5373b5c4cf4bda6fd7b6e2fc8bd80b563c3f6"
+        "target.json": "95fd6bc619602da16334e2dd03a369911677e6c721d377cb8185111d44887c70",
+        "template.json": "28db11ceab1afb206329a160daf25f65d462682ba623826c0a61f54c685b7400"
       },
       "group": "nor",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "767ce8f90dee9ff2c51f39231231c110f3e869fb12df110f9c3bba072dbe4735",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "f29a98a0acbfa004648eaa83fadc394b4f87f7c5f2ee835ae78163ce2a18e806"
+      "targetSha256": "7e70a35240acfed6f975f22adf3d05cab5fcd5a19bd4cef345ca0949b4b84fce"
     },
     "doc_e18486c69179f0a9a6cb73e85c76385f07d13e1fd3237a250cc3d4d74eab9566": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -14475,15 +14576,15 @@
       },
       "files": {
         "alignment.json": "13f32715644469be116e6854571f6c2c661540f34da2037e16ad6edc70216a53",
-        "contract.json": "a8a32cb81ab21af44535623826e6e2d6e36714d58111bfb5dd0e3c34d065f5a7",
+        "contract.json": "fb8eca8532a616881b0cf15f7f38aed436b76b738a6ffcb8f7912b4354e451d9",
         "source-positioned.txt": "9195f22b306ef1ed11978bb0d4ccaed219267ea1fc8d3e82fefe4f8105603b7b",
         "source.txt": "d9e229e46eaf59b46055f992b34bad393486868917e0ef0e0c25540f2ec560c0",
-        "target.json": "b00bb28b9dc7b714fc0d9638e983dd2ba03ff8cc16749c33dd503a4794627893",
+        "target.json": "ff26d4e25dc24c9b2b21dd067470a7611ad373185ae8a09b7bf10370c2f474a6",
         "template.json": "5324be2d1eb707a07460414787cfcacd0002714dcb8f3ecfd6081ed70aac0e14"
       },
       "sourceInputSha256": "d9e229e46eaf59b46055f992b34bad393486868917e0ef0e0c25540f2ec560c0",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "fac5522fef22f37a8b79ca8c6dafe1cd39f86dd5745693042d5257a1fd113e7e"
+      "targetSha256": "8b10bacba71fae0251e9969f35346f7fb4c20cf3a7649a7516f583ea8faf8305"
     },
     "doc_e266b1fb283a828f108407509d591bcdc67c257d19fa84fdb4dbaa656b69af0c": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -14737,15 +14838,15 @@
       },
       "files": {
         "alignment.json": "5e5860b493a642aac4266e447e1916dbc6189e3ac0065c191ea070874106822b",
-        "contract.json": "f8a624f70d77ff9a69b45df876f47bb6d8168abd1178e2aa5ade2feb6b14f198",
+        "contract.json": "d4a8ee49c6dc3f98e63cac491a2d9ae1ce4f493233413af6e4dda47fde8fd030",
         "source-positioned.txt": "d42686c55bdaf18b16d45d9e9dfd6427e8824bc0789fd3a73f9c4916d73cef6f",
         "source.txt": "98081f1d453dd01a50ece484bed919d2bfbd5833679f3c061bc7ff84d7494b2b",
-        "target.json": "0278446e64ddf5e10262a5dd7ae0ee128e464528ec584fafa68cce4ad1644b2e",
-        "template.json": "87cb91562c0112a371c811d5fd8aef59a74b6e4f4a13369f76969b12b9299584"
+        "target.json": "7bf1c4fa67da9b53efce1c3b88f0a90a732f7374eb69a9d76865d36bf37bc5d7",
+        "template.json": "33c43fffaa6ccfbf2398fb8618bf1b3f4ba366b27d064c61cdf7f5bce0ac534c"
       },
       "sourceInputSha256": "98081f1d453dd01a50ece484bed919d2bfbd5833679f3c061bc7ff84d7494b2b",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "89a6fdd52d5e26f09044f9b6c853db40a68f2a7f5e8da6bc8b85d702fa66b008"
+      "targetSha256": "3bacbee72714d158db1c798b0417833877f488dd7d4327d944625be0e9c33f15"
     },
     "doc_e745f5ba986215849e936612f1c76767ae3dc4b270bf753e8595cf5048b262bb": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -14862,15 +14963,15 @@
       },
       "files": {
         "alignment.json": "e9c02089021b0f7edea0f5f5bc87a08a87afc7c35aca47df41e71f9dbd34fbe5",
-        "contract.json": "4fb2a90806d6cbf798ff3d085470ab4f02099403bc1d6f531198e02e2edc04f2",
+        "contract.json": "7c09931e85ea822d5385ac095971ed314554a010f46ff5798f277de81eca7f2f",
         "source-positioned.txt": "5cbde859cfb5181d6a5278210b74cc8e907192f252f26bef432cded141d49155",
         "source.txt": "8da53d5423179385de4c602e75b5e3c621461ef0986a5b215571af847649c347",
-        "target.json": "8b1fc67aa2bce24631589561a239a2cb8b0f5e06d89ce590912a9fea1e97a0cc",
+        "target.json": "690ac9c163d14c05126c68b8013e40ace8e504bad717ef930bd6bf3330a65269",
         "template.json": "bcfaa91498045c4286eb7ac1224094ecf50c314b73eef923a19b1c729188650a"
       },
       "sourceInputSha256": "8da53d5423179385de4c602e75b5e3c621461ef0986a5b215571af847649c347",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "db33237b8226c9b87a1f13bc16e8a54d65c948d9f6ab5f9648eae1a1f9555a92"
+      "targetSha256": "94ad4a8fccc55ebb714830df3c4df97676ab0ddb8eaf76e0e5c76d1970cad7ad"
     },
     "doc_e7dd0529c8ae192f11246d2e88d0bdd430e23a0e8318262f8859a1bd8700a013": {
       "capability": {
@@ -15013,15 +15114,15 @@
       },
       "files": {
         "alignment.json": "1b7ba89e5c1d28a846b6ed3994f742118d819c9be9ed40d5caefcbd206f4707b",
-        "contract.json": "bf6dcb5f3a275394a3fa1a590e6c928c9884c6e927c14574a5aaf9310abdb46e",
+        "contract.json": "1808cdcff26dd8272d2f63f76707e2cbee2974c0fdb48cc597085dcdcdef16b7",
         "source-positioned.txt": "87da96624be6fba89aa745543a3651b6eb84faa1be4d5dd347f8813ca9e8fb74",
         "source.txt": "e1d259f3a6196c304bcbf4438fae76e4aa46846524836c5bcb97dd762f0a0a76",
-        "target.json": "722682f7ec384eb9fe190364fd758b273c7692c8a1a4c65d18076bf02c6aeb85",
+        "target.json": "a0036fb5fe95bf5a8389d672f8ec692991160dc9bc9f5fe088dc2cd52bd60f88",
         "template.json": "c2384bec0ec8fff584be7442bc9047b122653e6038358e272619bf58df67b0a9"
       },
       "sourceInputSha256": "e1d259f3a6196c304bcbf4438fae76e4aa46846524836c5bcb97dd762f0a0a76",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "34ddcda7d750fa888bdfd042a57244984b58098761cce4a0710e2f9306cb116c"
+      "targetSha256": "235e703caef5f85c43298632d6732dfc413f689528ee1737ec2fc7f129cf47b6"
     },
     "doc_e9275395ffd502d904e3dbdd7387b7fec058c33ee58a096a84a5a1166e80ecea": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -15075,17 +15176,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "38e55dad47ad6177dfaf60f5fc097642518672306618b190b255c948571b3ad2",
-        "contract.json": "72646a1cf3ca0d7617ffffd7c225d37ba9f00ea5b3ccf9d571233c3d211a44ed",
+        "contract.json": "4ae6be9bd76c2b9aa841c9ddcb165d7febc7bce05ba8f03b4169478fcd23d145",
         "source-positioned.txt": "ae7466552a43a525da039c238ad85f42e5618f101839f1ef712f93ff61b3522e",
         "source.txt": "e867be40d1450351d0468699cd9f5edd5eda90cb755f4ca5207b40cfb1576a25",
-        "target.json": "3258256c9c5528024d49d03771d5f6bafa1af3e3aecea2eb9450874d7d796b2b",
-        "template.json": "267ea8c956752eea459da38518078dc3d652201918ffda57622096e83bcd8a32"
+        "target.json": "7e493e2d4bee611e53f5d1911f468810930e0974de7a21662d108dda6375d92c",
+        "template.json": "7d68de98f0e4b20d2e3151a0483c9e3f1d9c643d36b2b3508ee361d74cdf3240"
       },
       "group": "thermal",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "e867be40d1450351d0468699cd9f5edd5eda90cb755f4ca5207b40cfb1576a25",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "86a1a02575ece220e796d288a41893d511cf3d8c8ee3eb23a3cb230cf9cf6cbc"
+      "targetSha256": "92dc553b76140665b60c9360189bf51fe77dafe5813343e0c7b25d293564c7f4"
     },
     "doc_ea28ee0b84bcec057cfc84b67bdd08ff9d840c3952e45ecc7772bf5359e86ee6": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -15113,10 +15214,10 @@
       },
       "files": {
         "alignment.json": "7c9ed0f7b2aa9d004526a526f88d2ab648ee876f4ae79ddff736180d042408a1",
-        "contract.json": "8d46f4ec802e700a70dbd8691e3f1072f915d1cb28d1834dda8d381b33ed8987",
+        "contract.json": "dc86286440132e14e5ef7ff4ad835fc6a742f784e1d6ce687453296419933768",
         "source-positioned.txt": "6165a139091687f3a8ffc27fff28dc595becf5ec22cbb7fe12c14fa136400916",
         "source.txt": "d5bb32ab1efa9c59508abd6c86a6971a45c4e71426ff63c9bb292b07b78ceca4",
-        "target.json": "2bec7a3e09b07eca5253188400eb6c92a1d295a6ec4513f187765101aad56a5b",
+        "target.json": "70a17f9d65240cffc3dfb811921316f1c17d4c01ceadc2b58dedd0021ac48726",
         "template.json": "f5386f8e5b37120b44507bf87ae8370fae1e399f9c83b23e52cdbdf28afed974"
       },
       "mixedEquipment": {
@@ -15130,7 +15231,7 @@
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "d5bb32ab1efa9c59508abd6c86a6971a45c4e71426ff63c9bb292b07b78ceca4",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
-      "targetSha256": "15a3d5e3170f3823de71c912245a67f9f6db30cbe7fb687aa9ab8482eef6045b"
+      "targetSha256": "fec1600e0b69100cda50e4678abd3bc526280cb8c65a28ce58acf339f7664dac"
     },
     "doc_ec7035fcb835654a6222cea831de549166ebd972f4570c7078812f8ef1ef593d": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-thermal-expansion30-validation-v1",
@@ -15219,6 +15320,27 @@
       "sourceInputSha256": "c3e5cbf72d24a45184f93fab6d7ab56b3f6fc8bb3040b61f7abbfb4ec2d4be72",
       "status": "admitted_2_variants_content_and_geometry_reviewed",
       "targetSha256": "98b5314d554ef5e7077851ed300ddd62f4b6278d53a3074a4fbb85fb1f6b8a1f"
+    },
+    "doc_ede7dfe3ae6509d0389e46d4686578ffe82fa2302f0f943aee875ead8648a4aa": {
+      "admissionCampaign": "docs/analysis/r28-multidg-integration-20261029/native-synthesis-v2",
+      "capability": {
+        "family": "dg_chemical",
+        "identity_count": 3
+      },
+      "cohort": "multi-dg-20261029",
+      "files": {
+        "alignment.json": "299c90798a517295949b3d6560020557a3621cf9397ca49864f2723269eda124",
+        "contract.json": "7b844375666ef94c78018d66e4734e3e55562709acba8f2a919da479118c6b8b",
+        "source-positioned.txt": "33c64c75330bdb15b647b3c5d8a2ac78dd3a88404a084b3347e2f7ec2f85f154",
+        "source.txt": "6a5bb050f52a22fe1750ee7c620eb5beec742c79c56a2fc678c4e17c978f728a",
+        "target.json": "d4b04d13541ed1026d64b5c549987e9abbc75ace350e4a8b405e49975ce31e29",
+        "template.json": "8eeb64f8ffea53d64b75fe8fd5eb89347a9878d2dd728e45d966bced8c442b55"
+      },
+      "group": "multi_dg",
+      "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "sourceInputSha256": "6a5bb050f52a22fe1750ee7c620eb5beec742c79c56a2fc678c4e17c978f728a",
+      "status": "admitted_3_variants_content_and_geometry_reviewed",
+      "targetSha256": "acc844593741283b7fac3df710cb982b32ca1eb4632b3a19b2f4c43a7c4973e3"
     },
     "doc_ee74bdffc7653eeb44574018b3b3d939e380ba4c2e95b850931f3a1ebeb2009c": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-expansion200-v1",
@@ -15368,17 +15490,17 @@
       "cohort": "template-expansion60-r27-batch01-20261016",
       "files": {
         "alignment.json": "e3dfa43764dec5e4ea5d649b2843d98fa55d25f17ce89ba7b708fb6554643ad7",
-        "contract.json": "2a1612322bd59bd6f019309137ae2bbc0f3ac50900b9302505123221e8868657",
+        "contract.json": "e64c3fe6f6cecd0fd8874e1aa96cc52515edcf3d3f7cb27fa5ba64a07796dff5",
         "source-positioned.txt": "55391dd6b356c5651c221c3cedcc67f515359e4e4d164727738493e20c6577e0",
         "source.txt": "d3656cdeddd177d3308575d91e401ae3527f67f8d0b9d679c7f28f6d967a388a",
-        "target.json": "91f37f22d31792d03d57eaac6fa7b7366e5b56b893eb657711f77389ab4db2c1",
+        "target.json": "d0a675cadd1cda0999a1c0bbf2c115b2682cb7aa2b8deb6c9f1c3b4938235f74",
         "template.json": "3c4fa6d67ea2f09f585aa42a6a3e872c2db9aac4d379ab2c25526021d8bbcc41"
       },
       "group": "ambient",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/template-expansion60-r27-batch01-20261016/real704",
       "sourceInputSha256": "d3656cdeddd177d3308575d91e401ae3527f67f8d0b9d679c7f28f6d967a388a",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "37ec76fa72931cc36945f81f5b016ff2a0d3c232ad78049f31ccbd3ad76e8b42"
+      "targetSha256": "c448da4e81a76eabd33e72bbfece9046129aa03005a7d33b1656f38105206572"
     },
     "doc_f256749bd9718a0bae20e7cdd8fe6942a7b1e3759f3089b86a23d7524f5638f0": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -15902,17 +16024,17 @@
       "cohort": "thermal-expansion30-20261014",
       "files": {
         "alignment.json": "76feb34604a50904416ca00283857bb6f306667fe1b0332c28d6c5c04206a1a0",
-        "contract.json": "ae7281e72c4cc2e26e6c728bf08578c74a451639b03444782f8dd4aef5ba48f2",
+        "contract.json": "812b54311a70a179a6b6df11d6cc766535d432bb6c56aba49a0e8e01412b675e",
         "source-positioned.txt": "5affd64f4e4a9edd3eb3d729a4777722a96674ca858ca990cc88dbef3bfcc4ed",
         "source.txt": "663fadfe642f843f8101401f3920993bd1404734be992c55416739b71ae22912",
-        "target.json": "618a21c362684f999533631b301eda32f329558e24fa4a1c1edc00991b51604f",
-        "template.json": "089639d04c875548fc40b380d1931df4f5f36ac75572f0b4befd0b6dd292e23b"
+        "target.json": "02acb1702f2e917016ad9928fb1454cfc2601ee941dd9f7918920c7f8c7566eb",
+        "template.json": "9c133da5268eb3f9e54bf9e55c31e9579dc4bb9d6ac9777c1dbce4ae6ac8c9b2"
       },
       "group": "thermal",
       "sourceDataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/country-normalization-20261016/real704",
       "sourceInputSha256": "663fadfe642f843f8101401f3920993bd1404734be992c55416739b71ae22912",
       "status": "admitted_3_variants_content_and_geometry_reviewed",
-      "targetSha256": "8a2bdad8f41c9a2ff007cdde1cb16a8611d48c2c064978d5368545f2144909a8"
+      "targetSha256": "653977296d1f60ceb3cfe9c6536698a069d945cd34ebb66e5f88b6aa50ebdbfb"
     },
     "doc_fec3f655ad2f77e0ef63ba1ca98a8e122c340a0c33eb57d608c46b15d1beedb5": {
       "admissionCampaign": "artifacts/kie-synthesis-production/curated-v7-template-expansion300-v1",
@@ -15987,6 +16109,10 @@
     "reviewedCharacterAliasesRemainSeparate": true,
     "sourceTextAndTargetAssetsUnchanged": true
   },
+  "currentProductionConfig": {
+    "path": "configs/synthesis/mpci_bl_curated_v7_multirow.json",
+    "sha256": "b4a0f157cc8af779fc95a5dcb913a99ba3db11ed51b8d0c532ca192f564c425e"
+  },
   "dependencies": {
     "campaignConfig": "configs/synthesis/mpci_bl_curated_v7_coverage1000.yaml",
     "dgExpansion20ValidationConfig": {
@@ -16003,6 +16129,10 @@
     },
     "paddleRun": "artifacts/paddle-ocr/filtered-bl-swb-max5-1918-ppocr6-v1",
     "reviewedTemplateCohorts": {
+      "multi-dg-20261029": {
+        "path": "configs/synthesis/mpci_bl_curated_v7_multidg_validation.yaml",
+        "sha256": "c782b51f32e2310350667e5804eeaff8203311025a904bacc0c75a7ecbb888dc"
+      },
       "template-expansion60-r27-batch01-20261016": {
         "path": "configs/synthesis/mpci_bl_curated_v7_template_expansion60_r27_batch01_validation.yaml",
         "sha256": "1985cbd6c8d83ea4365fdf5ff7dbcdd6fb5a4bfdc10b2bd33d02439fc38b5a8a"
@@ -16195,15 +16325,15 @@
     },
     "sourceDataset": {
       "files": {
-        "manifest.json": "e8c966b7bac02e651740c5820eed7027d227dbd973cf4016c0eb2905e5c51b88",
-        "train.jsonl": "0a54ba7ec30382e0f7bd4dacdd58300371071355c52df0ddf57c8bd8dc8144ad",
-        "validation.jsonl": "75918520914fadd581d2e6bb853af4b0f1d9b42c39e0acfa164e06eaee5786c9"
+        "manifest.json": "30ce8768b3655523f64e7bab67d60a7dde25d75d55822aa015613712f95f423d",
+        "train.jsonl": "7757236d9d7d701f0816a734859984f429e35985db08d7025d50e83a89a7df03",
+        "validation.jsonl": "beedaab7ef67b9d5792320ee9cc1fa9938b21e58e7bae88d33ed127b6d73ad1e"
       },
-      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset"
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/handling-20261030/source-dataset"
     },
     "taskConstraints": {
       "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json",
-      "sha256": "a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77"
+      "sha256": "bccc99595bde135f2c9cc5734ed92aeac5ec258d964b753cbcb19f627d2a18ad"
     }
   },
   "description": "Reusable admitted current-schema templates; campaign outputs/calls/reviews remain separate.",
@@ -16331,6 +16461,103 @@
     },
     "report": "docs/analysis/r28-unit-profile-scale-20261022/REPORT.md",
     "scope": "20 tested uncomposed sources; mandatory for wheel, optional for the other19. Nested numeric composition is not promoted."
+  },
+  "handlingCleanup20261030": {
+    "affectedCases": [
+      "doc_0655d3fb18d4ce3db0d766761900b04419eeda5ef6fd8123ed63a65ac17dbc6f",
+      "doc_0951955dd9effb488ee65cefb3def600ec16288134934a9b0c8e0fd33601d373",
+      "doc_0bfda48a5067e2b6209ca211d408e3138fb09eac654f589025c79c61c2031cf1",
+      "doc_0d102efa83bb466726dbb0d481a7e38f535f3e7972f1c18888e8d5cd390c4cef",
+      "doc_0f03e4688e411acae197b6f0f554f6d11eacaa7dc906072842a12918aa47383d",
+      "doc_11da8a8c9f0e33daafa39cf0a8c9d216edb9caa1b170e201c1f12559fed234d8",
+      "doc_1444835f8734b4e48560a7a0e2d7a245996dbbe0a2f843e2708ec3a57f5a3359",
+      "doc_1464f4500ef1097dba8802751585ae8f5bec407658a44095496f82294077a092",
+      "doc_19580ef7f4598b71d42dd7cd98cf3e1eceb456bce7520d3bc50112a8c92ddc82",
+      "doc_19acdcf6116e25167f4b64278bf825f05438431c2344a77a3061d88dfff80d27",
+      "doc_1b176673edbe31b74ba03995b85ee9be6d0d22218f2764df4648462f7cfd15fa",
+      "doc_1e903c9913ed557aa5df7494e5a990e9a165b049dd6da2fd67b7acb15e89f2d5",
+      "doc_22fa38878d2a936f40e5736b562835b080f7aa1097450cf52bf398ef29b4c524",
+      "doc_234df0afb308c9c24a1b75a4937fe287e3d8365e0aa369a5915ae3bb4a102eca",
+      "doc_2784e543a511d1131e693376f8775f804c338fb7edd7e2c768f688b7b3092031",
+      "doc_27a344dfcd98028504b729c22193aa29c248bbd98faf7bdf0c0b3ed9780a7eee",
+      "doc_2ae5fe6de517e7db09f4e324039fae5886b0ade9fe57e88f890ee356cf5feddf",
+      "doc_30ad41fb637eb87b7b7eb3d1db18ded5139de841d6f849b29a2b7ffbd4d67be8",
+      "doc_33546e118ae47f858e28ce69240bbfd05c257b26e463139dc6e7991d63a9e7f7",
+      "doc_341fc4372f61329114093cf75bdcd2f10665f6711076e45b2c69dd0a10014db2",
+      "doc_35fe798bf179df185a08fbf79f1ba23f0041c540973f1413636b194b58768ef5",
+      "doc_374deb27cc95bb1eb708437980656edfe03919ff7aaaf92b4c35d500fb14f301",
+      "doc_37c9635406d2aa9b1fd0b710d4c975609ca479400f6a43d0b1fe7fe5d40281f7",
+      "doc_4afa4c6f78a980386b7f0b6e73893db728a16e49714fc71d7f671c32d40ce8b4",
+      "doc_4e766b207e0913cbf720427ebbb3a37e8ef0508b2ed94876763de81224b882bb",
+      "doc_51d5f8302e5b4e1f70a50cf4eaed3fd51cc1d661d5953acc25a1e9e76983874e",
+      "doc_53d4726a0e27f4420f9c6dc7b414906181773ea80cc49eb7c296cb7871a911dd",
+      "doc_5431122bcb4e479fc7cc03dc97c023878061f64199df6c666c4cc3f6c1fcd90e",
+      "doc_56e9e1cfa7d7dcbb4025bf0b31ba2883c0b924f23b9fc10761be09eab3ed3d5c",
+      "doc_5d9f78536690c04be148d58477b10597497c5894ffb052493b98f8ebc5dc9e33",
+      "doc_5f92c6280bfbeb26c67df35b00994f24de9c5ab2e071f46ad8726eb48eb55e71",
+      "doc_62f59e68172bac00dbaebd95fb23d2b495b56b1261b7b6cf5be4247073a09bbe",
+      "doc_630cd1591dadcba2198970b816843a2f805294f22e57bd51d6f2b9fc2737ede4",
+      "doc_635b24d9c8f04747ddd8f7ddea82423ce5a75ed8e714c6b35500b8d8a26d50f9",
+      "doc_654e017c7945d151dc6685881aa0fc1dd484ad419ee8281386514b83e4bbf2ff",
+      "doc_68d08294f302764335935c9f2d43b9270ae174a5612cec9f8b1bb4b6da742b10",
+      "doc_6c14020dbba1bd713b31bd4c6c839b5ccfb976421e9eeee5aefd55534c8c2213",
+      "doc_6c5e700d90753d44af4b8dcd0df70bb24c1a3df767b7a66a23b2eb58c29ee829",
+      "doc_70cdb6c8ad37ac8362a560919c434b9a2629f44f81f40d8a110b1e0ebc91b850",
+      "doc_70efc7214e7df62eab6b47fc623ad83c62d8ce6a33a892b9ab9fb5670ebbe1d6",
+      "doc_7383087e48ef35f1cd5c7f01ce109e5fc7dfa7b61b38f455e01067d90b116c31",
+      "doc_7484c80425779b2854a83bc5ce6572065631a7c575abfbf520521e5ef2784c33",
+      "doc_76dcec12a8ff7812bedd1ec93c58ce444a9899d3443a2e4ff2806b2cce3f967d",
+      "doc_7b12b9055a542c5d1fe3968ed5e078914df02aad42d9372783092da79a294aa9",
+      "doc_7c1039681cb921ea4d5c5ddab591e7e1a1d568807a998be525faac1657d689a5",
+      "doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046",
+      "doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9",
+      "doc_8923530ad5c3a2b3756b3f53b1c904c5adda911de9b31e431dc93a67b2105548",
+      "doc_8c54d9747c25cdec7c9c1f5f386a195ebb75a0dddead6e81994372a1f6be62a5",
+      "doc_9184af53353a119908f54974f522dd2ec5695c426c16c6ab48cb21d178ceca51",
+      "doc_940e11dba3a9c5abdd89ae0db5b086a4547083c7d082486dcf20d24c4b87db49",
+      "doc_962ca0ba42cbd13a6883ebf92c354e837bacab41e1f407eeb4e352876dd5daa7",
+      "doc_98612b712449d9041fb1db28fa76b2133f550bd641c6355990791152b3c960ca",
+      "doc_9ad49fcc846c53b1780f28a74c0cd1073d7bb2d812e5b5a76d2744b1ba4a7f02",
+      "doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946",
+      "doc_9d3de4a72498fd9f95952a8036f68167e50c7e7671786e7a029c83ec6244094b",
+      "doc_9ea52ed1c8cb06c6e0f1101616f98b6b1c0a75209c37821e56f374adbc66a538",
+      "doc_a10874628cd3a05a59e7bc660a312859d6ec640c571d921ba9b928c1344d43f4",
+      "doc_a47ae6af360c64967655836c9cafd05c841262117a23ee91d58145628b615110",
+      "doc_a53a1a9e2cc54246896e0fcd8651ecfe668e9d0f135feb4428ead766c18294cc",
+      "doc_a7697f7b5c20ea319427cea80044156c75ae59db46c6973db81e2eda6eafb96c",
+      "doc_a958606c2a74c3079f012618608a436fd4d90777ecceb9cfde4a0cfc26d41306",
+      "doc_ab1056f920fae5f2b728d3109a26c9a39e2c65ad6f550f488382f0135deb5348",
+      "doc_ad628fa28b92b94d57cbd461e44a3a1469c92468442c5ac30b028edf597c030c",
+      "doc_af151047e545127659da19f48ab14ab6c730ec3d32f046e533dd9d317059f863",
+      "doc_b5c11ec94b8b1427a486d88c0eb8b822b7e75a819f12e63bd8f88bfebf3769b9",
+      "doc_bbbb29ef36fe558886181b55f26e4b2e8d2e5f457aa001d60a02f9735b6311c8",
+      "doc_c1b20a71d7a0a83c4976dc87b33e0ac00505cb695f39f170a76d368f5b1549cc",
+      "doc_c483b54260175090305e0d60aec3ee4651025dc466dc088e0dc100d8c75ef924",
+      "doc_c4a848d54408dafe980d88459ad1659867d8c22d20d72796010a029d979ce13d",
+      "doc_cbd4c10514b4f35a26fee9a99ab053023ace7ff91370af4c202d58343099d11a",
+      "doc_cdc8d9982c35a830769223e839ce48815011172ec6600e29d15f41724d078ada",
+      "doc_ce1f474c1200a3348789cd00bf3f8b6bd45db7b55b8d99a5439fbf4660732770",
+      "doc_cf1c5acdd8ed0beb85c6592d48c13b09b4f6e84c1e733e99be6f5022d679099a",
+      "doc_d2dd2e5f442f7a6bd646a00183f661cff52ac6aab9d211b05b81b761464c4114",
+      "doc_d670d18ff1b6a0a43f2136970b1bed4776448ec1efbc6b3a33a59c30d89775c5",
+      "doc_d69c24cb6869b3ddb99d7d114479969d6fd464f3f97228cb09412ab38142dd40",
+      "doc_e16b3787fa240fbde7aedca56d86dd577da82070d99025e3f3d1dc8eb58bf198",
+      "doc_e18486c69179f0a9a6cb73e85c76385f07d13e1fd3237a250cc3d4d74eab9566",
+      "doc_e70b7185df18aa28c376668c4f6404163c8c95ceb37adf9a5857b3215b1c735d",
+      "doc_e7bcc7250fb936b489fde09b24278c488da83d706867b73c639c3ab3477bb72b",
+      "doc_e9120c73c2c30fc19aae3b204cd7ade2552ff08c43ddbe7d0ebe410f7a256e53",
+      "doc_ea06d095a5b08df5104a9abc3b9cded3a2e04d5c19bf14a079b91dd3440c4f5f",
+      "doc_ebb856c7220ab2a66071c536b6f662b26cf593566ca2b4ee0973c705d2abb5ee",
+      "doc_f1f044b2817e5475f904a3c200b05006145388b2cf467d1c677c77a22c843080",
+      "doc_fe1eea9232910412e9a98cacd85f7dbdfaba4e97ccd566ed52fbefb3907f9959",
+      "doc_383ed9b91f6bc3a5efc6d5162ee20d6fa4be60c31c8b1eb772c6f1eb788b4f5f",
+      "doc_45386289dacb9afa9ee6dd7e7a7fbee9e2e985ce9b6de6f77450fe23feac7d16",
+      "doc_4d47f5e76baaeed1b39c58cb3515a441cac6fe0e1d1f182963d6857817eb6aef"
+    ],
+    "report": "docs/analysis/r28-handling-cleanup-20261030/REPORT.md",
+    "sourceAndPositionedTextUnchanged": true,
+    "sourceAuthority": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/handling-20261030/source-dataset",
+    "validation": "docs/analysis/r28-handling-cleanup-20261030/final-validation.json"
   },
   "handlingForwardingAliasClosure20261021": {
     "caseSourceTargetContractUnchanged": true,
@@ -17287,6 +17514,35 @@
     ],
     "unresolvedReviewFindings": 0
   },
+  "multirowPackages20261031": {
+    "acceptance": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-v1/acceptance.json",
+      "sha256": "dac8f3aa9120262a598a2aca1f67df5243a92bd0411061112948b09929c394de"
+    },
+    "config": {
+      "path": "configs/synthesis/mpci_bl_curated_v7_multirow.json",
+      "sha256": "b4a0f157cc8af779fc95a5dcb913a99ba3db11ed51b8d0c532ca192f564c425e"
+    },
+    "configurationRepair": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/multirow-rollout-20261031/configuration-utilization-repair.json",
+      "sha256": "d7eedf06b078aa520d24a6a944b32f69c710c40349cbeff2e3229e64f80fb09b"
+    },
+    "controls": 1368,
+    "freshPromptControls": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/multirow-rollout-20261031/fresh-context-controls.json",
+      "sha256": "f01b9abb28d4a668fa5e2f6099817aa9ef8a1564ad3db24f4c4e81fa6e4948a7"
+    },
+    "multirowSources": 452,
+    "replay": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/multirow-rollout-20261031/final-authority-replay-v4/summary.json",
+      "sha256": "68c7d230425e2ef7e1918676c375b19d7c8cab4aebe66772fa0a2b1675a056e4"
+    },
+    "report": "docs/analysis/r28-multirow-production-20261031/REPORT.md",
+    "singleRowOnlySources": 4,
+    "sources": 456,
+    "status": "certified_native_synthesis_and_geometry",
+    "trainingDatasetMutation": false
+  },
   "opaqueMarksPrivacyClosure20261020": {
     "afterSharedFiles": {
       "auxiliary.yaml": "24f92697204f385c0b2e87b0fc09e10772c8f2d01c3f9755f6742aba1f1ed438",
@@ -17424,6 +17680,27 @@
     "receipt": "docs/analysis/r27-package-vocabulary-20261016/current-source-promotion-readback.json",
     "scope": "Package vocabulary and owned phone-list completeness",
     "sourceTextPositionsAndAlignmentsUnchanged": true
+  },
+  "packagePresentations20261030": {
+    "acceptance": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/package-alias-rollout-20261030/acceptance.json",
+      "sha256": "5ffbf5b647aacf16c7d745956c63385e18dc8d2848d6bfad502c624734694fb6"
+    },
+    "batches": 23,
+    "certificates": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/package-presentations-v1/certificates.json",
+      "sha256": "5be15839611a5bcddedee65609a62ca1969a897134a789ede1df0596ed34431c"
+    },
+    "config": {
+      "path": "configs/synthesis/mpci_bl_curated_v7_package_aliases.json",
+      "sha256": "340201a747c4e83d33fcdc02c00a0091f028676efb091c0cc4fc8cb13eaec232"
+    },
+    "sources": 456,
+    "trainingDatasetMutation": "seven delivery-country continuations and twelve stale non-target location literals",
+    "vocabulary": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/package-presentations-v1/vocabulary.json",
+      "sha256": "4166e83f6264500a8a61b0fa9ca62dc06b2d70c223c065c1dae1e81c847bfe96"
+    }
   },
   "partyDateRouteRepair": {
     "date": "2026-10-10",
@@ -17633,11 +17910,11 @@
   },
   "schemaVersion": 1,
   "sharedFiles": {
-    "auxiliary.yaml": "7047af7779ceb5e9a410afefe2ca50313c9b08f938eacfe8913d0dc8e19f6111",
-    "ownership.yaml": "7a473a5b3438884ebd716b1343cc11e93a84b8d777e51b72af806532dcd86a15",
+    "auxiliary.yaml": "88f84079ac773144f166fe4891651c0c4e91d9dba1e765d59d408eaef77cd9a4",
+    "ownership.yaml": "b6bdec6e0552dd05d0f5745b0158ec6fea901b74efd41e71896c814f26714f63",
     "position-calibration.json": "21fb92123317f04dd5fa597ab59b94efdbcd9a39459f4847ad5eeb0f7892857a",
     "selection-history.yaml": "3a41539c4767e293f47cd95cecdc88c2cdedbc6c1bc12d384a2366ceb7469513",
-    "task-constraints.json": "a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77"
+    "task-constraints.json": "bccc99595bde135f2c9cc5734ed92aeac5ec258d964b753cbcb19f627d2a18ad"
   },
   "source049PhonePromotionWithdrawal20261021": {
     "date": "2026-10-21",
@@ -17651,22 +17928,23 @@
   },
   "sourceAuthorityOverrides": {
     "doc_0ede63c2a7f139dd6a7a443d919dfc38df7d0f471bf149c330d0b810de04356d": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Use the corrected source authority/current contracts. Leading package declarations remain rendered but are outside the approved product-description span.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
-      "datasetManifestSha256": "46b8a3583e42507e0a29c9220bb5adaeb597152071f0be7c1831623a67ed4814",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "reason": "Existing main-product-block policy: remove the independently owned leading count/type introduction; preserve OCR, coordinates and every other target.",
       "revisionReceipt": "docs/analysis/r28-donor-free-full-registry-20261021/description-boundary-correction/final-results.json",
       "revisionReceiptSha256": "bb457f5bafa29f43b551038de2fd445f48bb073c5a38bf0831e6c2df5779ac41",
       "sourceContractSha256": "a847e41dfe43881a9824f61ea9d1d490488de9bfab4acc3966fc650212d2c43a",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "0ed60965c174bd8b882ebe997180cfa0b03d3d09d4a166e7816bbcc07b529b7a"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_23a49094e120e9007adcfd75744a2577f17487c2d9f03260d573b202be7229bc": {
       "auxiliary": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml",
-      "auxiliarySha256": "18b7ccfd54ded1696bdf1f51ccf8f4b396ee06af372d2f9f7444f4f8fa1af9df",
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Use the promoted source authority and active registry contracts/auxiliary; the reviewed absence guard rejects old populated targets.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/legacy-reference-closure-20261016/source-dataset",
-      "datasetManifestSha256": "5c94b6bf19acbb9cf3543a9db64573813454b28eb6f4ca7136a7f02938a9d838",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "date": "2026-10-12",
       "originalAuthorityPreserved": true,
       "reason": "Consignee phone appears only in the goods area, not in the printed consignee block. Omit its target while preserving and anonymizing the non-target source occurrence.",
@@ -17674,23 +17952,25 @@
       "revisionReceiptSha256": "2c065ad422cc607733b9c79e28857d585ba874d979c523059c737b733d3bcac1",
       "sourceContractSha256": "e6705a9da114c5e5cdd509114f1e9545491b5ac7b17cf751ad9587876bf1d74e",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "b2d5b2046c062fba14c250c29b32443f0b8b59730dd54ba626431e6a3559c929"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Use the corrected source authority/current contracts. Leading package declarations remain rendered but are outside the approved product-description span.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/larger-controlled-legacy-closure-20261020/source-dataset",
-      "datasetManifestSha256": "46b8a3583e42507e0a29c9220bb5adaeb597152071f0be7c1831623a67ed4814",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "reason": "Existing main-product-block policy: remove the independently owned leading count/type introduction; preserve OCR, coordinates and every other target.",
       "revisionReceipt": "docs/analysis/r28-donor-free-full-registry-20261021/description-boundary-correction/final-results.json",
       "revisionReceiptSha256": "bb457f5bafa29f43b551038de2fd445f48bb073c5a38bf0831e6c2df5779ac41",
       "sourceContractSha256": "3165156471d63baf5f44d7fbedfcfc5f527ade2e11e4059cd6a7731390e722e8",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "0ed60965c174bd8b882ebe997180cfa0b03d3d09d4a166e7816bbcc07b529b7a"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_68c5e5dd81c606ac459903fccbe2b0474ed59fa81756a53567d314ca9225153a": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "date": "2026-10-19",
       "originalAuthorityPreserved": true,
       "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
@@ -17698,12 +17978,13 @@
       "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
       "sourceContractSha256": "a34571f1a1346f091eec4310d9ee98c3dba6b396f42d93f5821d8cec575f0fc9",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_7c1039681cb921ea4d5c5ddab591e7e1a1d568807a998be525faac1657d689a5": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "date": "2026-10-19",
       "originalAuthorityPreserved": true,
       "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
@@ -17711,25 +17992,32 @@
       "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
       "sourceContractSha256": "ef63e7642c7d9916514690c19f64a5267019126443c0d7e08e89d3d204ed8e74",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_819af5e403f6fe12a16639d0f424dd81869471ac22cd19a814abaa5c88acd046": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Use this promoted source authority and active contracts; stale authorities fail contract identity before generation.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/issue-role-closure-20261020/source-dataset",
-      "datasetManifestSha256": "33e27ad9a9e315965d8e858a6be1d29e0b86bcce2a3905e1c244a9b6129b9209",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "date": "2026-10-20",
       "originalAuthorityPreserved": true,
       "reason": "Issuer-company country is identity context, not an independently declared issue country; preserve issuer literal and own only locality.",
       "revisionReceipt": "docs/analysis/r28-held-branch-repair-20261020/geography/issue-role-819a/source-authority-revision.json",
       "revisionReceiptSha256": "c29f3e4ab93aa0c31a18b0b0313f47255743abc9efb4dafeede01da4a86a7489",
-      "sourceContractSha256": "cec31531768c0154829636fdfe9008827ce3e848a185a2e11491ef0583d9eab3",
+      "sourceContractSha256": "44948bf8d5e438081f26a464bdf80c6b391826c24f992ea7dad06a945140e5b1",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "1ab8bc69a951af252d3570e1a47b8d82ec8e1d406ef803db27f57cba76c8234b"
+      "subsequentContractRevision": {
+        "evidence": "docs/analysis/r28-tank-and-cargo-closure-20261022/description-staging-proof.json",
+        "reason": "Approved 2026-10-22 description-boundary repair; issue-role contract unchanged",
+        "sha256": "0e900d9605f80bbaed7f01ff121deff2fb2554ba9b7e743478d998bb211ebb93"
+      },
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_884975ffae24b9eb4e17ab66eb00dcf43ed87dc2f92ce46c06cbbef47ff44494": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "date": "2026-10-19",
       "originalAuthorityPreserved": true,
       "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
@@ -17737,12 +18025,13 @@
       "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
       "sourceContractSha256": "b1a61e93109b9afd3a2991062ce1fa44509d1d9c9e62da53dd82ad8938900874",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_88bab156b4ec4dd74cd7e5e56fa6210ee1b5bf03891cc2042831cf2f7473a5f9": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "date": "2026-10-19",
       "originalAuthorityPreserved": true,
       "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
@@ -17750,12 +18039,13 @@
       "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
       "sourceContractSha256": "430a4c1d007593555df60f9384b3302c707d04e0fa4522e05608326e8f9d5e48",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_9d082cc24ec0cf29bb934e32eb02a44dafddec01b54be5e267e82d68ee718946": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "date": "2026-10-19",
       "originalAuthorityPreserved": true,
       "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
@@ -17763,12 +18053,13 @@
       "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
       "sourceContractSha256": "4ba4216f327a6290b8b7d4876bff440386725f4761b4fbefa08cafade8349232",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_a10874628cd3a05a59e7bc660a312859d6ec640c571d921ba9b928c1344d43f4": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Use this promoted source authority and active contracts; incomplete authorities fail before paid generation.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261020/source-dataset",
-      "datasetManifestSha256": "07eef3ad7346993bc6bd92709f2f0261a3b69890e86712d04a2db1e3b4e1a5f9",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "date": "2026-10-20",
       "originalAuthorityPreserved": true,
       "reason": "Retain the complete printed phone numeric envelope; do not infer or expand numbers.",
@@ -17776,12 +18067,13 @@
       "revisionReceiptSha256": "c1ebdc247da5674296bdcc26f58fab32777e68447d980d8774935ffc2da19791",
       "sourceContractSha256": "e26f41012ab77b0a95153da31660daa299a296b9ffebc34a14df3793231cbb19",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "220520b67e509facc83534823e9629097ed6b25fecac139f0ef0d85b8c8ba20e"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     },
     "doc_dfaddb83e0f53d0da5eb1899fbc8109015466f36dca3c034e7dc71632f8d7010": {
+      "auxiliarySha256": "0aa6831cf35f8729f016297c3cddeda1fac2193cb364e45564426f68c9148602",
       "configurationRule": "Select this promoted source authority and current active contracts. Stale shortened authorities fail before paid generation.",
-      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/phone-envelope-closure-20261019/source-dataset",
-      "datasetManifestSha256": "846854fe2cad0325858ec3e5848de1add04f69f95955ff887a0e4f22fd626eca",
+      "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/multi-dg-20261029/source-dataset",
+      "datasetManifestSha256": "f8b46d4406ee5b964bb29940561197806958fab9f047f16bbf5a9e12fd5b9fe2",
       "date": "2026-10-19",
       "originalAuthorityPreserved": true,
       "reason": "Retain the complete printed compact-alternate telephone envelope in the existing phone entry; do not expand inferred numbers.",
@@ -17789,10 +18081,10 @@
       "revisionReceiptSha256": "8a3ade5c9ed740ec46a22c1690c87d9d245170178dfe24f18e688191582fcf3c",
       "sourceContractSha256": "cba386a47148d3ebb425051575d894a14404f8ff93f274a55c0e7c348d842c0d",
       "sourceContracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
-      "trainSha256": "d2ad1a1a3af0f370e0fae099915de2ecd85eaa0b5fba88cd44e342537aa7a4d7"
+      "trainSha256": "eaa22c73c7b53c4ec5b51e39696f006530d00a3df8436c96063cfc0db9bce350"
     }
   },
-  "sourceCount": 453,
+  "sourceCount": 456,
   "sourceTargetRevision": {
     "date": "2026-10-14",
     "reason": "Restore independently printed C/S second seals without changing original OCR.",

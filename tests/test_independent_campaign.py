@@ -74,17 +74,30 @@ def test_hardware_tare_domain_is_constrained_to_requested_regime(monkeypatch) ->
 
 @pytest.mark.parametrize("individuals,passes", [([0, 1, 2, 3], True), ([0, 2], False)])
 def test_untyped_tares_require_complete_explicit_row_coverage(monkeypatch, individuals, passes):
-    blueprint = BlueprintFixture(source="TARE", target={"documentPatch": {
-        "containerInformation": [{"equipmentIdentifier": str(i)} for i in range(4)],
-    }})
+    blueprint = BlueprintFixture(
+        source="TARE",
+        target={
+            "documentPatch": {
+                "containerInformation": [{"equipmentIdentifier": str(i)} for i in range(4)],
+            }
+        },
+    )
     before = copy.deepcopy(blueprint.target)
     receipts = [{"owner": i, "pair": None, "kg": "3700"} for i in individuals]
-    receipts.append({"owners": [0, 1, 2, 3], "kg": "14800",
-                     "ownershipBasis": "explicit_aggregate_or_declared_sum"})
-    monkeypatch.setattr("document_ocr.synthesis.independent_campaign._active_tare_bindings",
-                        lambda *args: {"reviewed-tare": {}})
-    monkeypatch.setattr("document_ocr.synthesis.independent_campaign._tare_surfaces",
-                        lambda *args: ({}, receipts))
+    receipts.append(
+        {
+            "owners": [0, 1, 2, 3],
+            "kg": "14800",
+            "ownershipBasis": "explicit_aggregate_or_declared_sum",
+        }
+    )
+    monkeypatch.setattr(
+        "document_ocr.synthesis.independent_campaign._active_tare_bindings",
+        lambda *args: {"reviewed-tare": {}},
+    )
+    monkeypatch.setattr(
+        "document_ocr.synthesis.independent_campaign._tare_surfaces", lambda *args: ({}, receipts)
+    )
     if passes:
         assert _equipment_authority(blueprint, None, (), "ambient") == (None, receipts)
         assert blueprint.target == before  # No hardware category inferred from tare.
@@ -95,17 +108,23 @@ def test_untyped_tares_require_complete_explicit_row_coverage(monkeypatch, indiv
 
 def test_open_top_source_authority_preserves_printed_size_and_type(monkeypatch):
     row = {"sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT", "typeCategory": "OPEN_TOP"}
-    blueprint = BlueprintFixture(source="1X40'OT", target={"documentPatch": {
-        "containerInformation": [row],
-    }})
+    blueprint = BlueprintFixture(
+        source="1X40'OT",
+        target={
+            "documentPatch": {
+                "containerInformation": [row],
+            }
+        },
+    )
     monkeypatch.setattr(
         "document_ocr.synthesis.independent_campaign.printed_tare_equipment_domain",
         lambda *args: None,
     )
     assert _equipment_authority(blueprint, None, (), "ambient") == ([row], [])
     with pytest.raises(ValueError, match="no eligible equipment pair"):
-        _equipment_authority(blueprint, None,
-                             ("FORTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE",), "ambient")
+        _equipment_authority(
+            blueprint, None, ("FORTY_FOOT_STANDARD_HEIGHT|GENERAL_PURPOSE",), "ambient"
+        )
     blueprint.target["documentPatch"]["containerInformation"][0].pop("sizeCategory")
     with pytest.raises(ValueError, match="explicit equipment size ownership"):
         _equipment_authority(blueprint, None, (), "ambient")
@@ -113,9 +132,14 @@ def test_open_top_source_authority_preserves_printed_size_and_type(monkeypatch):
 
 def test_ambient_nor_authority_retains_reefer_without_inventing_cold_chain(monkeypatch):
     row = {"sizeCategory": "FORTY_FOOT_STANDARD_HEIGHT", "typeCategory": "REFRIGERATED"}
-    blueprint = BlueprintFixture(source="40' / NOR", target={"documentPatch": {
-        "containerInformation": [row],
-    }})
+    blueprint = BlueprintFixture(
+        source="40' / NOR",
+        target={
+            "documentPatch": {
+                "containerInformation": [row],
+            }
+        },
+    )
     monkeypatch.setattr(
         "document_ocr.synthesis.independent_campaign.printed_tare_equipment_domain",
         lambda *args: None,
@@ -132,44 +156,63 @@ def test_ambient_nor_authority_retains_reefer_without_inventing_cold_chain(monke
 
 def test_platform_source_authority_preserves_actual_hardware(monkeypatch):
     row = {"sizeCategory": "FORTY_FOOT_HIGH_CUBE", "typeCategory": "PLATFORM"}
-    blueprint = BlueprintFixture(source="40 FLAT 9'6", target={"documentPatch": {
-        "containerInformation": [row],
-    }})
+    blueprint = BlueprintFixture(
+        source="40 FLAT 9'6",
+        target={
+            "documentPatch": {
+                "containerInformation": [row],
+            }
+        },
+    )
     monkeypatch.setattr(
         "document_ocr.synthesis.independent_campaign.printed_tare_equipment_domain",
         lambda *args: None,
     )
     assert _equipment_authority(blueprint, None, (), "ambient") == ([row], [])
     with pytest.raises(ValueError, match="no eligible equipment pair"):
-        _equipment_authority(blueprint, None,
-                             ("FORTY_FOOT_HIGH_CUBE|GENERAL_PURPOSE",), "ambient")
+        _equipment_authority(blueprint, None, ("FORTY_FOOT_HIGH_CUBE|GENERAL_PURPOSE",), "ambient")
     row.pop("sizeCategory")
     with pytest.raises(ValueError, match="explicit equipment size"):
         _equipment_authority(blueprint, None, (), "ambient")
 
 
-@pytest.mark.parametrize("gross,cube,payload,family,passes", [
-    ("100", "24", "28000", "forty_open_top", True),
-    ("100", "24", "28000", "twenty_open_top", True),
-    ("100", "24.01", "28000", "forty_open_top", False),
-    ("101", "1", "100", "forty_open_top", False),
-    ("100", "1", "0", "forty_open_top", False),
-    ("100", "1", "28000", "unclassified_open_top", False),
-    ("100", "1", "28000", "forty_standard", False),
-    ("100", "24", "28000", "out_of_gauge", True),
-    ("100", "24.01", "28000", "out_of_gauge", False),
-    ("101", "1", "100", "out_of_gauge", False),
-])
+@pytest.mark.parametrize(
+    "gross,cube,payload,family,passes",
+    [
+        ("100", "24", "28000", "forty_open_top", True),
+        ("100", "24", "28000", "twenty_open_top", True),
+        ("100", "24.01", "28000", "forty_open_top", False),
+        ("101", "1", "100", "forty_open_top", False),
+        ("100", "1", "0", "forty_open_top", False),
+        ("100", "1", "28000", "unclassified_open_top", False),
+        ("100", "1", "28000", "forty_standard", False),
+        ("100", "24", "28000", "out_of_gauge", True),
+        ("100", "24.01", "28000", "out_of_gauge", False),
+        ("101", "1", "100", "out_of_gauge", False),
+    ],
+)
 def test_open_top_capacity_uses_explicit_planning_budget_not_invented_enclosed_cube(
     gross, cube, payload, family, passes
 ):
-    draw = {"package": {"packageQuantity": 1}, "physical": {
-        "unitNetKg": "1", "unitGrossKg": gross, "unitVolumeM3": cube,
-    }, "allocations": [{"packageQuantity": 1, "netKg": "1", "grossKg": gross,
-                        "volumeM3": cube}]}
-    rows = [{"quantity": 1, "capacity": {
-        "payloadKg": payload, "volumeM3": None, "family": family,
-    }}]
+    draw = {
+        "package": {"packageQuantity": 1},
+        "physical": {
+            "unitNetKg": "1",
+            "unitGrossKg": gross,
+            "unitVolumeM3": cube,
+        },
+        "allocations": [{"packageQuantity": 1, "netKg": "1", "grossKg": gross, "volumeM3": cube}],
+    }
+    rows = [
+        {
+            "quantity": 1,
+            "capacity": {
+                "payloadKg": payload,
+                "volumeM3": None,
+                "family": family,
+            },
+        }
+    ]
     if passes:
         _validate_row_capacity(draw, rows)
     else:
@@ -314,9 +357,11 @@ def test_independent_readiness_recompiles_inventory_without_observed_fit(monkeyp
     )
     monkeypatch.setattr(
         "document_ocr.synthesis.independent_campaign.compile_equipment_inventory",
-        lambda bp, *, allow_uniform_aggregate: inventory
-        if bp is blueprint and not allow_uniform_aggregate
-        else pytest.fail("inventory was not compiled from the exact source"),
+        lambda bp, *, allow_uniform_aggregate: (
+            inventory
+            if bp is blueprint and not allow_uniform_aggregate
+            else pytest.fail("inventory was not compiled from the exact source")
+        ),
     )
     checked = []
     monkeypatch.setattr(
@@ -371,9 +416,7 @@ def test_blueprint_keeps_donor_checks_only_in_observed_mode(monkeypatch, tmp_pat
         lambda *_: blueprint,
     )
     for name in ("bind_postal_country_alias_owners", "augment_auxiliary_blueprint"):
-        monkeypatch.setattr(
-            f"document_ocr.synthesis.curated_campaign.{name}", lambda bp, *_: bp
-        )
+        monkeypatch.setattr(f"document_ocr.synthesis.curated_campaign.{name}", lambda bp, *_: bp)
     for name in (
         "validate_phone_source_completeness",
         "validate_lexical_owners",
@@ -463,6 +506,7 @@ def test_plan_uses_frozen_request_without_observed_sampler(monkeypatch) -> None:
     sample.rows = {sid: {}}
     sample.physical_support = object()
     sample.phone_policy = object()
+    sample.package_presentations = None
     sample.vessels = ("NEW VESSEL", "OLD VESSEL")
     blueprint = SimpleNamespace(
         document_id=sid,
@@ -666,9 +710,7 @@ def test_wording_batch_structural_failure_is_not_reclassified(monkeypatch) -> No
         )
         for index in range(2)
     ]
-    incomplete = wording_output_type([requests[0]]).model_validate(
-        {"s0": {"postal": "CLEAN ROAD"}}
-    )
+    incomplete = wording_output_type([requests[0]]).model_validate({"s0": {"postal": "CLEAN ROAD"}})
     campaign = Campaign.__new__(Campaign)
     called = []
     campaign._generated_wording_diagnostics = lambda *_: called.append(True) or {}
@@ -701,13 +743,10 @@ def test_batch_repair_receives_all_failures_and_second_failure_publishes_nothing
     campaign.output = tmp_path
     campaign.config = {"variants_per_source": 3}
     campaign.plans = lambda _: [
-        (SimpleNamespace(), SimpleNamespace(), request.sample_id, {})
-        for request in requests
+        (SimpleNamespace(), SimpleNamespace(), request.sample_id, {}) for request in requests
     ]
     campaign.preflight = lambda _: None
-    campaign.wording_request = lambda _bp, _scenario, sample_id, _target: request_by_id[
-        sample_id
-    ]
+    campaign.wording_request = lambda _bp, _scenario, sample_id, _target: request_by_id[sample_id]
 
     def diagnostics(request, _values):
         if request.sample_id == "sample-2":
@@ -930,7 +969,8 @@ def test_native_evidence_uses_runner_canonical_provider_not_raw_yaml(monkeypatch
     assert captured == []
 
 
-def test_review_private_packing_uses_current_independent_ledger() -> None:
+@pytest.mark.parametrize("partial", [False, True])
+def test_review_private_packing_uses_current_independent_ledger(partial) -> None:
     sid = "doc_" + "8" * 64
     sample_id = "syn_full_v7_private_review"
     ledger = {
@@ -943,6 +983,7 @@ def test_review_private_packing_uses_current_independent_ledger() -> None:
         "relatedCategory": "PACKAGE_BAG_PLASTIC",
         "relatedQuantity": 160,
         "surfaces": {"held-numeric:0": ["160 BAGS IN 40 DRUMS"]},
+        "facts": {"subset": {"unprintedRemainder": 3}} if partial else {},
     }
     candidate = {
         "documentId": sample_id,
@@ -985,15 +1026,33 @@ def test_review_private_packing_uses_current_independent_ledger() -> None:
         sample_id,
         None,
     )
-    context = campaign.review_private_packing_context(
-        SimpleNamespace(document_id=sid), candidate
+    source = SimpleNamespace(
+        document_id=sid,
+        target={
+            "documentPatch": {
+                "goodsItemDetails": [
+                    {
+                        "dangerousGoods": [
+                            {"unNumber": "3082"},
+                            {"unNumber": "1993", "flashPoint": {}},
+                        ]
+                    }
+                ]
+            }
+        },
     )
+    context = campaign.review_private_packing_context(source, candidate)
     assert context["declaredCountedUnit"]["quantity"] == 40
     assert context["privatePacking"] == {
         "relation": "CONTAINS",
         "relatedCategory": "PACKAGE_BAG_PLASTIC",
         "relatedQuantity": 160,
     }
+    assert ("partialPackingStatements" in context) is partial
+    assert context["dgPresentationScope"]["fieldsByDeclaration"] == [
+        ["unNumber"],
+        ["flashPoint", "unNumber"],
+    ]
     candidate["scenario"]["provenance"]["freshPrivatePacking"]["relatedQuantity"] = 159
     with pytest.raises(ValueError, match="current certified plan"):
         campaign.review_private_packing_context(SimpleNamespace(document_id=sid), candidate)

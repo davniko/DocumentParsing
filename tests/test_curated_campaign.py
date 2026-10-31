@@ -44,6 +44,131 @@ from document_ocr.synthesis.curated_wording import (
 from document_ocr.synthesis.generators import DeterministicStream, validate_container_number
 
 
+@pytest.mark.parametrize("cli", [[], ["--retry-rate-limited", "--retry-invalid-output"]])
+def test_preparation_cli_merges_retry_policy_without_duplicate_keywords(tmp_path, monkeypatch, cli):
+    import sys
+
+    import document_ocr.synthesis.curated_campaign as campaign
+    import document_ocr.synthesis.independent_preparation as preparation
+
+    config = {
+        "independent_preparation": {
+            "package_targets": {"PACKAGE_BALE": 1},
+            "retry_invalid_output": True,
+        }
+    }
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(config))
+    calls = []
+
+    async def prepare(root, received, **policy):
+        calls.append((root, received, policy))
+        return {
+            "summaryPath": "summary.json",
+            "preparedConfig": {},
+            "plannedSlots": 1,
+            "readySources": 1,
+            "readySlots": 1,
+            "counts": {"ready": 1},
+            "spentBeforeUsd": "0",
+            "spentAfterUsd": "0",
+        }
+
+    monkeypatch.setattr(preparation, "prepare_campaign", prepare)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "campaign",
+            "prepare-independent",
+            "--config",
+            str(path),
+            "--project-root",
+            str(tmp_path),
+            *cli,
+        ],
+    )
+    campaign.main()
+    assert len(calls) == 1
+    assert calls[0][1] == config
+    assert calls[0][2] == {
+        "package_targets": {"PACKAGE_BALE": 1},
+        "retry_invalid_output": True,
+        **({"retry_rate_limited": True} if cli else {}),
+    }
+
+
+def test_multirow_campaign_scalar_owners_receive_aggregate_view(tmp_path, monkeypatch):
+    """Repeated totals and nouns must not read the first public package row."""
+    import document_ocr.synthesis.curated_campaign as module
+
+    prefix = "documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0]"
+    target = {
+        "documentPatch": {
+            "goodsItemDetails": [
+                {
+                    "numberAndTypeOfPackages": [
+                        {"packageQuantity": 43, "typeCategory": "PACKAGE_BOX"},
+                        {"packageQuantity": 32, "typeCategory": "PACKAGE_BAG"},
+                    ]
+                }
+            ]
+        }
+    }
+    aggregate = deepcopy(target)
+    aggregate["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"] = [
+        {"packageQuantity": 75, "typeCategory": "PACKAGE_PACKAGE"}
+    ]
+    blueprint = SimpleNamespace(
+        target=target,
+        ownership_data={
+            "surfaces": {"footer": {"expression": "{" + prefix + ".packageQuantity} ONLY"}}
+        },
+        historical_bindings={},
+        contract=SimpleNamespace(variables=[]),
+    )
+    scenario = SimpleNamespace()
+    campaign = Campaign.__new__(Campaign)
+    campaign.output = tmp_path
+    campaign.config = {"seed": 1}
+    campaign.casing = SimpleNamespace(target="upper")
+    campaign.vessels = []
+    campaign.plan = lambda *_: (blueprint, scenario, "test", target)
+    campaign.physical_render = lambda *_: SimpleNamespace(
+        target=target, variable_values={}, surface_values={}
+    )
+    campaign._validated_wording = lambda *_: {}
+    campaign.source_phone_country_codes = lambda *_: {}
+    campaign.package_list_rendering = lambda *_: SimpleNamespace(view=lambda *_: aggregate)
+    (tmp_path / "wording").mkdir()
+    (tmp_path / "wording/test.json").write_text("{}")
+    for name in ("wording_request", "host_product_wording", "host_variable_values"):
+        monkeypatch.setattr(module, name, lambda *a, **k: {})
+    monkeypatch.setattr(module, "assemble_lexical_target", lambda *a, **k: target)
+    monkeypatch.setattr(module, "private_contact_contract", lambda *_: {})
+    monkeypatch.setattr(module, "contact_parties", lambda *a, **k: [])
+    monkeypatch.setattr(module, "source_contact_parties", lambda *_: [])
+
+    def auxiliary(bp, draw, received, stream, **kwargs):
+        assert received == aggregate
+        assert kwargs["existing"]["footer"] == "75 ONLY"
+        return kwargs["existing"], {}
+
+    class Checked(Exception):
+        pass
+
+    def remaining(bp, received, surfaces):
+        assert received == aggregate
+        assert surfaces["footer"] == "75 ONLY"
+        assert len(target["documentPatch"]["goodsItemDetails"][0]["numberAndTypeOfPackages"]) == 2
+        raise Checked
+
+    monkeypatch.setattr(module, "auxiliary_surfaces", auxiliary)
+    monkeypatch.setattr(module, "remaining_text_surfaces", remaining)
+    with pytest.raises(Checked):
+        campaign.render("source", 2, persist=False)
+
+
 @pytest.mark.parametrize(
     ("source_route", "candidate_route", "error"),
     [
@@ -113,7 +238,7 @@ def test_sample_validation_applies_route_variability_only_to_source_route_fields
 
     def run():
         return validate_sample(
-            SimpleNamespace(target=source, source="OLD GOODS", regions=()),
+            SimpleNamespace(target=source, source="OLD GOODS", regions=(), ownership_data={}),
             scenario,
             candidate,
             SimpleNamespace(canonicalize=lambda x: x),
@@ -606,9 +731,10 @@ def test_variable_quota_review_batches_preserve_every_candidate_and_local_ids(
     assert (
         tmp_path / "reviews/archive" / f"source-{digest(old_bytes)}.json"
     ).read_bytes() == old_bytes
-    assert json.loads((tmp_path / "reviews/source.json").read_bytes())["reviewRequests"] != receipt[
-        "reviewRequests"
-    ]
+    assert (
+        json.loads((tmp_path / "reviews/source.json").read_bytes())["reviewRequests"]
+        != receipt["reviewRequests"]
+    )
 
 
 def test_variable_quota_contacts_batch_by_shipment_and_replay_without_calls(tmp_path):
@@ -1067,6 +1193,22 @@ def test_goods_fragments_share_full_brief_without_mapping_fragment_count_to_hs(p
     assert unpack_wording(duplicate, [request, other]) == {"s": values, "other": values}
 
 
+def test_reviewed_hs_owner_constrains_product_but_unowned_fragments_remain_free(postal_campaign):
+    fixture = postal_campaign
+    bp = replace(
+        fixture.blueprint,
+        ownership_data={**fixture.blueprint.ownership_data, "product_hs_indices": {"product": 0}},
+    )
+    request = wording_request(bp, fixture.scenario, "paired-hs")
+    field = next(f for f in request.fields if f.key == "product")
+    assert "explicitly paired with sampled HS" in field.requirement
+    assert fixture.scenario.goods_identities[0].hs6 in field.requirement
+    assert "do not include that code" in field.requirement
+    bp = replace(bp, ownership_data={**bp.ownership_data, "product_hs_indices": {"product": 9}})
+    with pytest.raises(ValueError, match="product/HS ownership"):
+        wording_request(bp, fixture.scenario, "bad-hs")
+
+
 def test_represented_name_uses_its_complete_party_owner_geography(postal_campaign):
     from dataclasses import replace
 
@@ -1457,7 +1599,8 @@ def test_render_stage_certifies_snapshot_once_not_once_per_document(tmp_path):
     assert json.loads((campaign.output / "render-summary.json").read_text()) == report
 
 
-def test_classification_context_is_not_a_second_product_form(postal_campaign):
+@pytest.mark.parametrize("separate_form", [False, True])
+def test_classification_context_is_not_a_second_product_form(postal_campaign, separate_form):
     fixture = postal_campaign
     identity = fixture.scenario.goods_identities[0].model_copy(
         update={"phrase": "STEEL, NOT IN COILS", "phrase_role": "classification_context"}
@@ -1473,6 +1616,10 @@ def test_classification_context_is_not_a_second_product_form(postal_campaign):
             },
         }
     )
+    if separate_form:
+        scenario = scenario.model_copy(
+            update={"provenance": {"commodityPhysicalForm": "cold-rolled steel coils"}}
+        )
     request = wording_request(fixture.blueprint, scenario, "context-proof")
     assert request.context.count("STEEL, NOT IN COILS") == 1
     assert "contextual commodity scope, not shipment requirements" in request.context
@@ -1660,8 +1807,12 @@ def test_resume_flags_do_not_authorize_uncached_payment_failures(tmp_path, inval
     key = digest(["wording", "sample", WordingBatch.model_json_schema(), "sys", "text", {}])
     directory = tmp_path / "calls"
     directory.mkdir()
-    failed = {"output": None, "error": "ModelHTTPError: status_code: 402",
-              "costStatus": "request_rejected", "costUsd": "0"}
+    failed = {
+        "output": None,
+        "error": "ModelHTTPError: status_code: 402",
+        "costStatus": "request_rejected",
+        "costUsd": "0",
+    }
     (directory / f"wording-{key}.json").write_text(json.dumps(failed))
     with pytest.raises(RuntimeError, match="cached failed call"):
         asyncio.run(runner.call("wording", "sample", WordingBatch, "sys", "text"))
@@ -2331,6 +2482,29 @@ def test_initial_postal_fragments_use_one_joint_geography_contract(postal_campai
     assert "Locality placement is joint" in request.context
     # The old absence of an explicit country owner was not proof of a literal.
     assert "country is already supplied by a host-owned literal" not in request.context
+    assert "A shared component is inserted" not in request.context
+
+
+def test_partially_shared_postal_assemblies_explain_joint_locality_ownership(postal_campaign):
+    fixture = postal_campaign
+    contract = fixture.blueprint.contract.model_copy(deep=True)
+    bindings = []
+    for binding in contract.targets:
+        if binding.path == "documentPatch.parties.consignee.addressLine":
+            binding = binding.model_copy(
+                update={"expression": "{consignee_address} {shipper_locality}"}
+            )
+        bindings.append(binding)
+    contract = contract.model_copy(update={"targets": tuple(bindings)})
+    blueprint = replace(fixture.blueprint, contract=contract)
+    context = postal_assembly_context(
+        blueprint,
+        fixture.scenario,
+        fixture.target,
+        {"shipper_street", "shipper_locality", "consignee_address"},
+    )
+    assert "A shared component is inserted into every assembly" in context
+    assert "the other components in those assemblies must omit that locality" in context
 
 
 def test_country_only_component_does_not_invent_a_locality_owner(postal_campaign):
@@ -2518,6 +2692,88 @@ def test_source_only_related_company_is_generated_without_a_public_party(
         )
 
 
+def test_handling_owned_name_does_not_require_an_invented_party_relationship(postal_campaign):
+    from document_ocr.synthesis.curated import Occurrence, TargetBinding, Variable
+
+    fixture = postal_campaign
+    variable = Variable(
+        key="warehouse_name",
+        kind="name",
+        value="OLD",
+        meaning="Private bonded-warehouse operator, distinct from the extraction parties",
+        required_literals=[],
+        occurrences=[Occurrence(text="OLD", occurrence=1, presentation="text")],
+    )
+    binding = TargetBinding(
+        path="documentPatch.goodsItemDetails[0].handlingInstructions[0]",
+        expression="CARGO IN TRANSIT TO {warehouse_name} BONDED WAREHOUSE",
+    )
+    contract = fixture.blueprint.contract.model_copy(
+        update={
+            "variables": [*fixture.blueprint.contract.variables, variable],
+            "targets": [*fixture.blueprint.contract.targets, binding],
+        }
+    )
+    blueprint = replace(fixture.blueprint, contract=contract)
+    request = wording_request(blueprint, fixture.scenario, "handling-name-probe")
+    field = next(field for field in request.fields if field.key == variable.key)
+    assert field.role == "named identity within a handling instruction"
+    assert "not an extraction party" in field.requirement
+    assert "Private bonded-warehouse operator" in field.requirement
+    assert "do not invent a relationship" in field.requirement
+    # A name with unrelated or absent ownership must still fail, not fall back.
+    invalid = binding.model_copy(update={"path": "documentPatch.transport.vesselName"})
+    bad_contract = contract.model_copy(
+        update={"targets": [*fixture.blueprint.contract.targets, invalid]}
+    )
+    with pytest.raises(ValueError, match="lexical region has no current owner"):
+        wording_request(replace(blueprint, contract=bad_contract), fixture.scenario, "bad")
+
+
+def test_related_identity_request_does_not_ask_llm_to_repeat_fixed_legal_suffix(postal_campaign):
+    from document_ocr.synthesis.curated import Occurrence, TargetBinding, Variable
+
+    fixture = postal_campaign
+    variable = Variable(
+        key="related_core",
+        kind="name",
+        value="OLD ACCOUNT",
+        meaning="Represented actor identity core; the legal suffix is static",
+        required_literals=[],
+        occurrences=[Occurrence(text="OLD ACCOUNT", occurrence=1, presentation="text")],
+    )
+    contract = fixture.blueprint.contract.model_copy(
+        update={
+            "variables": [*fixture.blueprint.contract.variables, variable],
+            "targets": [
+                *fixture.blueprint.contract.targets,
+                TargetBinding(
+                    path="documentPatch.parties.notifyParties[0].name",
+                    expression="{related_core} CO LTD",
+                ),
+            ],
+        }
+    )
+    blueprint = replace(
+        fixture.blueprint,
+        source="SOURCE\nOLD ACCOUNT CO LTD",
+        contract=contract,
+        ownership_data={
+            "related_actors": {
+                variable.key: {
+                    "context_party": "documentPatch.parties.shipper",
+                    "relationship": "on_behalf",
+                }
+            }
+        },
+    )
+    request = wording_request(blueprint, fixture.scenario, "fixed-suffix-probe")
+    field = next(f for f in request.fields if f.key == variable.key)
+    assert "{related_core} CO LTD" in field.requirement
+    assert "do not repeat legal suffixes" in field.requirement
+    assert variable.meaning in field.requirement
+
+
 def test_source_only_issuing_agent_can_reference_a_source_certified_fixed_carrier(
     postal_campaign,
 ):
@@ -2534,9 +2790,7 @@ def test_source_only_issuing_agent_can_reference_a_source_certified_fixed_carrie
         value="OLD PORT AGENCY INC.",
         meaning="Source-only issuing agent acting for the fixed public carrier",
         required_literals=[],
-        occurrences=[
-            Occurrence(text="OLD PORT AGENCY INC.", occurrence=1, presentation="text")
-        ],
+        occurrences=[Occurrence(text="OLD PORT AGENCY INC.", occurrence=1, presentation="text")],
     )
     carrier_key = "anchor:documentPatch.parties.carrier.name"
     declaration = {
@@ -2624,9 +2878,7 @@ def test_fixed_carrier_related_actor_rejects_invalid_contracts(
         value="OLD PORT AGENCY INC.",
         meaning="Source-only issuing agent",
         required_literals=[],
-        occurrences=[
-            Occurrence(text="OLD PORT AGENCY INC.", occurrence=1, presentation="text")
-        ],
+        occurrences=[Occurrence(text="OLD PORT AGENCY INC.", occurrence=1, presentation="text")],
     )
     carrier_key = "anchor:documentPatch.parties.carrier.name"
     declaration = {
@@ -2671,9 +2923,7 @@ def test_fixed_carrier_related_actor_requires_exact_source_occurrence_count(post
         value="OLD PORT AGENCY INC.",
         meaning="Source-only issuing agent",
         required_literals=[],
-        occurrences=[
-            Occurrence(text="OLD PORT AGENCY INC.", occurrence=1, presentation="text")
-        ],
+        occurrences=[Occurrence(text="OLD PORT AGENCY INC.", occurrence=1, presentation="text")],
     )
     carrier_key = "anchor:documentPatch.parties.carrier.name"
     blueprint = replace(

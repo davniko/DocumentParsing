@@ -6,6 +6,7 @@ import importlib.util
 import json
 import sys
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import ClassVar
@@ -136,7 +137,7 @@ class StubCampaign:
 
 def prepared_fixture(tmp_path, monkeypatch, sources=30):
     ctx = context_fixture(tmp_path, sources)
-    monkeypatch.setattr(admission, "Campaign", StubCampaign)
+    monkeypatch.setattr(admission, "create_campaign", StubCampaign)
     old_ids = [sid(1), sid(2)]
     new_ids = list(admission.selected_sources(ctx))
     held_id = sid(500)
@@ -585,3 +586,87 @@ def test_install_rejects_scope_and_destination_corruption(tmp_path, monkeypatch,
     with pytest.raises(ValueError):
         admission.install(plan, validate_live=lambda _: None)
     assert admission.read(ctx.registry / "manifest.json") == original
+
+
+@pytest.mark.parametrize("mutation", [None, "missing", "duplicate", "pin", "outside"])
+def test_explicit_regression_campaigns_cover_old_registry_once(tmp_path, mutation):
+    ctx = context_fixture(tmp_path)
+    path = ctx.audit / "control.json"
+    artifact(path, {"source_ids": [sid(1), sid(2)], "sampling_mode": "independent"})
+    control = {
+        "config": {"path": "audit/control.json", "sha256": admission.sha256_file(path)},
+        "sourceIds": [sid(1), sid(2)],
+    }
+    if mutation == "missing":
+        control["sourceIds"].pop()
+    elif mutation == "duplicate":
+        control["sourceIds"].append(sid(1))
+    elif mutation == "outside":
+        control["sourceIds"][0] = sid(3)
+    elif mutation == "pin":
+        control["config"]["sha256"] = "0" * 64
+    inventory = ctx.audit / "controls.json"
+    artifact(inventory, {"controls": [control]})
+    ctx = admission.Context(
+        ctx.root,
+        ctx.audit,
+        ctx.spec.model_copy(
+            update={
+                "regression_controls": admission.SelectionPin(
+                    path="audit/controls.json", sha256=admission.sha256_file(inventory)
+                )
+            }
+        ),
+    )
+    if mutation is not None:
+        with pytest.raises(ValueError):
+            admission.regression_controls(ctx, [sid(1), sid(2)])
+    else:
+        controls, pins = admission.regression_controls(ctx, [sid(1), sid(2)])
+        assert len(controls) == 1 and len(pins) == 2
+        assert controls[0][0]["sampling_mode"] == "independent"
+
+
+def test_independent_live_admission_uses_pinned_old_campaigns(tmp_path, monkeypatch):
+    ctx, _, original = prepared_fixture(tmp_path, monkeypatch)
+    config = admission.yaml.safe_load(ctx.config_path.read_text())
+    config["sampling_mode"] = "independent"
+    # The review fixture pins its config, so only the installed plan is changed;
+    # this test exercises dispatch/control coverage, not domain preparation.
+    plan = admission.prepare(ctx)
+    plan.config["sampling_mode"] = "independent"
+    control_config = deepcopy(config)
+    control_config["source_ids"] = list(original["cases"])
+    artifact(ctx.audit / "regression-config.json", control_config)
+    inventory = ctx.audit / "controls.json"
+    artifact(
+        inventory,
+        {
+            "controls": [
+                {
+                    "config": {
+                        "path": "audit/regression-config.json",
+                        "sha256": admission.sha256_file(ctx.audit / "regression-config.json"),
+                    },
+                    "sourceIds": list(original["cases"]),
+                }
+            ]
+        },
+    )
+    plan = replace(
+        plan,
+        context=admission.Context(
+            ctx.root,
+            ctx.audit,
+            ctx.spec.model_copy(
+                update={
+                    "regression_controls": admission.SelectionPin(
+                        path="audit/controls.json", sha256=admission.sha256_file(inventory)
+                    )
+                }
+            ),
+        ),
+    )
+    StubCampaign.executions = []
+    admission.install(plan, validate_live=admission.validate_installed)
+    assert len(StubCampaign.executions) == 32 * 3
