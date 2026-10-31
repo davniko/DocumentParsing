@@ -112,7 +112,10 @@ def contact_parties(
             name.upper() if name else None,
             country.upper(),
             None if name else role,
-            tuple(sorted({n.strip().upper() for n in contact_name.split(";") if n.strip()}))
+            # Preserve the printed contact sequence. Alphabetizing names can
+            # reverse adjacent name/mailbox pairs while email fields retain
+            # their source order. Deduplication must therefore be stable.
+            tuple(dict.fromkeys(n.strip().upper() for n in contact_name.split(";") if n.strip()))
             if isinstance(contact_name, str)
             else (),
         )

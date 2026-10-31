@@ -99,7 +99,9 @@ def test_ambiguous_cold_chain_identity_is_not_an_ambient_goods_authority(sampler
 ])
 def test_thermal_eligibility_does_not_invent_a_unique_state(description, profiles):
     from document_ocr.synthesis.thermal_goods import (
-        classify_thermal_descriptions, eligible_thermal_profiles)
+        classify_thermal_descriptions,
+        eligible_thermal_profiles,
+    )
     assert eligible_thermal_profiles([description]) == profiles
     assert classify_thermal_descriptions([description]) == (
         profiles[0] if len(profiles) == 1 else None)
@@ -151,6 +153,27 @@ def test_explicit_vehicle_presentation_reaches_registry_not_original_source(samp
     assert len(seen) > 15
     request["goods"][0] = {"hs6": "853921", "description": sampler.phrases["853921"]}
     with pytest.raises(ValueError, match="goods violate"):
+        sampler.validate_request(request)
+
+
+def test_ordinary_domain_excludes_only_reviewed_whole_vehicles(sampler):
+    from document_ocr.synthesis.independent_cargo_presentation import is_whole_vehicle
+
+    for regime, complete in sampler.pools.items():
+        assert set(sampler.ordinary_pools[regime]) == {
+            code for code in complete if not is_whole_vehicle(code)
+        }
+    assert "871690" in sampler.ordinary_pools["ambient"]
+    for variant in range(1, 2001):
+        request = ambient_request(sampler, variant=variant)
+        assert all(not is_whole_vehicle(item["hs6"]) for item in request["goods"])
+
+
+def test_frozen_whole_vehicle_cannot_bypass_source_presentation(sampler):
+    request = ambient_request(sampler)
+    request["goods"] = [{"hs6": "870380", "description": sampler.phrases["870380"]}]
+    request["goodsForm"] = sampler.phrases["870380"]
+    with pytest.raises(ValueError, match="whole vehicle identity"):
         sampler.validate_request(request)
 
 

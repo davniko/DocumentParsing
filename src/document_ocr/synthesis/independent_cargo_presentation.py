@@ -11,6 +11,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from document_ocr.synthesis.package_aliases import PACKAGE_ALIASES
 
+# Reviewed whole-vehicle domain from the vehicle-layout policy. Trailer parts
+# remain ordinary goods; restricting a heading must not restrict its parts.
+WHOLE_VEHICLE_HEADINGS = frozenset({"8429", "8701", "8702", "8703", "8704", "8705", "8711", "8716"})
+
+
+def is_whole_vehicle(hs6: str) -> bool:
+    return hs6[:4] in WHOLE_VEHICLE_HEADINGS and hs6 != "871690"
+
 
 class CargoPresentation(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)

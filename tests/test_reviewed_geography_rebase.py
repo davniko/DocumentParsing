@@ -26,9 +26,18 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
+def historical_config(path):
+    """Keep historical ownership, but use the current validated task vocabulary."""
+    config = json.loads(path.read_bytes())
+    active = json.loads((ROOT / "configs/synthesis/mpci_bl_curated_v7_multirow.json").read_bytes())
+    for key in ("task_constraints", "task_constraints_sha256"):
+        config[key] = active[key]
+    return config
+
+
 @pytest.fixture(scope="module")
 def pair():
-    cfg = json.loads((RUN / "config.json").read_bytes())
+    cfg = historical_config(RUN / "config.json")
     cfg.update(source_ids=[SID], capabilities={SID: cfg["capabilities"][SID]})
     current = _SourceOwnershipCampaign(ROOT, cfg).blueprint(SID)
     old_cfg = copy.deepcopy(cfg)
@@ -89,12 +98,11 @@ def test_catalog_changes_only_reviewed_pins():
         (BASE / "independent-geography-v5/geography_certificates.json").read_bytes()
     )
     after = json.loads((RUN / "geography_certificates.json").read_bytes())
-    assert before["sources"][SID]["effective_contract_sha256"] == (
-        after["sources"][SID]["effective_contract_sha256"]
+    assert (
+        before["sources"][SID]["effective_contract_sha256"]
+        == (after["sources"][SID]["effective_contract_sha256"])
     )
-    assert before["sources"][SID]["ownership_sha256"] != (
-        after["sources"][SID]["ownership_sha256"]
-    )
+    assert before["sources"][SID]["ownership_sha256"] != (after["sources"][SID]["ownership_sha256"])
     before["sources"][SID]["ownership_sha256"] = after["sources"][SID]["ownership_sha256"]
     assert before == after
 
@@ -102,9 +110,16 @@ def test_catalog_changes_only_reviewed_pins():
 def test_vehicle_count_product_split_preserves_public_and_postal_facts():
     sid = "doc_4831fa04f123a0f7babc9ed31ae7a8d3dc295f2e27f89dde5bd47c7025dda2eb"
     run = BASE / "independent-flat-batch25-20261022/compiled"
-    cfg = json.loads((run / "config.json").read_bytes())
+    cfg = historical_config(run / "config.json")
     current = _SourceOwnershipCampaign(ROOT, cfg).blueprint(sid)
-    old_contract = json.loads((ROOT / "docs/analysis/r28-donor-free-full-registry-20261021/batch25/previous-contracts" / sid / "contract.json").read_bytes())["contract"]
+    old_contract = json.loads(
+        (
+            ROOT
+            / "docs/analysis/r28-donor-free-full-registry-20261021/batch25/previous-contracts"
+            / sid
+            / "contract.json"
+        ).read_bytes()
+    )["contract"]
     new_contract = json.loads((BASE / "cases" / sid / "contract.json").read_bytes())["contract"]
     assert [v for v in old_contract["variables"] if v["kind"] in {"name", "postal"}] == [
         v for v in new_contract["variables"] if v["kind"] in {"name", "postal"}
@@ -131,7 +146,9 @@ def test_vehicle_count_product_split_preserves_public_and_postal_facts():
 
 
 def test_vehicle_reception_counts_packages_not_structured_rows():
-    cfg = json.loads((BASE / "independent-flat-batch24-20261022/geography-compiled/config.json").read_bytes())
+    cfg = historical_config(
+        BASE / "independent-flat-batch24-20261022/geography-compiled/config.json"
+    )
     sid = "doc_2763b891d894632d56df7eaa22ff6d81426e42a49b9f2816098120a63dc1d12a"
     bp = _SourceOwnershipCampaign(ROOT, cfg).blueprint(sid)
     assert "agent:package:count" not in bp.historical_bindings

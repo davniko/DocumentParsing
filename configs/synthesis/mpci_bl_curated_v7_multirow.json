@@ -6371,8 +6371,8 @@
   "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/handling-20261030/source-dataset",
   "declared_packages": {
     "acceptance": {
-      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-v1/acceptance.json",
-      "sha256": "dac8f3aa9120262a598a2aca1f67df5243a92bd0411061112948b09929c394de"
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-final-20261031/acceptance.json",
+      "sha256": "0ffd1f2d483772628e1ca11800db9b143a590452bf2bf049b9a3d46a10220d79"
     },
     "contracts": {
       "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-v1/source-contracts.json",
@@ -6410,16 +6410,16 @@
       "sha256": "b5cb808ed5818114890d9cb2e057d9c5eb80204242b20635c569981526985c8f"
     },
     "geography_certificates": {
-      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-v1/geography_certificates.json",
-      "sha256": "1976a8b2dd9bf9ce7d4537dbac953676baf37a64120f57c58878e3c9ab6c81e9"
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-final-20261031/geography_certificates.json",
+      "sha256": "4e699e118c0842691fe8c5f6f7c9eb4f4f04c22eec4a52bb73da23813ad63ebf"
     },
     "locality_owner_reviews": {
       "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/independent-flat-v1/locality_owner_reviews.json",
       "sha256": "0aea95e7aa790cc6a58cd4d035b721474f84c2e2151fc2de258399c7e39ad5b8"
     },
     "numeric_certificates": {
-      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-v1/numeric_certificates.json",
-      "sha256": "339444b26b66a1933a1c2ae811f6c44b864f2a911d13beb2f70ca1e159fcc951"
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-20261031/numeric_certificates.json",
+      "sha256": "48f8370bbd9267743d5ffa395decbf7d82854f424cda742bd8a03cad64b54818"
     },
     "registry": {
       "dgEcics": {
@@ -6464,7 +6464,7 @@
     "unit_profile_source_ids": null
   },
   "output": "artifacts/kie-synthesis-production/r28-multirow",
-  "ownership": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership.yaml",
+  "ownership": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership-refresh-final-20261031.yaml",
   "phones": {
     "family_weights": [
       {

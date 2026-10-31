@@ -10,7 +10,6 @@ import pytest
 from pydantic import BaseModel
 
 from document_ocr.hashing import canonical_json_sha256, sha256_bytes
-from document_ocr.synthesis.country_presentations import Registry
 from document_ocr.synthesis.curated import (
     Occurrence,
     SourceContract,
@@ -18,13 +17,7 @@ from document_ocr.synthesis.curated import (
     Variable,
     digest,
 )
-from document_ocr.synthesis.curated_auxiliary import (
-    augment_auxiliary_blueprint,
-    load_auxiliary_contract,
-)
-from document_ocr.synthesis.curated_countries import bind_postal_country_alias_owners
 from document_ocr.synthesis.curated_equipment_inventory import compile_equipment_inventory
-from document_ocr.synthesis.curated_ownership import load_owned_blueprint
 from document_ocr.synthesis.curated_scenarios import ScenarioLocation
 from document_ocr.synthesis.curated_templates import (
     RenderRegion,
@@ -37,16 +30,14 @@ from document_ocr.synthesis.independent_geography import (
     project_composite_locality_homonyms,
     recompile_projected_equipment_inventory,
 )
+from document_ocr.synthesis.independent_preparation import _SourceOwnershipCampaign
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "artifacts/synthesis-templates/mpci-bl-v7-reviewed"
 AUTHORITY = REGISTRY / "independent-geography-v5"
 CERTIFICATE_PATH = AUTHORITY / "geography_certificates.json"
 CERTIFICATE_SHA256 = "527ae4a3c67c3b3da41172904489b245e42db83d67d4a405a08850e592e375f9"
-ACTIVE_CONFIG = REGISTRY / "independent-flat-full-registry-20261021/working-config.json"
-SOURCE_DATASET = (
-    REGISTRY / "source-authorities/larger-controlled-legacy-closure-20261020/source-dataset"
-)
+ACTIVE_CONFIG = ROOT / "configs/synthesis/mpci_bl_curated_v7_multirow.json"
 
 
 @pytest.fixture(scope="module")
@@ -64,28 +55,11 @@ def gate(certificates):
 
 @pytest.fixture(scope="module")
 def blueprints(certificates):
-    rows = {
-        row["documentId"]: row
-        for row in map(json.loads, (SOURCE_DATASET / "train.jsonl").read_text().splitlines())
-    }
-    countries = Registry.load(ROOT)
-    auxiliary = load_auxiliary_contract(REGISTRY / "auxiliary.yaml")
-    result = {}
-    for source_id in certificates.sources:
-        case = REGISTRY / "cases" / source_id
-        contract = SourceContract.model_validate(
-            json.loads((case / "contract.json").read_bytes())["contract"]
-        )
-        blueprint = load_owned_blueprint(
-            rows[source_id],
-            json.loads((case / "template.json").read_bytes()),
-            contract,
-            REGISTRY / "ownership.yaml",
-        )
-        result[source_id] = augment_auxiliary_blueprint(
-            bind_postal_country_alias_owners(blueprint, countries), auxiliary
-        )
-    return result
+    config = json.loads(ACTIVE_CONFIG.read_bytes())
+    config["source_ids"] = list(certificates.sources)
+    config["capabilities"] = {sid: config["capabilities"][sid] for sid in config["source_ids"]}
+    campaign = _SourceOwnershipCampaign(ROOT, config)
+    return {source_id: campaign.blueprint(source_id) for source_id in certificates.sources}
 
 
 def _scenario(blueprint, *, name="ROTTERDAM", country="NETHERLANDS", code="NL"):
@@ -135,8 +109,8 @@ def _good_values(blueprint, scenario, gate):
 
 
 def test_certificate_loader_is_explicit_and_pinned(certificates):
-    assert len(certificates.sources) == 29
-    assert sum(len(value.assemblies) for value in certificates.sources.values()) == 30
+    assert len(certificates.sources) == 31
+    assert sum(len(value.assemblies) for value in certificates.sources.values()) == 32
     assert certificates.inventory_sha256 == (
         "ce6cc701f7fd59993d12e6c57846b71ff08cc14e62b919b008c0a57aa0eb52ff"
     )

@@ -13380,7 +13380,7 @@
       },
       "files": {
         "alignment.json": "58061b9fb42d6d674d2405fcd7662bf1eb296b6523efdaf7f7dc31514283046c",
-        "contract.json": "9d1fc31dbc031c4f101eab7aefa19c5ef2777251fa2257efd6df67657032a2b6",
+        "contract.json": "35d0a3322589e62ca70a0fcfc792c7fecb1bf65724d144f7b4ea2c7a2cbd076b",
         "source-positioned.txt": "98a53487294c4d42786371489d3da905f4fdff1a718fb739536da4ceb2118568",
         "source.txt": "539d80ed060303b2b2c6a15f61ae6bf84b8e8df153acad0d42dd0ba412acb449",
         "target.json": "27532e6f3ee024a1daa4b3f93c0133554b905a79c6c999bf593e5dae82bb1ec8",
@@ -16111,7 +16111,7 @@
   },
   "currentProductionConfig": {
     "path": "configs/synthesis/mpci_bl_curated_v7_multirow.json",
-    "sha256": "b4a0f157cc8af779fc95a5dcb913a99ba3db11ed51b8d0c532ca192f564c425e"
+    "sha256": "1ff85f3b5ba0c251125bfeb0d95032f454b5ffb279be2aad768434ed2c87842f"
   },
   "dependencies": {
     "campaignConfig": "configs/synthesis/mpci_bl_curated_v7_coverage1000.yaml",
@@ -17542,6 +17542,31 @@
     "sources": 456,
     "status": "certified_native_synthesis_and_geometry",
     "trainingDatasetMutation": false
+  },
+  "multirowRefreshAuthorityRepair20261031": {
+    "acceptance": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-20261031/acceptance.json",
+      "sha256": "c5037fb2139959c1a71bd3389957718069f7374c0a315a9d7f2403be191d1edd"
+    },
+    "adjudication": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-20261031/main-adjudication.json",
+      "sha256": "dda2b2a48071fe228792ab782fa1c7758772afeaaae1d095cda7e02e39885ab2"
+    },
+    "freshControls": 33,
+    "retainedControls": 1335,
+    "sources": 456
+  },
+  "multirowRefreshContactAndFrameClosure20261031": {
+    "acceptance": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-final-20261031/acceptance.json",
+      "sha256": "0ffd1f2d483772628e1ca11800db9b143a590452bf2bf049b9a3d46a10220d79"
+    },
+    "adjudication": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-final-20261031/main-adjudication.json",
+      "sha256": "5362d9ebadc041acc8537e040e5c70c1fd0c1d8550ae4fcbfdc2055fdedc391e"
+    },
+    "freshControls": 12,
+    "sources": 456
   },
   "opaqueMarksPrivacyClosure20261020": {
     "afterSharedFiles": {

@@ -37,6 +37,23 @@ def parties():
     return source, target, contact_parties(source, target, "sample")
 
 
+def test_personal_contact_sequence_is_not_alphabetized():
+    source = {"documentPatch": {"parties": {"consignee": {
+        "name": "SOURCE CO", "country": "UNITED ARAB EMIRATES",
+        "contactDetails": {"contactName": "First Person; Second Person",
+                           "emailAddresses": ["first@example.com", "second@example.com"]},
+    }}}}
+    target = deepcopy(source)
+    target["documentPatch"]["parties"]["consignee"]["contactDetails"]["contactName"] = (
+        "Yusuf Al Marzouqi; Hissa Al Nuaimi; Yusuf Al Marzouqi"
+    )
+    result = contact_parties(source, target, "sample")
+    assert result[0].contact_names == ("YUSUF AL MARZOUQI", "HISSA AL NUAIMI")
+    assert [f.original for f in result[0].fields] == ["first@example.com", "second@example.com"]
+    assert "NEW CONTACT NAMES: YUSUF AL MARZOUQI; HISSA AL NUAIMI" in contact_prompt(result)
+    assert source["documentPatch"]["parties"]["consignee"]["contactDetails"]["contactName"] == "First Person; Second Person"
+
+
 def test_company_contacts_preserve_shared_identity_and_exact_scope():
     source, target, requests = parties()
     assert len(requests) == 1

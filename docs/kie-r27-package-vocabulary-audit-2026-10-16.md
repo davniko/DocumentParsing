@@ -2214,3 +2214,118 @@ reviewed. These are coarse shared-region centres, not measured fragment position
 many are headings and some span columns. No production alignment or dataset
 coordinate change was made. Keep this separate pending a representation/parity
 decision, not a prerequisite for the proposed training run.
+
+## 2026-10-31 — requested 3,000-record R28 alias refresh completed
+
+The user raised the planned 1,800 alias replacements to **3,000**, explicitly
+separating alias refresh from multi-row regeneration. The main agent completed
+30 audited batches of 100 in the existing R28 dataset, without subagents.
+There are 7,019 occurrence-owned alias changes across 327 parents / 40 package
+categories. In 443 documents, 1,354 specific repetitions become family-only
+wording while a full specificity witness remains. Thirty-seven literal goods
+description targets follow their changed printed aliases. Matching 605-record
+subsets of each UAE sidecar are synchronized; these are overlapping copies.
+
+An unpublished migration stage exposed case-sensitive target projection; it was
+rejected, corrected, regression-tested and fully rerun. One old generated BAGS/FCL
+echo conflicting with an owned pallet declaration was removed from one selected
+record and its two sidecar copies. Current template ownership and production
+wording instructions already address that distinction; no special-case generator
+was added. All other current repairs are preserved through exact owned edits,
+not replayed historical text.
+
+The 102-test targeted suite, every batch replay, full-shard integrity/canonical
+validation and pinned training-tokenizer checks pass. Alias edits preserve current
+line anchors and fit within current occupied spans; full-width expansion and
+compound-ledger replay are not claimed by this bounded migration. R27, the 600
+anonymized real records and validation are unchanged. Training remains 6,900
+synthetic plus 600 real. Multi-row refresh, additional synthesis and R29 package
+factorization remain separate. Detailed evidence and limitations:
+[refresh report](analysis/r28-alias-refresh3000-20261031/REPORT.md).
+
+## 2026-10-31 — requested 1,500-document multirow refresh completed
+
+The main agent completed **15 batches of 100 across 300 layouts**, without Codex
+subagents, and published the replacements in R28. Independent goods/numeric
+sampling and integrated aliases produced 1,200 two-group and 300 three-group
+shipments. Source-faithful occurrence projections and scalar allocations remain;
+inner/support packages are not additive totals. All 1,500 now have multiple public
+package rows. Training remains **6,900+600**; real600, validation60 and the target
+schema are unchanged. Matching 894-record subsets of both UAE sidecars are
+synchronized, not added as new examples.
+
+Selection includes 753 previously alias-refreshed and 1,397 donor-bound records,
+preserving current DG/thermal/mixed-equipment cohorts. New samples reach 1,518 HS6
+identities and 47 package categories; no prior category disappears corpus-wide.
+BALE rises 60→199, steel DRUM 55→138 and fibreboard BOX 20→335. SET 77→73 and RACK
+20→19 remain later reinforcement candidates; this is not uniform balancing.
+
+Upstream repairs enforce the settled whole-vehicle/layout boundary, preserve
+contact name/email order, correct `0ba3ad4f` email bindings, add `c08ce779` private
+Marks-name generation and complete `04f208b1` locality frames. Thirty-seven legacy
+contact records and four Marks-only records received separate narrow repairs
+across current/retained synthetic pools; 36 are in active training. One-off wording
+and postal defects were corrected/regenerated and revalidated.
+
+All 1,258 regression tests, native admission, ledger arithmetic, full-shard checks,
+token checks and published readback pass. Selected coordinate coverage is
+84.5046%→84.5421%; source-anchor/reflow limitations remain explicitly documented,
+not presented as universal raster-layout certification. Before files and excluded
+attempts are recoverable. Full scope, examples, repairs, performance and evidence:
+[multirow refresh report](analysis/r28-multirow-refresh1500-20261031/REPORT.md).
+
+This completes the requested refresh. Additional 2,500-sample synthesis remains
+separate; public package factorization stays deferred to R29.
+
+## 2026-10-31 — post-refresh 2,500-sample campaign re-audit
+
+Read-only re-audit complete; **no new generation or dataset changes** in this pass.
+The [updated planning report, section 7](analysis/r28-run-planning-20261031/REPORT.md#7-post-refresh-re-audit-and-revised-2500-record-proposal)
+supersedes the pre-refresh counts/schedule. Current data contains all 48 active
+package categories and 1,500 multi-row examples, but **all 1,500 fully independent
+records are ambient/multi-row**, while all 5,400 single-row records retain older
+cargo-sampling ancestry. Single-row wooden boxes, paper bags, multiwall paper bags,
+IBC and several other categories retain narrow goods/layout concentrations.
+
+Proposed new split remains 450 DG / 350 thermal / 1,700 other, but now favors
+**2,300 single-row + 200 DG/thermal multi-row examples**. Final membership would
+be 9,400 synthetic + 600 real, including 882 synthetic DG and 869 synthetic
+thermal examples. Multi-DG, gas hazards, optional DG properties, sparse categories,
+evidence-led allocation absence and all 48 unused admitted layouts remain priorities.
+
+Newly verified limitations are explicit: current independent chilled settings are
+fixed at 0°C and airflow at zero; wider thermal settings need a bounded context
+extension, not merely quotas. The earlier humidity audit missed real
+`326c0182`'s Spanish `HUMEDAD: 65%`; that source is not yet admitted. No label
+repair is implied. Payable-elsewhere freight is absent synthetically but has one
+unused admitted source. Shipment pound-weight targets have no admitted source.
+Tank, platform, master-B/L and partial-allocation native-layout support is also
+narrow. These preparation choices remain for discussion, not silently implemented.
+
+The fresh audit validates all 7,560 active train/validation targets and text hashes
+and pins all R28 files unchanged. Full distributions, provenance intersections,
+source IDs and proposed (non-executable) quotas:
+[post-refresh audit artifacts](analysis/r28-new2500-postrefresh-20261031/).
+
+## 2026-10-31 — revised campaign quotas and thermal/freight investigation
+
+User's percentage targets supersede the preceding 450/350 proposal. Proposed new
+cohorts: **560 DG, 460 thermal, 1,480 other**, plus overlapping **360 forwarding**
+and **400 new transshipment** examples. Final 10,000-document training totals:
+1,009 DG, 1,003 thermal, 1,006 forwarding and 566 transshipment. A count-only
+schedule supports all 456 admitted parents; eight transshipment layouts remain
+the concentration constraint. Single-/multi-row split stays 2,300/200.
+
+Isolated thermal context/range probes support replacing global chilled-zero
+assumptions with goods-conditioned bounded ranges and correct fresh-air context.
+They do not change production yet. Source-render and negative controls pass;
+initial model wording defects were held and regenerated, not counted as numeric
+successes. Pharmaceutical humidity-source admission requires separate context
+review. Payable-elsewhere is 0 synthetic / 2 real / 0 validation; its one admitted
+layout already passes varied payment-node rendering, so a 20-example campaign
+cohort does not require a new route mechanism.
+
+Full diagnosis, distribution tables, native probe progression, limitations, costs,
+source IDs and next integration proof obligations:
+[thermal/freight follow-up](analysis/r28-thermal-freight-probe-20261031/REPORT.md).
+No production, template or dataset mutation was made by this audit/probe task.

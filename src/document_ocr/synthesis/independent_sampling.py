@@ -28,6 +28,7 @@ from document_ocr.synthesis.hs_registry import (
 )
 from document_ocr.synthesis.independent_cargo_presentation import (
     CargoPresentation,
+    is_whole_vehicle,
     validate_cargo_presentation,
 )
 from document_ocr.synthesis.independent_dg_context import known_physical_form, named_eligible
@@ -316,6 +317,13 @@ class IndependentSampler:
         if set().union(*(set(codes) for codes in pools.values())) != set(self.phrases):
             raise ValueError("thermal identity pools omit a pinned HS6 code")
         self.pools = {regime: tuple(sorted(codes)) for regime, codes in pools.items()}
+        # Whole vehicles require an explicit reviewed vehicle presentation. Keep
+        # the complete pools reachable there, and cache ordinary pools once so
+        # this policy adds no per-draw full-registry filtering.
+        self.ordinary_pools = {
+            regime: tuple(code for code in codes if not is_whole_vehicle(code))
+            for regime, codes in self.pools.items()
+        }
 
     @classmethod
     def from_config(cls, root: Path, value: Mapping[str, Any]) -> IndependentSampler:
@@ -483,6 +491,8 @@ class IndependentSampler:
             eligible = self.pools[regime]
             if presentation is not None:
                 eligible = tuple(code for code in eligible if presentation.permits(code))
+            else:
+                eligible = self.ordinary_pools[regime]
             if not excluded <= set(eligible):
                 raise ValueError("excluded HS identities are outside the eligible registry pool")
             domain = tuple(code for code in eligible if code not in excluded)
@@ -605,6 +615,10 @@ class IndependentSampler:
                 code = item["hs6"]
                 if code not in self.pools[regime] or item["description"] != self.phrases[code]:
                     raise ValueError("frozen request differs from its full HS6 registry ancestry")
+                if is_whole_vehicle(code) and not request.get("cargoPresentation"):
+                    raise ValueError(
+                        "whole vehicle identity requires a reviewed vehicle presentation"
+                    )
 
     def draw(
         self,
