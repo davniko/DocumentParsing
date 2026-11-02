@@ -152,6 +152,10 @@ async def prepare_unit_profiles(
             ),
         )
         article_groups = frozen.get("cargoPresentation", {}).get("articleGroups")
+        if frozen["regime"] in {"frozen", "chilled"}:
+            from document_ocr.synthesis.independent_thermal import product_context
+
+            values["thermalProductContext"] = product_context(frozen)
         if "dgComponents" in frozen:
             values["componentPhysicalStates"] = physical_forms(frozen, context.sampler.hmt_states)
         if article_groups is not None:

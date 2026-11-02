@@ -31,6 +31,7 @@ from document_ocr.atomic import (
 )
 from document_ocr.hashing import sha256_file
 from document_ocr.synthesis import independent_dg_context as dg_context
+from document_ocr.synthesis import independent_thermal as thermal_context
 from document_ocr.synthesis.curated import Runner, digest
 from document_ocr.synthesis.curated_auxiliary import validate_identifier_privacy
 from document_ocr.synthesis.curated_campaign import Campaign
@@ -266,20 +267,21 @@ def _compile_source(context: _SourceContext, sid: str, mixed: Set[str]) -> _Comp
             "unsupported_private_presentation",
             "source has no certified private packing presentation",
         )
-    if sid in mixed:
-        equipment = compile_equipment_inventory(bp, allow_uniform_aggregate=True)
-        if equipment.uniform_aggregate is not None or equipment.row_count < 2:
+    rows = bp.target["documentPatch"].get("containerInformation", [])
+    if sid in mixed or (
+        len(rows) > 1 and all({"sizeCategory", "typeCategory"} <= row.keys() for row in rows)
+    ):
+        # The real campaign always compiles these inventories, including uniform
+        # requests. Both preflight modes must use its complete count/type frames;
+        # checking raw scalar owners first incorrectly rejects valid mixed headers.
+        equipment = compile_equipment_inventory(
+            rebase_equipment_inventory_headers(bp), allow_uniform_aggregate=True
+        )
+        if sid in mixed and (equipment.uniform_aggregate is not None or equipment.row_count < 2):
             raise _SourceNotReady(
                 "unsupported_mixed_equipment",
                 "requested mixed equipment lacks independent row ownership",
             )
-    rows = bp.target["documentPatch"].get("containerInformation", [])
-    if len(rows) > 1 and all({"sizeCategory", "typeCategory"} <= row.keys() for row in rows):
-        # The real campaign always compiles these inventories, including uniform
-        # requests. Do the identical source-only check before paid native calls.
-        compile_equipment_inventory(
-            rebase_equipment_inventory_headers(bp), allow_uniform_aggregate=True
-        )
     cap = context.source.capabilities[sid]
     fixed_mix = cap.equipment_mix is not None and len(cap.equipment_mix.members) > 1
     regime = _REGIMES[cap.family]
@@ -488,7 +490,10 @@ async def _native_batch(
         )
         started, output, error = time.perf_counter(), None, None
         try:
-            if stage == dg_context.HS_STAGE and runner.retry_invalid_output:
+            if (
+                stage in {dg_context.HS_STAGE, thermal_context.STAGE}
+                and runner.retry_invalid_output
+            ):
                 value = await runner.call(stage, key, model, system, prompt, output_retries=1)
             else:
                 value = await runner.call(stage, key, model, system, prompt)
@@ -590,6 +595,8 @@ async def prepare_campaign(
     retry_rate_limited: bool = False,
     retry_invalid_output: bool = False,
     retry_failed_receipt_sha256s: Collection[str] = (),
+    thermal_goods_modes: Mapping[str, str] | None = None,
+    hs6_pool: Collection[str] | None = None,
 ) -> JsonObject:
     """Prepare new synthesis only; never audit, rewrite or regenerate existing data.
 
@@ -613,6 +620,8 @@ async def prepare_campaign(
             retry_rate_limited=retry_rate_limited,
             retry_invalid_output=retry_invalid_output,
             retry_failed_receipt_sha256s=retry_failed_receipt_sha256s,
+            thermal_goods_modes=thermal_goods_modes,
+            hs6_pool=hs6_pool,
         )
         if base["config"] is None:
             return base
@@ -639,6 +648,14 @@ async def prepare_campaign(
         raise ValueError("failed receipt retry requires exact SHA-256 values")
     config = copy.deepcopy(config)
     _validate_config(config)
+    thermal_goods_modes = dict(thermal_goods_modes or {})
+    if any(
+        sid not in config["source_ids"]
+        or config["capabilities"][sid]["family"] != "chilled"
+        or mode not in {"all", "produce", "other"}
+        for sid, mode in thermal_goods_modes.items()
+    ):
+        raise ValueError("thermal goods modes must name selected chilled sources")
     accepted_counts = {} if accepted_counts is None else dict(accepted_counts)
     package_coverage(package_targets, accepted_counts)
     mixed = _validate_mixed_scope(config, mixed_source_ids)
@@ -672,6 +689,8 @@ async def prepare_campaign(
             retry_invalid_output=retry_invalid_output,
             retry_failed_receipt_sha256s=frozenset(retry_failed_receipt_sha256s),
             unit_profile_source_ids=profile_sources,
+            thermal_goods_modes=thermal_goods_modes,
+            hs6_pool=hs6_pool,
         )
 
 
@@ -688,6 +707,8 @@ async def _prepare_locked(
     retry_invalid_output: bool,
     retry_failed_receipt_sha256s: frozenset[str],
     unit_profile_source_ids: frozenset[str],
+    thermal_goods_modes: Mapping[str, str],
+    hs6_pool: Collection[str] | None,
 ) -> JsonObject:
     directory = output / "preparation" / str(time.time_ns())
     authorities = _load_source_context(root, config)
@@ -761,6 +782,12 @@ async def _prepare_locked(
                     dg_requirements=requirements,
                     excluded_identifiers=excluded,
                     cargo_presentation=authorities.certificates[sid].get("cargoPresentation"),
+                    **({"hs6_pool": tuple(hs6_pool)} if hs6_pool is not None else {}),
+                    **(
+                        {"thermal_goods_mode": thermal_goods_modes[sid]}
+                        if sid in thermal_goods_modes
+                        else {}
+                    ),
                 )
                 # Unjoined HS and nonchemical form are explicit pending native
                 # decisions. They cannot reach package/numeric planning yet.
@@ -858,6 +885,32 @@ async def _prepare_locked(
             component["nativeDgHsEvidence"] = evidence
         else:
             component["nativeDgPhysicalEvidence"] = evidence
+    thermal_jobs, thermal_requests = {}, {}
+    for key, request in requests.items():
+        if request["regime"] not in {"frozen", "chilled"}:
+            continue
+        native = thermal_context.make_request(
+            request, source.blueprint(request["sourceDocumentId"]).target["documentPatch"]
+        )
+        thermal_requests[key] = native
+        model = thermal_context.output_type(native)
+        thermal_jobs[key] = (
+            thermal_context.STAGE,
+            model,
+            thermal_context.SYSTEM,
+            thermal_context.prompt(native),
+            model.model_validate,
+            native.model_dump(mode="json"),
+        )
+    thermal_answers = await _native_batch(source.calls, thermal_jobs, directory / "thermal-context")
+    _verify_pins(pins)
+    for key, answer in thermal_answers.items():
+        if answer["error"] is not None or answer["output"]["unknown"]:
+            inventory[key].update(
+                status="held_thermal_context", reason=answer["error"] or "UNKNOWN thermal context"
+            )
+        else:
+            requests[key]["nativeThermalEvidence"] = _evidence(thermal_requests[key], answer)
     for key, request in requests.items():
         if inventory[key]["status"] != "identity_prepared":
             continue
@@ -874,6 +927,10 @@ async def _prepare_locked(
                 "form": request["goodsForm"],
                 "dangerousGoods": request["dangerousGoods"],
             }
+            if regime in {"frozen", "chilled"}:
+                context["packingContext"] = "Thermal product authority: " + json.dumps(
+                    thermal_context.product_context(request), sort_keys=True
+                )
             if any(row["typeCategory"] in TANK_TYPES for row in request["equipmentSlots"]):
                 context["installedTank"] = True
             if regime == "dg":

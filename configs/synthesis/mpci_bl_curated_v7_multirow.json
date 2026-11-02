@@ -8,8 +8,8 @@
     },
     "presentations": {
       "certificates": {
-        "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/package-presentations-v1/certificates.json",
-        "sha256": "5be15839611a5bcddedee65609a62ca1969a897134a789ede1df0596ed34431c"
+        "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-v21/aliases-certificates.json",
+        "sha256": "3afb8fb804f644e6d5a2fa5128b2c7636b8a0397a3ce044ad70dc47550b83fff"
       },
       "full_weight": 0.5,
       "optional_weight": 0.2,
@@ -20,7 +20,7 @@
       }
     }
   },
-  "auxiliary": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/auxiliary.yaml",
+  "auxiliary": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-v21/auxiliary.json",
   "budget_usd": 10.0,
   "capabilities": {
     "doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900": {
@@ -6368,15 +6368,15 @@
   },
   "country_registry_manifest": "artifacts/registries/compiled/country-presentations-iso-cldr-48.2.3-v1/production-manifest.json",
   "country_registry_sha256": "aa8f579b7a5855a47b11dca35b27c38198f07d090d801b6c1fe86917c4b854b4",
-  "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/source-authorities/handling-20261030/source-dataset",
+  "dataset": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-v21/source-dataset",
   "declared_packages": {
     "acceptance": {
-      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-final-20261031/acceptance.json",
-      "sha256": "0ffd1f2d483772628e1ca11800db9b143a590452bf2bf049b9a3d46a10220d79"
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-certified/acceptance.json",
+      "sha256": "43ac1213ef8e9db17d0704e436a1acb0c19b4b76faef54f9aac75f7e07ff2e4f"
     },
     "contracts": {
-      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-v1/source-contracts.json",
-      "sha256": "eff7224e982338e4ee9c989b1a190c6503a6a78eb772edaafc11ea0312ae6845"
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-v21/groups-certificates.json",
+      "sha256": "620c5129cf1257e9020903855d287fe8b853c0cad26af3b09606732107b2e3df"
     },
     "group_counts": [
       1,
@@ -6410,16 +6410,16 @@
       "sha256": "b5cb808ed5818114890d9cb2e057d9c5eb80204242b20635c569981526985c8f"
     },
     "geography_certificates": {
-      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-final-20261031/geography_certificates.json",
-      "sha256": "4e699e118c0842691fe8c5f6f7c9eb4f4f04c22eec4a52bb73da23813ad63ebf"
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-v20/geography_certificates.json",
+      "sha256": "c246b6c3bb0474ab17202a9a4bcd24009704811fca8c2ce77b0cad30f5cebbe7"
     },
     "locality_owner_reviews": {
       "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/independent-flat-v1/locality_owner_reviews.json",
       "sha256": "0aea95e7aa790cc6a58cd4d035b721474f84c2e2151fc2de258399c7e39ad5b8"
     },
     "numeric_certificates": {
-      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/declared-packages-refresh-20261031/numeric_certificates.json",
-      "sha256": "48f8370bbd9267743d5ffa395decbf7d82854f424cda742bd8a03cad64b54818"
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-v21/numeric-certificates.json",
+      "sha256": "951cc9ce41882f05d6a3e1a095b5c10846bc5d9985082cb067aa3d028d61f73f"
     },
     "registry": {
       "dgEcics": {
@@ -6464,7 +6464,7 @@
     "unit_profile_source_ids": null
   },
   "output": "artifacts/kie-synthesis-production/r28-multirow",
-  "ownership": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/ownership-refresh-final-20261031.yaml",
+  "ownership": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-v21/ownership.json",
   "phones": {
     "family_weights": [
       {
@@ -6623,7 +6623,7 @@
   },
   "sampling_mode": "independent",
   "seed": 2026103109,
-  "source_contracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/cases",
+  "source_contracts": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-v21/cases",
   "source_ids": [
     "doc_00388da5efb560ae60c645831f6b34db7049b9c0e0772d76eecda0d7387de900",
     "doc_00a165a2adf7156bdecd557c885de531a2a69a98a920a4e029d491bd5d50b3ed",

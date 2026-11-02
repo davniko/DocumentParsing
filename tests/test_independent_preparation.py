@@ -276,6 +276,7 @@ def setup_preparation(tmp_path, monkeypatch):
     monkeypatch.setattr(preparation, "source_equipment_readiness", check_hardware)
     monkeypatch.setattr(preparation, "validate_identifier_privacy", lambda _: None)
     monkeypatch.setattr(preparation, "validate_private_person_coverage", lambda _: None)
+    monkeypatch.setattr(preparation, "rebase_equipment_inventory_headers", lambda bp: bp)
     monkeypatch.setattr(
         preparation, "load_independent_geography_certificates", lambda *a, **kw: None
     )
@@ -480,6 +481,27 @@ def test_uniform_equipment_owner_failure_is_preflight_not_paid_failure(
         "requests",
         "private_plans",
     }
+
+
+def test_mixed_preflight_compiles_rebased_headers_once(setup_preparation, monkeypatch):
+    state = setup_preparation
+    rebased, compiled = [], []
+
+    def rebase(bp):
+        rebased.append(bp.document_id)
+        bp.reviewed_header = True
+        return bp
+
+    def compile_inventory(bp, **kwargs):
+        assert bp.reviewed_header
+        compiled.append(bp.document_id)
+        return SimpleNamespace(row_count=2, uniform_aggregate=None)
+
+    monkeypatch.setattr(preparation, "rebase_equipment_inventory_headers", rebase)
+    monkeypatch.setattr(preparation, "compile_equipment_inventory", compile_inventory)
+    result = state.run(mixed_source_ids=["a"], mixed_probability=1)
+    assert result["readySlots"] == 6
+    assert rebased == compiled == ["a"]
 
 
 @pytest.mark.parametrize("limited,invalid", [(False, False), (True, False), (False, True)])

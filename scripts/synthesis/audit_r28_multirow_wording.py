@@ -82,6 +82,15 @@ Check specifically:
   or require exact tariff/product matching; classification context is not a complete
   product specification. Do not demand extra DG labels absent from this layout.
 - An implied hierarchy must not add inner counts to declared totals.
+- Keep separate sampled products separate: joining names must not invent one
+  chemically or physically contradictory product. Include every sampled product
+  in the supplied goods passage, rather than silently omitting difficult items.
+- Respect the supplied thermal regime and selected product state. A tariff
+  alternative is not permission to add fresh/chilled/live wording to an ambient
+  shipment. A bare word such as freezer can name machinery, not refrigerated cargo.
+- Check obvious whole-shipment absurdities, not commercial preference: live cattle
+  inside ordinary closed dry-box hardware without livestock support, or loose gas
+  inside sacks, require review. Do not demand operational regulatory certification.
 
 Only flag a concrete inconsistency, not awkward grammar, plurality, capitalization,
 commercial taste, or a merely absent optional detail. For each finding quote an
@@ -92,14 +101,27 @@ EXACT substring of the supplied description as evidence and explain the conflict
 def packet(candidate):
     scenario = candidate["scenario"]
     provenance = scenario["provenance"]
+    if "declaredPackages" in provenance:
+        declared = provenance["declaredPackages"]
+    else:
+        rows = candidate["target"]["documentPatch"]["goodsItemDetails"][0][
+            "numberAndTypeOfPackages"
+        ]
+        if len(rows) != 1:
+            raise ValueError("multiple public package rows require their declared-package ledger")
+        declared = {
+            "singlePublicRow": rows[0],
+            "physicalProfile": provenance["registryLoadProfile"],
+        }
     return {
         "sample_id": candidate["documentId"],
+        "regime": provenance["independentDraw"]["provenance"]["regime"],
         "description": candidate["target"]["documentPatch"]["goodsItemDetails"][0]["description"],
         "goods": [
             {"hs6": g["hs6"], "classificationContext": g["phrase"]}
             for g in scenario["goods_identities"]
         ],
-        "declaredGroups": provenance["declaredPackages"],
+        "declaredGroups": declared,
         "privatePacking": {
             k: v
             for k, v in provenance["freshPrivatePacking"].items()
@@ -117,6 +139,7 @@ def packet(candidate):
             }
         },
         "equipment": scenario["cargo"].get("containerInformation", []),
+        "thermalProductContext": provenance.get("thermalCommodityContext"),
     }
 
 
@@ -131,12 +154,25 @@ def validate_reviews(answer, items):
                 raise ValueError("review evidence is not literal description text")
 
 
-async def run(config_path, candidates_path, output):
+async def run(
+    config_path, candidates_path, output, *, retry_transient_refusals=False, concurrency=None,
+    batch_size=6,
+):
+    if batch_size not in range(1, 7):
+        raise ValueError("scoped review batch size must be between one and six")
     root = Path.cwd()
     config = json.loads(config_path.read_text())
     base = {key: config[key] for key in CuratedSynthesisConfig.model_fields}
     base["output"] = str(output.relative_to(root))
+    if concurrency is not None:
+        base["concurrency"] = concurrency
     runner = Runner(root, base)
+    if retry_transient_refusals:
+        from run_package_alias_batch import transient_refusal_pins
+
+        runner.retry_failed_receipt_sha256s = frozenset(
+            p["sha256"] for p in transient_refusal_pins(output)
+        )
     paths = [root / value for value in json.loads(candidates_path.read_text())]
     packets, pins = [], {}
     already_reviewed = 0
@@ -191,7 +227,8 @@ async def run(config_path, candidates_path, output):
         return answer
 
     results = await asyncio.gather(
-        *(check(packets[i : i + 6]) for i in range(0, len(packets), 6)), return_exceptions=True
+        *(check(packets[i : i + batch_size]) for i in range(0, len(packets), batch_size)),
+        return_exceptions=True,
     )
     errors = [str(x) for x in results if isinstance(x, BaseException)]
     report = {
@@ -201,6 +238,7 @@ async def run(config_path, candidates_path, output):
         "inputRecords": len(paths),
         "alreadyReviewed": already_reviewed,
         "newlyRequested": len(packets),
+        "batchSize": batch_size,
         "errors": errors,
         "findings": sum(
             len(r.findings) for a in results if not isinstance(a, BaseException) for r in a.records
@@ -208,7 +246,7 @@ async def run(config_path, candidates_path, output):
         "spentUsd": str(runner.spent),
     }
     atomic_publish_json(
-        output / ("summary-" + digest([pins, sha256_file(Path(__file__))]) + ".json"), report
+        output / ("summary-" + digest([pins, batch_size, sha256_file(Path(__file__))]) + ".json"), report
     )
     print(json.dumps(report), flush=True)
 
@@ -218,5 +256,17 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--candidates", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--retry-transient-refusals", action="store_true")
+    parser.add_argument("--concurrency", type=int, choices=range(1, 9))
+    parser.add_argument("--batch-size", type=int, choices=range(1, 7), default=6)
     args = parser.parse_args()
-    asyncio.run(run(args.config.resolve(), args.candidates.resolve(), args.output.resolve()))
+    asyncio.run(
+        run(
+            args.config.resolve(),
+            args.candidates.resolve(),
+            args.output.resolve(),
+            retry_transient_refusals=args.retry_transient_refusals,
+            concurrency=args.concurrency,
+            batch_size=args.batch_size,
+        )
+    )

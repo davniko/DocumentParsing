@@ -188,6 +188,9 @@ class UnitProfileRequest(BaseModel):
     articleGroups: list[list[str]] | None = Field(
         default=None, min_length=1, exclude_if=lambda value: value is None
     )
+    thermalProductContext: dict[str, Any] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     @model_validator(mode="after")
     def context(self) -> UnitProfileRequest:
@@ -355,6 +358,13 @@ def validate_profile(request: UnitProfileRequest, value: Mapping[str, Any]) -> U
 def validate_profile_context(
     request: UnitProfileRequest, frozen: Mapping[str, Any], physical_states: Mapping[str, str]
 ) -> None:
+    from document_ocr.synthesis.independent_thermal import product_context
+
+    expected_thermal = (
+        product_context(frozen) if frozen["regime"] in {"frozen", "chilled"} else None
+    )
+    if request.thermalProductContext != expected_thermal:
+        raise ValueError("native unit profile changed the authoritative thermal product state")
     if request.dangerousGoods != frozen.get("dangerousGoods"):
         raise ValueError("native unit profile changed the authoritative DG tuple")
     if request.articleGroups != frozen.get("cargoPresentation", {}).get("articleGroups"):

@@ -526,6 +526,15 @@ class IndependentCampaign(Campaign):
             if request.get("planningStage") != "native_package_choice_accepted":
                 raise ValueError("independent package choice lacks accepted native stage: " + key)
             self.sampler.validate_request(request)
+            if request["regime"] in {"frozen", "chilled"}:
+                from document_ocr.synthesis.independent_thermal import verify_evidence
+
+                verify_evidence(
+                    root,
+                    request,
+                    self.blueprint(sid).target["documentPatch"],
+                    provider=self.calls.config["provider"],
+                )
             if request["regime"] == "dg":
                 verify_dg_context_evidence(
                     root,
@@ -1333,6 +1342,16 @@ class IndependentCampaign(Campaign):
                 thermal_state=self.requests[f"{blueprint.document_id}:{scenario.variant}"][
                     "regime"
                 ],
+            )
+        frozen = self.requests[f"{blueprint.document_id}:{scenario.variant}"]
+        if frozen["regime"] in {"frozen", "chilled"}:
+            from document_ocr.synthesis.independent_thermal import product_context
+
+            request = replace(
+                request,
+                context=request.context
+                + "\nTHERMAL PRODUCT AUTHORITY: "
+                + json.dumps(product_context(frozen), sort_keys=True),
             )
         request = self.geography.prepare_request(request, blueprint, scenario)
         localities = resolve_reviewed_locality_assemblies(

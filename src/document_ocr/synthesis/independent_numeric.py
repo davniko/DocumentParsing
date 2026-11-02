@@ -888,7 +888,8 @@ def _build_scope_ledger(
             per_unit = related_quantity // quantity
             text = (
                 f"PACKING: {per_unit} {noun_renderer(related_category, per_unit)} / "
-                f"{noun_renderer(category, 1)}; {_number(unit_net)} KG NET / {noun_renderer(category, 1)}"
+                f"{noun_renderer(category, 1)}; {_number(unit_net)} KG NET / "
+                f"{noun_renderer(category, 1)}"
             )
             result["facts"].setdefault(
                 "unitInnerPacking",
@@ -1019,7 +1020,8 @@ def _build_scope_ledger(
             pounds = (unit_net / POUNDS_TO_KG).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             text = (
                 item.get("prefix", "")
-                + f"NET CONTENT PER {noun_renderer(category, 1)}: {_number(unit_net)} KG ({pounds} LB),"
+                + f"NET CONTENT PER {noun_renderer(category, 1)}: "
+                f"{_number(unit_net)} KG ({pounds} LB),"
                 + item.get("suffix", "")
             )
             result["facts"]["explicitDualUnitNet"] = {
@@ -1164,7 +1166,10 @@ def _build_scope_ledger(
         elif role == "receptacle_statement":
             text = composition
             if capacity is not None:
-                text += f", NOMINAL CAPACITY {_number(capacity)} LITRES PER {noun_renderer(category, 1)}"
+                text += (
+                    f", NOMINAL CAPACITY {_number(capacity)} LITRES PER "
+                    f"{noun_renderer(category, 1)}"
+                )
                 result["facts"]["nominalCapacity"] = {
                     "litres": _number(capacity),
                     "authority": capacity_authority,
@@ -1187,7 +1192,10 @@ def _build_scope_ledger(
         append = owner.get("append")
         if append == "dual_unit_net":
             pounds = (unit_net / POUNDS_TO_KG).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            clause = f"NET CONTENT PER {noun_renderer(category, 1)}: {_number(unit_net)} KG ({pounds} LB)."
+            clause = (
+                f"NET CONTENT PER {noun_renderer(category, 1)}: "
+                f"{_number(unit_net)} KG ({pounds} LB)."
+            )
             result["wordingAppends"][owner["key"]] = clause
             result["facts"]["dualUnitNet"] = {
                 "kg": _number(unit_net),
@@ -2037,11 +2045,12 @@ class IndependentNumericCertificates:
                 cursor += count
             for index, region in regions:
                 row_index = region["scope"]["index"]
-                if row_index not in facts:
+                row_key = str(row_index)
+                if row_key not in facts:
                     continue
-                fact = facts[str(row_index)]
+                fact = facts[row_key]
                 surface = (
-                    f"{_noun(draw['internalCategory'], 1)} NOS. {fact['prefix']}"
+                    f"{noun_renderer(draw['internalCategory'], 1)} NOS. {fact['prefix']}"
                     f"{fact['start']:0{digits}d} - {fact['prefix']}{fact['end']:0{digits}d}"
                 )
                 key = f"{NUMERIC_REGION_PREFIX}:{index}"

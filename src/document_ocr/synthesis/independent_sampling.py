@@ -39,6 +39,7 @@ from document_ocr.synthesis.independent_envelopes import (
     package_envelope,
 )
 from document_ocr.synthesis.independent_packages import package_material
+from document_ocr.synthesis.independent_thermal import fresh_produce_eligible, sample_context
 from document_ocr.synthesis.independent_unit_profiles import (
     UnitProfileRequest,
     sample_unit_profile,
@@ -308,15 +309,22 @@ class IndependentSampler:
         self.hs_links = {record_id: frozenset(codes) for record_id, codes in links.items()}
         self._dg_domains: dict[tuple[bool, bool, int | None, bool], tuple[str, ...]] = {}
         pools: dict[str, list[str]] = {regime: [] for regime in ("ambient", "frozen", "chilled")}
+        produce = []
         for code in self.hs.global_codes:
-            thermal = eligible_thermal_profiles(
-                tuple(reversed(self.hs.global_description_path(code)))
-            )
+            ancestry = tuple(reversed(self.hs.global_description_path(code)))
+            thermal = eligible_thermal_profiles(ancestry)
             for regime in thermal or ("ambient",):
                 pools[regime.lower()].append(code)
+            # Fresh produce remains available as ambient goods too; adding an
+            # explicit refrigerated context must not rewrite ambient eligibility.
+            if fresh_produce_eligible(code, ancestry):
+                produce.append(code)
+                if code not in pools["chilled"]:
+                    pools["chilled"].append(code)
         if set().union(*(set(codes) for codes in pools.values())) != set(self.phrases):
             raise ValueError("thermal identity pools omit a pinned HS6 code")
         self.pools = {regime: tuple(sorted(codes)) for regime, codes in pools.items()}
+        self.produce_codes = frozenset(produce)
         # Whole vehicles require an explicit reviewed vehicle presentation. Keep
         # the complete pools reachable there, and cache ordinary pools once so
         # this policy adds no per-draw full-registry filtering.
@@ -390,6 +398,8 @@ class IndependentSampler:
         dg_requirements: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None = None,
         excluded_identifiers: Sequence[str] = (),
         cargo_presentation: Mapping[str, Any] | None = None,
+        thermal_goods_mode: str = "all",
+        hs6_pool: Sequence[str] | None = None,
     ) -> dict[str, Any]:
         """Freeze goods-first identities using only presentation constraints.
 
@@ -408,6 +418,15 @@ class IndependentSampler:
             raise ValueError("request needs a source identity, positive variant and integer seed")
         if regime not in _REGIMES or equipment_mode not in {"uniform", "mixed"}:
             raise ValueError("unknown independent regime or equipment mode")
+        if hs6_pool is not None and (
+            regime == "dg" or not hs6_pool or len(set(hs6_pool)) != len(hs6_pool)
+            or any(code not in self.phrases for code in hs6_pool)
+        ):
+            raise ValueError("campaign HS6 pool requires unique registry codes and a non-DG regime")
+        if thermal_goods_mode not in {"all", "produce", "other"} or (
+            regime != "chilled" and thermal_goods_mode != "all"
+        ):
+            raise ValueError("thermal goods modes apply only to the chilled domain")
         count = _require_positive_int(identity_count, "identity_count")
         if regime == "dg" and isinstance(dg_requirements, (list, tuple)):
             from document_ocr.synthesis.independent_dg_group import prepare
@@ -493,6 +512,17 @@ class IndependentSampler:
                 eligible = tuple(code for code in eligible if presentation.permits(code))
             else:
                 eligible = self.ordinary_pools[regime]
+            if thermal_goods_mode != "all":
+                eligible = tuple(
+                    code
+                    for code in eligible
+                    if (code in self.produce_codes) == (thermal_goods_mode == "produce")
+                )
+            if hs6_pool is not None:
+                pool = set(hs6_pool)
+                eligible = tuple(code for code in eligible if code in pool)
+                if len(eligible) < count:
+                    raise ValueError("campaign HS6 pool has insufficient compatible identities")
             if not excluded <= set(eligible):
                 raise ValueError("excluded HS identities are outside the eligible registry pool")
             domain = tuple(code for code in eligible if code not in excluded)
@@ -529,6 +559,14 @@ class IndependentSampler:
         }
         if presentation is not None:
             result["cargoPresentation"] = presentation.model_dump(mode="json")
+        if hs6_pool is not None:
+            result["registrySelection"]["campaignHs6Pool"] = sorted(hs6_pool)
+        if regime in {"frozen", "chilled"}:
+            result["freshProduceCodes"] = [
+                item["hs6"]
+                for item in goods
+                if regime == "chilled" and item["hs6"] in self.produce_codes
+            ]
         return result
 
     def validate_request(self, request: Mapping[str, Any], *, require_context: bool = True) -> None:
@@ -539,6 +577,14 @@ class IndependentSampler:
             raise ValueError("frozen request has no valid regime/goods")
         if request.get("sourceCargoUsedForSelection") is not False:
             raise ValueError("frozen request lacks donor-independent provenance")
+        if (pool := request.get("registrySelection", {}).get("campaignHs6Pool")) is not None:
+            if (
+                regime == "dg" or not pool or len(set(pool)) != len(pool)
+                or any(c not in self.phrases for c in pool)
+            ):
+                raise ValueError("invalid campaign HS6 pool provenance")
+            if any(g['hs6'] not in pool for g in goods):
+                raise ValueError("sampled goods escape campaign HS6 pool")
         if "cargoPresentation" in request and require_context:
             validate_cargo_presentation(request["cargoPresentation"], request)
         if (
@@ -619,6 +665,12 @@ class IndependentSampler:
                     raise ValueError(
                         "whole vehicle identity requires a reviewed vehicle presentation"
                     )
+            if regime in {"frozen", "chilled"} and request.get("freshProduceCodes") != [
+                item["hs6"]
+                for item in goods
+                if regime == "chilled" and item["hs6"] in self.produce_codes
+            ]:
+                raise ValueError("fresh produce selection differs from registry goods/state")
 
     def draw(
         self,
@@ -860,20 +912,7 @@ class IndependentSampler:
                     }
                 entries.append(entry)
             declarations = entries if "dgComponents" in request else entries[0]
-        thermal_context = None
-        if thermal:
-            thermal_context = {
-                "temperatureCelsius": str(
-                    Decimal(-24) + Decimal("0.5") * stream.derive("temperature").randbelow(13)
-                    if regime == "frozen"
-                    else Decimal(0)
-                ),
-                "ventilationCbmPerHour": 0,
-                "basis": (
-                    "unambiguous full-registry frozen/chilled ancestry; "
-                    "no respiring produce inferred"
-                ),
-            }
+        thermal_context = sample_context(request, seed) if thermal else None
         return {
             "identities": [
                 {

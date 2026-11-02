@@ -198,6 +198,43 @@ def renderable_blueprint(source_id: str = "doc-optional-range") -> SamplingBluep
     )
 
 
+@pytest.mark.parametrize("quantities", [(7, 6, 7, 7, 5), (0, 6, 0, 7, 5)])
+def test_container_serial_batches_render_the_shared_nonoverlapping_ranges(tmp_path, quantities):
+    source = "\n".join(f"SKID NOS. {100 + i * 10} - {109 + i * 10}" for i in range(5))
+    bp = FakeBlueprint("range-batch", source, target(containers=5, allocation_rows=5))
+    regions = [
+        quoted(source, text, "inclusive_range", prefixPattern="", digits=3,
+               rangeBatch="shipment_counted_units", scope={"kind": "container", "index": i})
+        for i, text in enumerate(source.splitlines())
+    ]
+    authority = write_inventory(tmp_path / "ranges.json", bp, certificate(bp, regions=regions))
+    bound = authority.apply_blueprint(bp, bp.document_id)
+    for seed in range(20):
+        result = authority.build_ledger(
+            bound, draw("PACKAGE_SKID", quantities),
+            {"privatePackingRelation": "NONE", "relatedPackageType": None}, seed, 1,
+            noun_renderer=lambda category, quantity: "SKD", allow_empty_group_scopes=True,
+        )
+        batch = result["facts"]["rangeBatch:shipment_counted_units"]
+        assert batch["quantity"] == sum(quantities)
+        endpoints = set()
+        for index, quantity in enumerate(quantities):
+            key = f"held-numeric:{index}"
+            if not quantity:
+                assert key not in result["surfaces"]
+                continue
+            fact = batch["rows"][str(index)]
+            expected = f"SKD NOS. {fact['start']:03d} - {fact['end']:03d}"
+            child = result["scopeLedgers"][str(("container", index, "shipment"))]
+            assert result["surfaces"][key] == [expected]
+            assert child["surfaces"][key] == [expected]
+            assert child["facts"]["inclusiveRange"] == fact
+            values = set(range(fact["start"], fact["end"] + 1))
+            assert len(values) == quantity
+            assert not endpoints & values
+            endpoints.update(values)
+
+
 def test_disjoint_group_can_be_absent_from_one_container_scope(tmp_path):
     source = "FIRST 100 KG\nSECOND 200 KG"
     bp = FakeBlueprint("group", source, target(containers=2, allocation_rows=2))

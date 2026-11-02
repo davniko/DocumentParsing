@@ -83,6 +83,49 @@ def test_requires_explicit_exact_registry_file_pins():
         IndependentSampler.from_config(ROOT, config)
 
 
+def test_campaign_hs_pool_is_explicit_and_preserves_full_default(sampler):
+    args = dict(
+        source_document_id='targeted-pool', variant=1, regime='ambient', identity_count=1, seed=7
+    )
+    baseline = sampler.prepare_request(**args)
+    assert sampler.prepare_request(**args, hs6_pool=None) == baseline
+    assert 'campaignHs6Pool' not in baseline['registrySelection']
+    pool = ['700510', '700521', '700529']
+    seen = set()
+    for variant in range(1, 31):
+        request = sampler.prepare_request(**{**args, 'variant': variant}, hs6_pool=pool)
+        sampler.validate_request(request)
+        seen.add(request['goods'][0]['hs6'])
+        assert request['registrySelection']['campaignHs6Pool'] == pool
+        assert request['sourceCargoUsedForSelection'] is False
+    assert seen == set(pool)
+    with pytest.raises(ValueError, match='escape campaign'):
+        request['registrySelection']['campaignHs6Pool'] = ['151110']
+        sampler.validate_request(request)
+
+
+@pytest.mark.parametrize('pool', [[], ['000000'], ['700510', '700510']])
+def test_invalid_campaign_pool_has_no_fallback(sampler, pool):
+    with pytest.raises(ValueError, match='campaign HS6 pool'):
+        sampler.prepare_request(
+            source_document_id='targeted-pool', variant=1, regime='ambient',
+            identity_count=1, seed=7, hs6_pool=pool,
+        )
+
+
+def test_campaign_pool_cannot_fabricate_dg_join_or_escape_regime(sampler):
+    with pytest.raises(ValueError, match='non-DG'):
+        sampler.prepare_request(
+            source_document_id='targeted-pool', variant=1, regime='dg',
+            identity_count=1, seed=7, hs6_pool=['700510'],
+        )
+    with pytest.raises(ValueError, match='insufficient compatible'):
+        sampler.prepare_request(
+            source_document_id='targeted-pool', variant=1, regime='frozen',
+            identity_count=1, seed=7, hs6_pool=['700510'],
+        )
+
+
 def test_ambiguous_cold_chain_identity_is_not_an_ambient_goods_authority(sampler):
     assert "020450" not in sampler.pools["ambient"]
     assert "020450" in sampler.pools["chilled"]

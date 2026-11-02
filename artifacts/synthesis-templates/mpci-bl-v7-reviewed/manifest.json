@@ -16111,7 +16111,7 @@
   },
   "currentProductionConfig": {
     "path": "configs/synthesis/mpci_bl_curated_v7_multirow.json",
-    "sha256": "1ff85f3b5ba0c251125bfeb0d95032f454b5ffb279be2aad768434ed2c87842f"
+    "sha256": "ee37f002c03dff4c249caa5de1d05192fc0c71491b20ee8d2aa65ba1f016808c"
   },
   "dependencies": {
     "campaignConfig": "configs/synthesis/mpci_bl_curated_v7_coverage1000.yaml",
@@ -18127,6 +18127,17 @@
       "path": "artifacts/sampling-registries/equipment-aliases-tanks-20261022.json",
       "sha256": "f3842fe82a3f368ea910d6b6b30a2a95a5f1178589b9416a2df1ac2c5ec4dd54"
     }
+  },
+  "thermalAndExpansionClosure20261101": {
+    "acceptance": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-certified/acceptance.json",
+      "sha256": "43ac1213ef8e9db17d0704e436a1acb0c19b4b76faef54f9aac75f7e07ff2e4f"
+    },
+    "review": {
+      "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-certified/promotion-review.json",
+      "sha256": "fb8d75be5d22789357a37e92746bd306647180a98f6ffee151e260701d2f06f2"
+    },
+    "sources": 456
   },
   "variableNumericalPlanning20261023": {
     "evidence": {

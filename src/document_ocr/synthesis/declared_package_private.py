@@ -26,7 +26,7 @@ def _fact(ledger, group):
     return matches[0]
 
 
-def combine(blueprint, certificate, ledger, children, original):
+def combine(blueprint, certificate, ledger, children, original, *, noun_renderer=None):
     """Project complete child ledgers into the same exact source owners."""
     result = deepcopy(original)
     result.update(
@@ -81,20 +81,52 @@ def combine(blueprint, certificate, ledger, children, original):
             text = f"N.W. {amount.normalize():f} KG."
         else:
             terms = []
-            for _, child in active:
+            for i, child in active:
                 values = child["surfaces"][key]
                 if len(values) != 1:
                     raise ValueError("complete group owner requires one literal surface")
                 if values[0]:
-                    terms.append(values[0])
+                    text = values[0]
+                    if len(active) > 1 and (
+                        role in {"unit_inner_packing", "dual_unit_net_statement"}
+                        or (
+                            role == "support_statement"
+                            and child["relation"] not in {"SUPPORTS", "ON_SUPPORT"}
+                        )
+                    ):
+                        if noun_renderer is None:
+                            raise ValueError(
+                                "scoped group statement requires a package noun renderer"
+                            )
+                        count = quantities[i]
+                        noun = noun_renderer(ledger.groups[i].category, count)
+                        # Scope negative support and per-unit clauses to their
+                        # own group. An inner drum is not a separately counted
+                        # outer drum merely because they share a noun.
+                        text = f"{count} {noun}: {text}"
+                    terms.append(text)
             # Whole clauses retain their own counts/units. A component-package
             # cell instead lists the additive outer portions of that Marks lot.
             separator = " + " if role == "component_package" else "\n"
             text = separator.join(terms)
         result["surfaces"][key] = [text]
-    for child in children:
+    # Per-unit appends lack the counted-group context carried by complete
+    # count/unit clauses. Name that group so an inner bag/drum cannot inherit
+    # the fill mass of a disjoint, separately counted package of the same name.
+    unscoped_appends = {
+        owner["key"]
+        for owner in certificate.get("wordingOwners", [])
+        if owner.get("append") == "dual_unit_net"
+    }
+    for index, child in enumerate(children):
         result["wordingFacts"].extend(child["wordingFacts"])
         for key, value in child["wordingAppends"].items():
+            if len(children) > 1 and key in unscoped_appends:
+                if noun_renderer is None:
+                    raise ValueError("scoped per-unit append requires a package noun renderer")
+                count = ledger.counts[index]
+                noun = noun_renderer(ledger.groups[index].category, count)
+                value = f"{count} {noun}: {value}"
             previous = result["wordingAppends"].get(key)
             result["wordingAppends"][key] = value if previous is None else previous + " " + value
         result["presentationDecisions"].extend(child["presentationDecisions"])
@@ -126,4 +158,4 @@ def build(campaign, blueprint, ledger, draws, authorities, original, *, variant)
             allow_empty_group_scopes=True,
         )
         children.append(child)
-    return combine(blueprint, certificate, ledger, children, original)
+    return combine(blueprint, certificate, ledger, children, original, noun_renderer=noun)

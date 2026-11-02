@@ -2329,3 +2329,111 @@ Full diagnosis, distribution tables, native probe progression, limitations, cost
 source IDs and next integration proof obligations:
 [thermal/freight follow-up](analysis/r28-thermal-freight-probe-20261031/REPORT.md).
 No production, template or dataset mutation was made by this audit/probe task.
+
+## 2026-11-01 — thermal integration and interrupted 2,500-sample campaign
+
+The user approved the revised campaign, excluding payable-elsewhere freight.
+The independent thermal path now uses verified, goods-conditioned native ranges
+instead of fixed chilled 0°C / ventilation zero, with one shared shipment context
+carried through packaging, physical estimates and wording. Regression suite:
+673 passed; focused tests: 27 passed (overlapping thermal coverage). Corrected
+third preflight: 33 records across 11 templates, all geometry replay PASS;
+the twelfth template's three records remain pending. Chilled output now includes
+13 settings from −1.5 to +13°C and both positive/zero/absent ventilation.
+
+**Blocked by provider HTTP 402 insufficient credits.** All paid workers stopped.
+234 new campaign drafts and 90 separate preflight drafts exist; **zero records
+are admitted to R28**. All 12 snapshotted dataset files remain hash-identical.
+No final distribution/certification claim is made. Source-only country/telephone
+owner overlays are staged but not promoted; existing affected families still
+require readback and validated migration. Goods/postal corrections and incomplete
+batch reviews are explicitly inventoried, not treated as accepted output.
+
+The plan remains 560 DG / 460 thermal / 1,480 other, 360 forwarding and 400 new
+transshipment, 2,300 single-row / 200 two-row, all UAE import. Humidity-source
+admission remains unfinished; payable-elsewhere is excluded as requested.
+Full implementation, preflight results, pending repairs, performance/cost evidence
+and exact resume checklist:
+[R28 expansion status report](analysis/r28-expansion2500-20261101/REPORT.md).
+
+## 2026-11-01 — resumed campaign completed: R28 now has 10,000 training records
+
+The credit block is resolved and the requested **2,500 additional UAE-import
+synthetic records are certified and appended**. R28 now contains **9,400 synthetic
++ 600 anonymized real** training records; 60 validation records remain separate
+and byte-for-byte unchanged. No new dataset version or training run was created.
+
+Realized additions: 560 DG, 460 thermal (200 chilled / 260 frozen), 1,480 other,
+360 forwarding-agent and 400 transshipment documents. Final training totals are
+**1,009 DG, 1,003 thermal, 1,006 forwarding-agent and 566 transshipment**.
+The additions use 455 parents, 1,863 sampled HS6 identities, 478 distinct UN
+numbers and all 48 active package categories. There are 2,300 single-row and
+200 multi-row additions, bringing final multi-row coverage to 1,700 synthetic
+plus eight real documents. Public factorization remains deferred to R29.
+
+Thermal variability is integrated: 174/200 chilled setpoints are nonzero;
+observed chilled range −2 to +14.5°C, frozen range −29.5 to −18°C. Of 100
+ventilation-bearing additions, 91 have positive airflow (6–49 m³/h). Humidity
+template admission is still a separate gap; payable-elsewhere was excluded as
+requested. Transshipment remains concentrated in eight supporting layouts.
+
+The pass also fixes **275 unique legacy records** at the appropriate
+source/binding/rendering/target layers. Exact repair-inventory readback preserves
+all existing coordinate suffixes, membership and validation bytes. Source-owner,
+numeric-scope and equipment-preflight fixes are promoted into the main synthesis
+configuration. All 456 template readiness/admission checks pass; unchanged
+source/group capabilities are retained. Evidence includes 1,197 identical old
+replays, fresh replacement controls for stale authorities, fresh evidence for
+all 38 thermal sources, and 45 separate closing synthesis controls. Old thermal
+receipts without the new native input are explicitly not claimed as fresh replay.
+
+Closing regression suite: **1,347 passed in 63.77 s**. Final publication readback
+validates all 10,060 training/validation targets, text hashes, manifests, exact
+new payload and census. Final training coordinate coverage is 83.58%; the new
+cohort is 82.49% because missing source anchors remain absent. Recorded native
+campaign cost, including retries, controls and reviews, is **$7.7691 total /
+$3.1076 per 1,000 accepted additions**, excluding Codex and local compute.
+
+Full findings, distributions, corrective work, proof boundaries and limitations:
+[completed expansion report](analysis/r28-expansion2500-20261101/REPORT.md#7-final-closure-after-credit-resumption).
+Publication evidence:
+[dataset](analysis/r28-expansion2500-20261101/final/publication.json),
+[readback](analysis/r28-expansion2500-20261101/final/readback.json),
+[production authorities](analysis/r28-expansion2500-20261101/authority-carryover/publication.json).
+
+## 2026-11-01 — mixed-equipment / multi-package refresh completed in R28
+
+Published the approved **100 equipment-only + 200 donor-free cargo replacements**.
+All 300 now combine mixed equipment and multiple public package rows; the 200 cargo
+replacements span 70 parents, 123 sampled HS6 identities, and at least two distinct
+public package categories each. No parent contributes more than four cargo replacements.
+Sampling uses explicit goods-first campaign strata, then native plausible-package
+selection, not commodity donors or forced category assignments.
+
+Synthetic coverage: mixed equipment **767 → 1,067**, multi-row **1,700 → 1,900**,
+intersection **0 → 300**. Existing multi-container count stays 2,904. Sparse package
+counts increase for Rack **21 → 48**, Case **70 → 101**, Reel **65 → 85**, Super-bulk
+bag **53 → 75**, Parcel **28 → 45**, Slab **36 → 51**, Block **64 → 85**, Flexibag
+**26 → 48**, Flexitank **33 → 65**, Bulk liquid **29 → 54**, with broader parents too.
+
+Separately, user-approved propagation of the existing unresolved private-owner
+omission fixed 10 older descendants; three overlap the refresh, so **307 unique
+training records** changed. Extraction labels are unchanged for the owner cleanup.
+Both synthetic sidecars have 88 synchronized copies each. R28 remains **9,400
+synthetic + 600 anonymized real**. Real training, validation, frozen R27 and all
+unselected shard lines are preserved. DG/thermal/forwarding/transshipment counts
+remain **1,009 / 1,003 / 1,006 / 566** in the full training set.
+
+The migration consumes complete repeated cargo/auxiliary/physical ownership,
+including equipment tares. Targeted fixes prevent stale HS suffixes, missed
+continuation descriptions, loss of current noncargo coordinate anchors and
+unapproved unrelated omissions. Failed native wording is regenerated/reviewed or
+excluded, not encoded as new template exceptions. **446 tests pass**; full native
+replay, full-shard readback, geometry and token-limit checks pass. Recorded provider
+spend is **$1.0630** including unselected drafts/corrections/reviews, excluding prior
+probes and local/Codex compute. No new training run or dataset version was created.
+
+Detailed findings and certification boundary:
+[refresh report](analysis/r28-combination-refresh300-20261101/REPORT.md),
+[final readback](analysis/r28-combination-refresh300-20261101/final-readback.json),
+[publication](analysis/r28-combination-refresh300-20261101/publication-state.json).

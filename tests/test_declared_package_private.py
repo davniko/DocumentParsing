@@ -104,3 +104,118 @@ def test_missing_owned_scope_fails_closed(case):
         child["surfaces"] = {}
     with pytest.raises(ValueError, match="no positive"):
         combine(bp, {"regions": [{"role": "packing_clause"}]}, ledger, children, original)
+
+
+@pytest.mark.parametrize("relations", [("NONE", "SUPPORTS"), ("NONE", "NONE")])
+def test_negative_support_statement_is_scoped_to_its_disjoint_group(case, relations):
+    bp, ledger, original, children = case
+    for child, relation in zip(children, relations, strict=True):
+        child["relation"] = relation
+        child["surfaces"] = {
+            "held-numeric:0": [
+                "NO SUPPORT UNITS DECLARED" if relation == "NONE" else "24 CARTONS ON 8 DRUMS"
+            ]
+        }
+    result = combine(
+        bp,
+        {"regions": [{"role": "support_statement"}]},
+        ledger,
+        children,
+        original,
+        noun_renderer=lambda category, count: {
+            "PACKAGE_BOX": "BOXES",
+            "PACKAGE_DRUM_STEEL": "STEEL DRUMS",
+        }[category],
+    )
+    text = result["surfaces"]["held-numeric:0"][0]
+    assert text.startswith("7 BOXES: NO SUPPORT UNITS DECLARED\n")
+    assert text.endswith(
+        "24 CARTONS ON 8 DRUMS"
+        if relations[1] == "SUPPORTS"
+        else "8 STEEL DRUMS: NO SUPPORT UNITS DECLARED"
+    )
+    assert result["publicQuantity"] == 15
+
+
+def test_scoped_negative_support_never_uses_an_unconfigured_noun(case):
+    bp, ledger, original, children = case
+    children[0]["relation"] = "NONE"
+    with pytest.raises(ValueError, match="noun renderer"):
+        combine(bp, {"regions": [{"role": "support_statement"}]}, ledger, children, original)
+
+
+def test_per_unit_nested_clauses_identify_their_disjoint_outer_group(case):
+    bp, ledger, original, children = case
+    children[0]["surfaces"] = {"held-numeric:0": ["PACKING: 4 DRUM / BOX; 2 KG NET / BOX"]}
+    children[1]["surfaces"] = {"held-numeric:0": ["PACKING: 1 BAG / DRUM; 10 KG NET / DRUM"]}
+    result = combine(
+        bp,
+        {"regions": [{"role": "unit_inner_packing"}]},
+        ledger,
+        children,
+        original,
+        noun_renderer=lambda category, count: {
+            "PACKAGE_BOX": "BOXES",
+            "PACKAGE_DRUM_STEEL": "STEEL DRUMS",
+        }[category],
+    )
+    assert result["surfaces"]["held-numeric:0"] == [
+        "7 BOXES: PACKING: 4 DRUM / BOX; 2 KG NET / BOX\n"
+        "8 STEEL DRUMS: PACKING: 1 BAG / DRUM; 10 KG NET / DRUM"
+    ]
+    assert result["publicQuantity"] == 15
+
+
+def test_per_unit_wording_append_names_its_counted_group(case):
+    bp, ledger, original, children = case
+    for value, child in zip(("2", "10"), children, strict=True):
+        child["wordingAppends"] = {"product": f"NET CONTENT PER UNIT: {value} KG."}
+    before = deepcopy(children)
+    certificate = {"regions": [], "wordingOwners": [{"key": "product", "append": "dual_unit_net"}]}
+    result = combine(
+        bp, certificate, ledger, children, original,
+        noun_renderer=lambda category, count: "BOXES" if category == "PACKAGE_BOX" else "STEEL DRUMS",
+    )
+    assert result["wordingAppends"]["product"] == (
+        "7 BOXES: NET CONTENT PER UNIT: 2 KG. 8 STEEL DRUMS: NET CONTENT PER UNIT: 10 KG."
+    )
+    assert children == before
+    assert result["netKg"] == "94"
+    with pytest.raises(ValueError, match="scoped per-unit append"):
+        combine(bp, certificate, ledger, children, original)
+
+
+def test_complete_counted_append_does_not_get_a_redundant_prefix(case):
+    bp, ledger, original, children = case
+    children[0]["wordingAppends"] = {"product": "7 BOXES; 2 KG NET PER BOX."}
+    children[1]["wordingAppends"] = {"product": "8 STEEL DRUMS; 10 KG NET PER DRUM."}
+    certificate = {"regions": [], "wordingOwners": [{"key": "product", "append": "count_unit_net"}]}
+    result = combine(bp, certificate, ledger, children, original)
+    assert result["wordingAppends"]["product"] == (
+        "7 BOXES; 2 KG NET PER BOX. 8 STEEL DRUMS; 10 KG NET PER DRUM."
+    )
+
+
+def test_dual_unit_region_identifies_distinct_groups_even_with_the_same_noun(case):
+    bp, ledger, original, children = case
+    for value, child in zip(("2", "10"), children, strict=True):
+        child["surfaces"] = {"held-numeric:0": [f"NET CONTENT PER PACKAGE: {value} KG."]}
+    certificate = {"regions": [{"role": "dual_unit_net_statement"}]}
+    result = combine(bp, certificate, ledger, children, original,
+                     noun_renderer=lambda category, count: "PACKAGES")
+    assert result["surfaces"]["held-numeric:0"] == [
+        "7 PACKAGES: NET CONTENT PER PACKAGE: 2 KG.\n"
+        "8 PACKAGES: NET CONTENT PER PACKAGE: 10 KG."
+    ]
+    assert result["netKg"] == "94" and result["publicQuantity"] == 15
+    with pytest.raises(ValueError, match="noun renderer"):
+        combine(bp, certificate, ledger, children, original)
+
+
+def test_single_dual_unit_region_is_unchanged(case):
+    bp, ledger, original, children = case
+    children[1]["surfaces"] = {}
+    children[0]["surfaces"] = {"held-numeric:0": ["NET CONTENT PER BOX: 2 KG."]}
+    result = combine(bp, {"regions": [{"role": "dual_unit_net_statement"}]},
+                     ledger, children, original)
+    assert result["surfaces"]["held-numeric:0"] == ["NET CONTENT PER BOX: 2 KG."]
