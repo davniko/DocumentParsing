@@ -19,9 +19,9 @@ from dataclasses import replace
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from itertools import pairwise
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from document_ocr.synthesis.curated import assign, flat
 from document_ocr.synthesis.curated_descriptions import validate_description_regions
@@ -84,8 +84,39 @@ _COMPOSITION_ROLES = frozenset(
 _RELATIONS = frozenset({"NONE", "CONTAINS", "SUPPORTS", "ON_SUPPORT"})
 
 
+class ExternalPackingPresentation(BaseModel):
+    """A native-layout owner absent from the older transcription blueprint.
+
+    The planner owns the complete group; the pinned native renderer owns its
+    presentation. This cannot authorize an unprinted public package row.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    owner: str = Field(min_length=1)
+    nativeFingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+    levels: Literal[2, 3]
+    contentsKind: Literal["goods_pieces", "support_packages"]
+
+    @model_validator(mode="after")
+    def coherent_levels(self):
+        if (self.levels, self.contentsKind) not in {(3, "goods_pieces"), (2, "support_packages")}:
+            raise ValueError("native packing depth differs from its presentation kind")
+        return self
+
+
+def packing_contents_kind(certificate: Mapping[str, Any]) -> str:
+    presentation = certificate.get("externalPackingPresentation")
+    return (
+        "goods_pieces"
+        if presentation is not None and presentation["contentsKind"] == "goods_pieces"
+        else "packages"
+    )
+
+
 def required_packing_levels(certificate: Mapping[str, Any]) -> int:
     """Presentation depth, not the source's goods, nouns or count ratios."""
+    if (presentation := certificate.get("externalPackingPresentation")) is not None:
+        return presentation["levels"]
     return (
         3
         if any(
@@ -692,6 +723,19 @@ def _build_scope_ledger(
     native_composition = (
         scope_composition(draw, typed_plan, quantity) if relation != "NONE" else None
     )
+    if "externalPackingPresentation" in certificate:
+        _require(
+            native_composition is not None,
+            "native packing presentation requires complete composed contents authority",
+        )
+        presentation = certificate["externalPackingPresentation"]
+        if presentation["levels"] == 3:
+            _require("contents" in native_composition, "three-level packing lacks contents")
+        else:
+            _require(
+                relation == "ON_SUPPORT" and native_composition.get("supportEnvelope") is not None,
+                "native support presentation requires counted packages on owned supports",
+            )
     if native_composition is not None:
         if composition_facts is not None and (
             composition_facts["relatedQuantity"] != native_composition["relatedQuantity"]
@@ -749,6 +793,26 @@ def _build_scope_ledger(
     }
     if support is not None:
         result["facts"]["supportEnvelope"] = support
+    if "externalPackingPresentation" in certificate:
+        presentation = certificate["externalPackingPresentation"]
+        if presentation["contentsKind"] == "goods_pieces":
+            contents = native_composition["contents"]
+            _require(
+                contents["packageSingular"] == "PIECE" and contents["packagePlural"] == "PIECES",
+                "goods-piece presentation cannot count extra inner receptacles",
+            )
+        result["facts"]["externalPackingPresentation"] = {
+            **presentation,
+            "relatedQuantity": related_quantity,
+            "relatedCategory": related_category,
+            **(
+                {"contents": dict(native_composition["contents"])}
+                if presentation["levels"] == 3
+                else {}
+            ),
+            "publicPackageRowsAdded": False,
+            "sourceCountRatioUsed": False,
+        }
     if (nominal_capacity_litres is None) != (capacity_authority is None):
         raise ValueError("nominal capacity and explicit authority must be supplied together")
     capacity = None if nominal_capacity_litres is None else _decimal(nominal_capacity_litres)
@@ -1019,10 +1083,8 @@ def _build_scope_ledger(
         elif role == "dual_unit_net_statement":
             pounds = (unit_net / POUNDS_TO_KG).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             text = (
-                item.get("prefix", "")
-                + f"NET CONTENT PER {noun_renderer(category, 1)}: "
-                f"{_number(unit_net)} KG ({pounds} LB),"
-                + item.get("suffix", "")
+                item.get("prefix", "") + f"NET CONTENT PER {noun_renderer(category, 1)}: "
+                f"{_number(unit_net)} KG ({pounds} LB)," + item.get("suffix", "")
             )
             result["facts"]["explicitDualUnitNet"] = {
                 "kg": _number(unit_net),
@@ -1407,6 +1469,8 @@ class IndependentNumericCertificates:
                     raise ValueError("unit profile precision must be a positive power of ten")
         if "cargoPresentation" in certificate:
             CargoPresentation.model_validate(certificate["cargoPresentation"])
+        if "externalPackingPresentation" in certificate:
+            ExternalPackingPresentation.model_validate(certificate["externalPackingPresentation"])
         if not isinstance(constraints, list) or any(
             not isinstance(constraint, dict) or not isinstance(constraint.get("kind"), str)
             for constraint in constraints
@@ -1634,6 +1698,12 @@ class IndependentNumericCertificates:
         certificate = self._certificates[source_id]
         if certificate.get("holdReasons"):
             return ()
+        if "externalPackingPresentation" in certificate:
+            return (
+                ("ON_SUPPORT",)
+                if certificate["externalPackingPresentation"]["levels"] == 2
+                else ("CONTAINS", "SUPPORTS")
+            )
         if any(r["role"] == "mixed_package_equation" for r in certificate["regions"]):
             return ("MIXED",)
         visible = any(
@@ -1736,6 +1806,7 @@ class IndependentNumericCertificates:
         if (
             not certificate["regions"]
             and not certificate["wordingOwners"]
+            and "externalPackingPresentation" not in certificate
             and (relation != "NONE" or typed_plan["relatedPackageType"] is not None)
         ):
             raise ValueError("private relationship has no certified presentation owner")
@@ -1924,6 +1995,10 @@ class IndependentNumericCertificates:
             elif kind == "shared_container":
                 local_draw["package"]["packageQuantity"] = shared_facts["rowQuantity"]
             local_certificate = dict(certificate)
+            # The native declaration is shipment-owned. Scalar repetitions in
+            # container scopes must not consume or duplicate its support count.
+            if group != shipment_group:
+                local_certificate.pop("externalPackingPresentation", None)
             local_certificate["regions"] = [region for _, region in regions]
             local_certificate["wordingOwners"] = (
                 certificate["wordingOwners"] if group == shipment_group else []

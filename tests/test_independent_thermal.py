@@ -122,6 +122,12 @@ def test_produce_variation_and_absence():
     assert len({sample_context(row, i)["ventilationCbmPerHour"] for i in range(100)}) == 16
     absent = frozen_request(ventilation="ABSENT")
     assert sample_context(absent, 1)["ventilationCbmPerHour"] is None
+    # Unprinted ventilation is not evidence that respiring produce is unsupported.
+    absent_produce = frozen_request(respiration="respiring_produce", ventilation="ABSENT")
+    assert validate_profile(absent_produce).supportedRange.respiration == "respiring_produce"
+    contexts = [sample_context(absent_produce, seed) for seed in range(100)]
+    assert len({item["temperatureCelsius"] for item in contexts}) == 7
+    assert all(item["ventilationCbmPerHour"] is None for item in contexts)
 
 
 def test_unknown_and_tampered_context_are_not_sampling_authority():

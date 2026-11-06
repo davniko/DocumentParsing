@@ -337,3 +337,56 @@ def sample_groups(
             gross += extra * group.gross_kg
             volume += extra * group.volume_m3
     return DeclaredPackages(tuple(groups), tuple(tuple(row) for row in matrix), tuple(capacities))
+
+
+def equalize_groups(
+    ledger: DeclaredPackages,
+    *,
+    minimum_group_count: int = 1,
+    minimum_load_counts: Sequence[int] | None = None,
+    exclusive_groups: Sequence[int] = (),
+) -> DeclaredPackages:
+    """Plan equal counted loads from sampled units, never from source ratios.
+
+    The equality cohort uses the same group composition in each load. Equipment
+    may differ, so every load is checked against its own capacity. Counts are
+    rounded down to the group's indivisible packing lattice; source component
+    minima still apply. Infeasible proposals surface for redraw, not truncation.
+    """
+    loads = len(ledger.matrix)
+    minima = list([1] * loads if minimum_load_counts is None else minimum_load_counts)
+    if (
+        type(minimum_group_count) is not int
+        or minimum_group_count < 1
+        or len(minima) != loads
+        or any(type(n) is not int or n < 1 for n in minima)
+    ):
+        raise ValueError("equal-load component minima must be positive and load-aligned")
+    if exclusive_groups:
+        if len(set(exclusive_groups)) != len(exclusive_groups) or any(
+            type(i) is not int or not 0 <= i < len(ledger.groups) for i in exclusive_groups
+        ):
+            raise ValueError("exclusive group indexes must be distinct and in range")
+        # Installed systems cannot share a carrying container. Their existing
+        # one-system loads are already equal; do not combine them with packages.
+        if (
+            len({sum(row) for row in ledger.matrix}) != 1
+            or any(sum(row) != 1 for row in ledger.matrix if any(row[i] for i in exclusive_groups))
+            or any(total < minimum_group_count for total in ledger.counts)
+            or any(
+                any(n and n < minimum for n in row)
+                for row, minimum in zip(ledger.matrix, minima, strict=True)
+            )
+        ):
+            raise CandidateIncompatibility("installed-system loads cannot be equalized by mixing")
+        return ledger
+    counts = tuple(
+        max(
+            g.multiple,
+            total // loads // g.multiple * g.multiple,
+            (max(minima) + g.multiple - 1) // g.multiple * g.multiple,
+            (minimum_group_count + loads * g.multiple - 1) // (loads * g.multiple) * g.multiple,
+        )
+        for total, g in zip(ledger.counts, ledger.groups, strict=True)
+    )
+    return DeclaredPackages(ledger.groups, (counts,) * loads, ledger.capacities)

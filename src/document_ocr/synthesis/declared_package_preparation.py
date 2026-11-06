@@ -253,7 +253,10 @@ async def prepare(root: Path, config: dict) -> dict:
                     native.model_dump(mode="json"),
                 )
             else:
-                from document_ocr.synthesis.independent_numeric import required_packing_levels
+                from document_ocr.synthesis.independent_numeric import (
+                    packing_contents_kind,
+                    required_packing_levels,
+                )
 
                 native = composed.TopologyRequest(
                     **values,
@@ -261,9 +264,12 @@ async def prepare(root: Path, config: dict) -> dict:
                     packingLevels=required_packing_levels(
                         campaign.numeric.certificate(request["sourceDocumentId"])
                     ),
+                    innerContentsKind=packing_contents_kind(
+                        campaign.numeric.certificate(request["sourceDocumentId"])
+                    ),
                 )
                 model = composed.topology_output_type(
-                    plan["privatePackingRelation"], native.packingLevels
+                    plan["privatePackingRelation"], native.packingLevels, native.innerContentsKind
                 )
                 topologies[key] = (
                     composed.TOPOLOGY_STAGE,

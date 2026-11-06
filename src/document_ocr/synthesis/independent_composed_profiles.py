@@ -72,9 +72,14 @@ def packing_roles(plan: Mapping[str, Any]) -> dict[str, Any]:
 class TopologyRequest(UnitProfileRequest):
     privatePacking: dict[str, Any]
     packingLevels: Literal[2, 3] = Field(default=2, exclude_if=lambda value: value == 2)
+    innerContentsKind: Literal["packages", "goods_pieces"] = Field(
+        default="packages", exclude_if=lambda value: value == "packages"
+    )
 
     @model_validator(mode="after")
     def composed(self) -> TopologyRequest:
+        if self.innerContentsKind == "goods_pieces" and self.packingLevels != 3:
+            raise ValueError("goods-piece contents require three explicit counting levels")
         if self.privatePacking.get("privatePackingRelation") not in {
             "CONTAINS",
             "SUPPORTS",
@@ -168,15 +173,30 @@ class TopologyProposal(BaseModel):
         return self.topology is None
 
 
-@lru_cache(maxsize=6)
-def topology_output_type(relation: str, packing_levels: int = 2) -> type[TopologyProposal]:
+@lru_cache(maxsize=8)
+def topology_output_type(
+    relation: str, packing_levels: int = 2, contents_kind: str = "packages"
+) -> type[TopologyProposal]:
     if packing_levels not in (2, 3) or (packing_levels == 3 and relation not in THREE_LEVEL_TYPES):
         raise ValueError("unsupported packing depth/relation")
+    topology = (THREE_LEVEL_TYPES if packing_levels == 3 else TOPOLOGY_TYPES)[relation]
+    if contents_kind == "goods_pieces":
+        if packing_levels != 3:
+            raise ValueError("goods-piece contents require three counting levels")
+        contents = create_model(
+            "GoodsPieceContents",
+            __base__=InnerContents,
+            packageSingular=(Literal["PIECE"], ...),
+            packagePlural=(Literal["PIECES"], ...),
+        )
+        topology = create_model("GoodsPieceTopology", __base__=topology, contents=(contents, ...))
+    elif contents_kind != "packages":
+        raise ValueError("unknown inner contents kind")
     return create_model(
         "FrozenCompositionTopology",
         __base__=TopologyProposal,
         topology=(
-            (THREE_LEVEL_TYPES if packing_levels == 3 else TOPOLOGY_TYPES)[relation] | None,
+            topology | None,
             ...,
         ),
     )
@@ -216,6 +236,16 @@ def topology_prompt(request: TopologyRequest) -> str:
             "If these frozen package roles cannot plausibly form this nesting, "
             "return topology=null."
         )
+        if request.innerContentsKind == "goods_pieces":
+            context["innerContentsInstruction"] = (
+                "Preserve THREE counting levels: counted outer/support units, related "
+                "INTERMEDIATE packages, and individual GOODS PIECES inside each intermediate "
+                "package. The last level counts products, not additional wrappers/receptacles. "
+                "Use PIECE/PIECES and a plausible positive unitsPerRelated. The selected "
+                "goods must be countable as pieces; do not invent bottles or bags for loose "
+                "liquid/powder or miniaturize large goods to force a fit. Return topology=null "
+                "if this complete arrangement is not plausible. Source ratios are not supplied."
+            )
     return json.dumps(context, ensure_ascii=False, sort_keys=True)
 
 
@@ -229,6 +259,11 @@ class ComposedRequest(TopologyRequest):
         ]
         if type(self.topology) is not expected:
             raise ValueError("frozen topology belongs to a different packing relation")
+        if self.innerContentsKind == "goods_pieces" and (
+            self.topology.contents.packageSingular != "PIECE"
+            or self.topology.contents.packagePlural != "PIECES"
+        ):
+            raise ValueError("goods-piece contents cannot become inner packaging")
         return self
 
 
@@ -361,11 +396,19 @@ def composed_prompt(request: ComposedRequest) -> str:
             f" EACH of those intermediate {related} encloses EXACTLY "
             f"{t.contents.unitsPerRelated} {contents}. Include packing at ALL THREE levels."
         )
+        if request.innerContentsKind == "goods_pieces":
+            definition = definition.replace(
+                "Include packing at ALL THREE levels.",
+                "The innermost units are individual goods pieces, not more packages. "
+                "Include mass/volume of every piece and all actual outer/intermediate packing.",
+            )
     context["exactFrozenGroup"] = (
         definition + " These coefficients count the named PACKAGES, not product pieces, "
         "unless the supplied counted category itself is an unpackaged article. "
         "Do not replace inner crates with glass panes or change any unit identity."
     )
+    if request.innerContentsKind == "goods_pieces":
+        context["exactFrozenGroup"] = definition + " Preserve these distinct counting roles."
     return json.dumps(context, ensure_ascii=False, sort_keys=True)
 
 
@@ -406,7 +449,9 @@ def verify_composed_evidence(
         identity=f"{frozen['sourceDocumentId']}:{frozen['variant']}",
         request=topology_request.model_dump(mode="json"),
         model=topology_output_type(
-            request.privatePacking["privatePackingRelation"], request.packingLevels
+            request.privatePacking["privatePackingRelation"],
+            request.packingLevels,
+            request.innerContentsKind,
         ),
         system=TOPOLOGY_SYSTEM,
         prompt=topology_prompt(topology_request),
@@ -463,7 +508,7 @@ def sample_composed_profile(
         {
             k: v
             for k, v in request.model_dump(mode="json").items()
-            if k not in {"privatePacking", "topology", "packingLevels"}
+            if k not in {"privatePacking", "topology", "packingLevels", "innerContentsKind"}
         }
     )
     # Complete supported articles are packed groups even if the counted

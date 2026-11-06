@@ -18,7 +18,10 @@ from document_ocr.synthesis import independent_article_profiles as articles
 from document_ocr.synthesis import independent_composed_profiles as composed
 from document_ocr.synthesis.independent_campaign import IndependentCampaign, unit_profile_capacities
 from document_ocr.synthesis.independent_dg_context import physical_form, physical_forms
-from document_ocr.synthesis.independent_numeric import required_packing_levels
+from document_ocr.synthesis.independent_numeric import (
+    packing_contents_kind,
+    required_packing_levels,
+)
 from document_ocr.synthesis.independent_preparation import (
     _complete_groups,
     _evidence,
@@ -174,9 +177,10 @@ async def prepare_unit_profiles(
                 **values,
                 privatePacking=composed.packing_roles(plans[key]),
                 packingLevels=packing_levels,
+                innerContentsKind=packing_contents_kind(context.certificates[sid]),
             )
             model = composed.topology_output_type(
-                plans[key]["privatePackingRelation"], packing_levels
+                plans[key]["privatePackingRelation"], packing_levels, request.innerContentsKind
             )
             topology_jobs[key] = (
                 composed.TOPOLOGY_STAGE,

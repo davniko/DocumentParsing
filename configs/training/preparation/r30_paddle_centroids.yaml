@@ -1,0 +1,34 @@
+# Preparation specification, NOT a runnable TrainingConfig.
+# R30 is published. Materialize final training configs and run token/VRAM preflight.
+# Do not substitute R29 GLM inputs or reuse their dataset/constraint pins.
+status: preparation_only_awaiting_training_config_and_benchmark
+baseline_dataset: data/curated/mpci-bl-r29-positions-v1
+intended_dataset: data/curated/mpci-bl-r30-paddle-centroids-v1
+base_configs:
+  local: configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic9400_r28_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml
+  runpod: configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic9400_r28_positions_inputonly_v7_e10_compact_eva_a32_r64_runpod_schedulefree_v1.yaml
+
+# Apply to both hardware profiles. Preserve other hyperparameters unless the
+# final Paddle token/VRAM benchmark justifies an explicitly reviewed adjustment.
+training_overrides:
+  evaluation:
+    # R29's longest target is 3,129 tokens; the old 3,072 cap is insufficient.
+    # Align to the existing training budget, not just the current observed max.
+    generation_max_length: 5500
+
+input_contract:
+  text: paddle_only
+  order: native_page_and_region_index
+  coordinate_mode: centroid
+  normalization_grid: 1000
+  preserve_empty_pages: true
+  baseline_view_remains_separate: true
+
+release_requirements:
+  - Reconcile current R29 input, targets and privacy decisions with Paddle evidence.
+  - Publish certified R30 train and validation files with content hashes and counts.
+  - Replace dataset and task-constraint pins, run IDs, adapter names and dataset tags.
+  - Keep the larger generation limit in BOTH local and RunPod training configs.
+  - Check all final target lengths, including EOS, against both configured limits.
+  - Benchmark throughput and VRAM using the final inputs and longer decoding cap.
+  - Do not launch this preparation specification directly with the trainer.

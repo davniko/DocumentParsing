@@ -1,17 +1,26 @@
 # MPCI extraction: run results and next experiments
 
-Updated: 2026-10-18. This is the consolidated results ledger for **fifteen completed runs**, now including the same-data **O/R27 rank-64** comparison with **N/R27 rank-48**, alongside synthetic-only **L/R22** and restored-real **M/R23**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
+Updated: 2026-11-02. This is the consolidated results ledger for **sixteen completed runs**, now including **P/R28: 9,400 synthetic +600 anonymized real, rank64**, the same-data **O/R27 rank64 versus N/R27 rank48** comparison, synthetic-only **L/R22** and restored-real **M/R23**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
 
 **Default for subsequent experiments: LoRA rank64**, explicitly accepted by the
 user after the native terminal checkpoint comparison. Historical rank48 configs
 and completed-run exports are not rewritten. The contained R28 sampling follow-up
 is documented in [its report](analysis/r28-donor-independent-followup-20261018/REPORT.md).
 
-**Current decision:** **O/R27 rank64 terminal checkpoint2350, epoch10, is the best overall checkpoint of the latest run**, with field F1/accuracy **0.8991/0.8518**, relation F1/accuracy **0.9707/0.9430**,215/220 correct relations, eight extra and five missed, and53/60 exact relation graphs. Its original evaluation is now reproduced exactly, twice; the first mismatched-batch replay is superseded, not its replacement score. Against N/rank48's terminal checkpoint on identical native terminal batches, logged field F1 improves **0.8734→0.8991**, accuracy **0.8098→0.8518**, relations **0.9052→0.9707** and categories **0.8538→0.8948**. This supports a beneficial fixed-alpha rank48→64 experiment, with the source-level and shared-parseable comparisons documented below. Both train on the same6,900 synthetic +600 anonymized real samples. The automatic field-F1 export remains **checkpoint587**, not the user-designated task-weighted best2350; no checkpoint/export has been overwritten. [Section21](#21-or27-rank64-completed-same-data-comparison) preserves the selected-export-only comparison; [section23](#23-evaluation-non-reproduction-root-cause-fixed-and-native-terminal-result-recovered) diagnoses and fixes evaluation reproducibility. The preferred-checkpoint and terminal-rank comparison is in [section24](#24-preferred-rank64-terminal-checkpoint-and-terminal-rank48-comparison).
+**Current result:** **P/R28's field-F1-selected checkpoint and terminal checkpoint are both3130, epoch10**, with field F1/accuracy **0.902930/0.862200**, relation F1/accuracy **0.928736/0.866953**, category F1 **0.930582**, JSON58/60, schema52/60 and whole-document exact8/60. The saved scheduled and final prediction passes agree exactly; all504 exported adapter tensors match3130. This is **not an unqualified improvement over R27**: category precision and validity improve, but container inventory/allocation recall regresses. Excluding handling symmetrically because its gold changed, field F1 is **0.902739→0.903639**, a small gain. **Checkpoint3128 is a meaningful alternative**, with field F10.902180, relation F10.937355 and schema53/60. Preserve both; no export is changed by this audit. See [section25](#25-pr28-completed-10000-record-rank64-run).
 
-On the **same52 documents parseable in both terminal models**, field F1 improves **0.9178→0.9203** and relations **0.9740→0.9767**, while category F1 regresses **0.9110→0.8966**. Most of the larger all60 gain comes from recovering heavier documents, particularly a ten-container case where rank48 repeats one container64 times until truncation. That is a meaningful output improvement, but not uniform semantic dominance or a measured constrained-decoding result.
+**Relation follow-up:** reviewed syntax recovery and exact-duplicate removal on
+diagnostic copies give relation F1 **0.977679 for R27 versus 0.956720 for R28**.
+The remaining nine-correct-fact deficit is concentrated in three documents.
+Training targets pass the structural checks, but high-count inventory diversity
+and equal-load combinations remain narrow. These are not new production scores
+or a proven causal attribution. See [section26](#26-r28-cargo-relation-regression-diagnosis).
 
-The latest **training-results audit** includes artifact inspection, CPU metric replay, source-text review and explicit recovered-order GPU checkpoint evaluations. The reproducibility repair changes evaluation infrastructure; the training datasets, historical checkpoints, launch configurations and selected exports remain unchanged. No new training was launched. The separately requested wording probes are documented in their own report. **Sections3–22 preserve dated historical analyses and plans**, with superseding notes where needed; their “current” wording describes those snapshots, not today's conclusion. J/K trained on wrapped targets; L/M/N/O use direct targets. M restores printed separators in14 validation HS strings across13 documents. Historical models are **not** scored against replacement gold. Section18 excludes the entire HS family for its historical comparison; section19 conservatively excludes only changed document/field families against each run's own frozen reference, including subsequent country/package/phone changes. N includes the later phone/container-ID presentation repairs, new goods/DG wording, country policy/presentations, surgical real anonymization and bounded package coverage changes together; it does not isolate any one repair. N/O have identical inputs, targets and scoring contracts, allowing complete-target comparisons without historical-gold exclusions.
+**Previous decision, retained for R27:** **O/R27 rank64 terminal checkpoint2350, epoch10, is the user-designated best overall checkpoint of that run**, with field F1/accuracy **0.8991/0.8518**, relation F1/accuracy **0.9707/0.9430**,215/220 correct relations, eight extra and five missed, and53/60 exact relation graphs. Its original evaluation was reproduced exactly, twice; the first mismatched-batch replay is superseded, not its replacement score. Against N/rank48's terminal checkpoint on identical native terminal batches, logged field F1 improves **0.8734→0.8991**, accuracy **0.8098→0.8518**, relations **0.9052→0.9707** and categories **0.8538→0.8948**. This supports a beneficial fixed-alpha rank48→64 experiment, with the source-level and shared-parseable comparisons documented below. Both train on the same6,900 synthetic +600 anonymized real samples. O's automatic field-F1 export remains **checkpoint587**, not the user-designated task-weighted best2350; no checkpoint/export has been overwritten. [Section21](#21-or27-rank64-completed-same-data-comparison) preserves the selected-export-only comparison; [section23](#23-evaluation-non-reproduction-root-cause-fixed-and-native-terminal-result-recovered) diagnoses and fixes evaluation reproducibility. The preferred-checkpoint and terminal-rank comparison is in [section24](#24-preferred-rank64-terminal-checkpoint-and-terminal-rank48-comparison).
+
+For that **R27 rank comparison**, on the **same52 documents parseable in both terminal models**, field F1 improves **0.9178→0.9203** and relations **0.9740→0.9767**, while category F1 regresses **0.9110→0.8966**. Most of the larger all60 gain comes from recovering heavier documents, particularly a ten-container case where rank48 repeats one container64 times until truncation. That is a meaningful output improvement, but not uniform semantic dominance or a measured constrained-decoding result.
+
+The R28 audit includes artifact inspection, CPU metric replay and source-text review; its two existing final evaluations already agree, so no new GPU inference was needed. The earlier R27 audit additionally performed recovered-order GPU checkpoint evaluations. Training datasets, historical checkpoints, launch configurations and selected exports remain unchanged by this audit. No new training was launched. **Sections3–24 preserve dated historical analyses and plans**, with superseding notes where needed; their “current” wording describes those snapshots, not today's conclusion. J/K trained on wrapped targets; L/M/N/O/P use direct targets. M restores printed separators in14 validation HS strings across13 documents. Historical models are **not** scored against replacement gold. Section18 excludes the entire HS family for its historical comparison; section19 conservatively excludes only changed document/field families against each run's own frozen reference, including subsequent country/package/phone changes. N includes the later phone/container-ID presentation repairs, new goods/DG wording, country policy/presentations, surgical real anonymization and bounded package coverage changes together; it does not isolate any one repair. N/O have identical inputs, targets and scoring contracts. O/P have identical validation inputs and non-handling gold; section25 excludes handling for the policy-controlled scalar comparison and explicitly records their different native evaluation batch plans.
 
 ## 1. Reading the metrics correctly
 
@@ -31,7 +40,7 @@ The latest **training-results audit** includes artifact inspection, CPU metric r
 4. Older runs did not all use the current explicit-null instruction policy. Before the 1,500-synthetic run, 38 `sameAs` nulls and two negotiability nulls added 40 target facts across 36 validation documents. This particularly changes historical schema-validity scores when evaluated against today's schema.
 5. The previous rank32 1,500-synthetic run selected epoch7.5 but exported epoch10. The rank48 run exports its selected epoch10 checkpoint correctly. Granular comparisons below use the **available saved epoch10 outputs**, not the earlier run's best epoch7.5 predictions.
 
-## 2. Experiment registry: fifteen completed runs
+## 2. Experiment registry: sixteen completed runs
 
 All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout this ledger. Each has 60 validation documents. The configuration links are the launch files; the corresponding run directory contains the authoritative `resolved-config.json` and artifact manifest.
 
@@ -52,6 +61,7 @@ All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout t
 |M|[Real600 + synthetic7,000, R23](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic7000_hs_preserved_r23_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|7,600|Retain L's exact synthetic shard; restore real600 and printed real/validation HS formatting; same rank48 and direct target|10 /2380|119, or5%|
 |N|[Anonymized real600 + synthetic6,900, R27](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|7,500|Phone/ID formats, country/wording/privacy repairs,200 package examples added/300 Egypt synthetic archived; keep rank48/settings; resumed after reboot|10 /2350|118, or5%|
 |O|[Same R27 dataset, rank64](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml)|7,500|Rank48→64 only scientific config change; alpha32/EVA/settings retained; resumed after power outage; verified best-checkpoint export|10 /2350|118, or5%|
+|P|[R28 real600 + synthetic9,400, rank64](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic9400_r28_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml)|10,000|Donor-free coverage/refreshes, alias and multi-package-row synthesis, thermal/DG/party coverage and finite data/handling repairs; stable evaluation batching; retain rank64/settings|10 /3130|157, or5%|
 
 F and G have identical training/validation file hashes, input/target formatting, seeds, LR, batch/accumulation, model/tokenizer revisions and total updates. Their effective rsLoRA scale nevertheless changes from 32/√32 = 5.657 to 32/√48 = 4.619; EVA also adapts to the new rank. Therefore G is **rank48 plus longer warmup**, not an isolated rank test.
 
@@ -76,14 +86,16 @@ The relation/category values below are at the **field-F1-selected checkpoint**, 
 |M|7.501 /1785|**0.8990**|**0.8581**|0.9291|**0.9276**|58/60|49/60|
 |N|4.998 /1174|**0.9038**|**0.8640**|0.9364|0.9005|59/60|49/60|
 |O|2.499 /587|0.9001|0.8549|0.9291|0.8897|58/60|52/60|
+|P|10 /3130|0.9029|0.8622|0.9287|0.9306|58/60|52/60|
 
 **Task-weighted preferred checkpoint, distinct from automatic field-F1 selection:**
 O/rank64 **epoch10 /2350**: field F1/accuracy0.899093/0.851755,
 relation F1/accuracy0.970655/0.942982, category F10.894831, JSON56/60,
-schema48/60. This is the best overall latest-run checkpoint by the user's stated
-priority; its complete native evaluation has been reproduced exactly.
+schema48/60. This remains the preferred R27 checkpoint by the user's stated
+priority; its complete native evaluation has been reproduced exactly. R28's
+selected3130 and alternative3128 are assessed separately in section25.
 
-These are useful historical results, not fifteen controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint. J uses later approved labels; section15 records that historical comparison. J/K have identical validation references and training hyperparameters. L/M/N add further data/target changes; sections18–19 separate own-contract scores from fair unchanged-fact comparisons. N/O are an identical-data/target fixed-alpha rank comparison. M, N and O's separate selected-model prediction passes differ slightly from their scheduled best evaluations despite verified correct exports.
+These are useful historical results, not sixteen controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint. J uses later approved labels; section15 records that historical comparison. J/K have identical validation references and training hyperparameters. L/M/N add further data/target changes; sections18–19 separate own-contract scores from fair unchanged-fact comparisons. N/O are an identical-data/target fixed-alpha rank comparison. M, N and O's separate selected-model prediction passes differ slightly from their scheduled best evaluations despite verified correct exports. P's scheduled terminal and final selected-model passes agree exactly under the corrected evaluation implementation.
 
 ### Complete scheduled progression
 
@@ -147,6 +159,11 @@ All values in this table are native logged metrics. Epochs are rounded; integer 
 |O|7.495 /1761|0.06648|0.8827|0.8257|0.9171|0.8550|56|
 |O|9.994 /2348|0.07036|0.8859|0.8298|0.9420|0.8828|55|
 |O|10 /2350|0.07197|0.8991|0.8518|0.9707|0.8948|56|
+|P|2.4992 /782|0.05315|0.8933|0.8455|0.9120|0.8775|58|
+|P|4.9984 /1564|0.06320|0.8805|0.8195|0.9065|0.8897|54|
+|P|7.4960 /2346|0.06769|0.8768|0.8144|0.9371|0.8927|54|
+|P|9.9952 /3128|0.07019|0.9022|0.8590|0.9374|0.9306|58|
+|P|10 /3130|0.07007|0.9029|0.8622|0.9287|0.9306|58|
 
 More epochs are not uniformly better. G improves late while F peaks earlier, and both lose ground at some intermediate evaluations. G's eval loss rises while its final extraction scores improve. Select checkpoints on extraction metrics, not minimum teacher-forced loss. Retain predictions as well as weights at each evaluation: aggregate logs alone cannot localize the intermediate regressions.
 
@@ -3016,3 +3033,1304 @@ Evidence and reusable audit outputs:
 [rank48 terminal predictions](analysis/r27-rank64-results-20261018/rank48-terminal2350-historical-order/predictions/validation.jsonl),
 [identical terminal-batch proof](analysis/r27-rank64-results-20261018/terminal-native-batch-equality.json)
 and [reusable CPU comparison](analysis/r27-rank64-results-20261018/terminal_compare.py).
+
+## 25. P/R28: completed 10,000-record rank64 run
+
+Audit date: **2026-11-02**. This section supersedes the opening checkpoint
+assessment for the latest run, not the recorded R27 results or its preferred
+checkpoint. Scope is read-only result analysis and report updates. No training,
+inference rerun, dataset correction, checkpoint replacement or Paddle migration
+was performed.
+
+### 25.1 Completion, checkpoint identity and reproducibility
+
+The completed run is
+`t5gemma2-270m-mpci-bl-real600-synthetic9400-r28-positions-inputonly-v7-e10-compact-eva-a32-r64-local-sfadamw-v1`.
+It contains **9,400 synthetic +600 anonymized real training documents** and the
+same60 validation identities. The recorded run starts November1 and completes
+November2; there is one training-start event, not a resumed partial run.
+
+**The automatic best and terminal checkpoints coincide: checkpoint3130,
+epoch10.** Their detailed error inventory is therefore one inventory, not two
+independently evaluated models. The immediately preceding checkpoint3128 is
+also analyzed because it presents a real field-versus-relation trade-off.
+
+Verified evidence:
+
+- All **85 manifest-listed artifacts** match recorded byte counts and SHA-256.
+- All **504 final-adapter tensors** exactly equal saved checkpoint3130 tensors.
+  The safetensors are F32; the CPU comparison uses NumPy without dtype coercion.
+- The terminal scheduled prediction JSONL and the final selected-model
+  prediction JSONL are **byte-identical**.
+- All **26 recorded quality/loss/generation-token metrics** from those two
+  evaluations agree exactly. Runtime and live GPU-memory counters are not
+  expected to be identical and are not part of this equality claim.
+- All five scheduled R28 evaluations use the same recorded document order and
+  batch size2 under `stable_length_descending_v1`.
+- Every saved structured metric is independently replayed against its own
+  reference to within1e-12; all60 prediction/reference identities match.
+- **91 protected files** remain hash-identical across the audit.
+
+This is materially different from the earlier R27 reproducibility incident:
+there is **no observed saved-checkpoint/final-evaluation discrepancy here**.
+The existing repeated final inference supplies the confirmation; no additional
+GPU replay was needed in this turn. This is not a claim of reproducibility under
+arbitrary batch sizes, kernels or hardware.
+
+### 25.2 Actual experiment and fair comparison boundary
+
+Rank64, alpha32, EVA, ScheduleFree AdamW, learning rate1e-4, ten epochs,
+microbatch1 and accumulation32 remain the local setup. The larger dataset changes
+the amount of optimization:
+
+|Quantity|O/R27 rank64|P/R28 rank64|
+|---|---:|---:|
+|Training documents|7,500|10,000|
+|Synthetic / real|6,900 /600|9,400 /600|
+|Optimizer updates|2,350|3,130|
+|5% warmup updates|118|157|
+|Scheduled evaluation interval|587|782|
+|Recorded input tokens seen|181,761,022|247,057,200|
+|Mean training input tokens|2,423.485|2,470.572|
+|Mean training target tokens|643.4124|626.8927|
+|Maximum training input / target tokens|8,077 /3,145|8,077 /3,145|
+
+Training input-token exposure increases **35.92%**, while document count grows
+33.33%. Inputs average1.94% longer; targets average2.57% shorter. Validation input
+length remains mean2,290.8/max5,698. The inspected dataset summaries report no
+input truncation or filtered overlength targets. R28 records45,377.28seconds
+(12h36m17s) for the training phase, including scheduled evaluation, followed by
+the separate final evaluation. R27's resumed runtime is not a whole-run
+throughput baseline, so these numbers do not establish a speed regression.
+
+The model/runtime package versions and RTX4090 hardware match the prior local
+run. The scoring implementations for scalar matching and metrics are unchanged.
+However, **evaluation/prediction infrastructure changed** with the reproducibility
+repair: R28 uses stable batches, while the certified R27 terminal outputs use
+their recovered native historical batches. R27's `production-fixed` replay also
+uses that historical order, not a fresh stable-order comparison. Removing
+randomized evaluation sampling also changes evaluation's consumption of RNG
+state, which can change subsequent training's stochastic trajectory.
+
+Therefore this is a comparison of observed completed runs, **not a controlled
+ablation of synthetic-data quality alone**. R28 combines cleanup, refreshes,
+donor-free expansion, package aliases/multi-row coverage, thermal/DG/party
+coverage, more optimizer steps, and corrected evaluation behavior. Adapter
+capacity, data poisoning or any individual synthesis change is not established
+as the cause of a particular metric delta.
+
+The label comparison is narrower and directly verified:
+
+- Validation `positionedText` is **byte-identical for all60 documents**.
+- Exactly **14 documents change targets**, exclusively in
+  `handlingInstructions`.
+- All non-handling targets, including HS punctuation, countries, package
+  categories, identifiers and allocations, are identical.
+- The full schema hash difference is exactly the revised handling field
+  description. Sparse prompt-schema hash, package vocabulary and container
+  vocabulary remain identical.
+
+Historical predictions are replayed against **their historical gold**, never
+R28 replacement labels. For the policy-controlled scalar comparison below,
+**all handling fields are excluded symmetrically from both sides**. The
+complete native comparison is retained separately. Relation/category facts are
+unchanged by this handling exclusion.
+
+### 25.3 Training progression: loss, parsing and content
+
+|Epoch|Step|Eval loss|Field F1|Field accuracy|Relation F1|Category F1|JSON / schema|Whole exact|
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+|2.4992|782|0.053153|0.893323|0.845550|0.911964|0.877514|58 /48|5|
+|4.9984|1564|0.063196|0.880524|0.819497|0.906542|0.889720|54 /47|5|
+|7.4960|2346|0.067690|0.876813|0.814421|0.937063|0.892655|54 /49|8|
+|9.9952|3128|0.070187|0.902180|0.859048|0.937355|0.930582|58 /53|8|
+|10|3130|0.070072|0.902930|0.862200|0.928736|0.930582|58 /52|8|
+
+All counts are out of60. All five evaluations reach EOS for every document;
+maximum generated lengths are1,222/1,203/1,260/1,284/1,299, below the3,072 limit.
+Thus the malformed outputs are **not output-cap truncations**.
+
+Training loss declines while validation loss rises after the first evaluation.
+Mean logged training loss is about0.01825 in epoch2,0.00626 in epoch5 and0.00294
+in epoch10. This shows a widening training/validation likelihood gap; it does
+not establish that every extraction capability worsens after epoch2.5.
+
+On the **same49 documents parseable at all five R28 checkpoints**, field F1
+progresses monotonically:
+
+|Step|Field F1, fixed49|Field accuracy, fixed49|
+|---:|---:|---:|
+|782|0.924651|0.896303|
+|1564|0.930643|0.908926|
+|2346|0.931323|0.910204|
+|3128|0.932271|0.910297|
+|3130|0.933022|0.914037|
+
+The apparent mid-run all60 field decline is therefore strongly affected by
+which documents fail JSON parsing. Content on this fixed parseable subset
+improves despite rising loss. This is a conditional diagnostic, not replacement
+headline performance or a prediction of what constrained decoding would achieve.
+
+### 25.4 Native comparison: selected and terminal models
+
+The table uses the **saved prediction pass being analyzed**, against each run's
+own frozen targets. N/O selected-export scores differ slightly from their
+original scheduled-best scores for the already diagnosed historical batching
+reason. P's scheduled/final scores agree exactly.
+
+|Model / prediction pass|Field F1|Field accuracy|Relation F1|Relation accuracy|Category F1|JSON / schema|Whole exact|
+|---|---:|---:|---:|---:|---:|---:|---:|
+|N/R27 rank48 selected1174|0.903013|0.862927|0.936364|0.880342|0.900542|59 /49|5|
+|O/R27 rank64 selected587|0.900691|0.855589|0.929062|0.867521|0.889693|58 /51|7|
+|O/R27 rank64 preferred terminal2350|0.899093|0.851755|0.970655|0.942982|0.894831|56 /48|4|
+|P/R28 rank64 near-terminal3128|0.902180|0.859048|0.937355|0.882096|0.930582|58 /53|8|
+|P/R28 rank64 selected = terminal3130|0.902930|0.862200|0.928736|0.866953|0.930582|58 /52|8|
+
+Relative to O's preferred terminal, P's native field F1 gains0.003837 and
+accuracy0.010445; category F1 gains0.035751. Relation F1 loses0.041919 and
+relation accuracy0.076030. R28 is essentially level with N's selected native
+field score, not a decisive new field-performance ceiling.
+
+Integer counts explain the trade-off:
+
+|Fact family|R27 terminal correct / predicted / gold|R28 terminal correct / predicted / gold|
+|---|---:|---:|
+|All scalar values, native handling|2,281 /2,495 /2,579|2,265 /2,450 /2,567|
+|Scalars excluding handling|2,274 /2,480 /2,558|2,260 /2,444 /2,558|
+|Cargo relations|215 /223 /220|202 /215 /220|
+|Categories|251 /288 /273|248 /260 /273|
+
+For categories, **extra/wrong projected facts fall37→12**, while correct facts
+fall251→248. This is primarily improved precision/restraint, not universally
+better category recall. For relations, missed facts rise5→18 and extras8→13.
+
+### 25.5 Policy-controlled and shared-parseable comparisons
+
+|Cohort and metric|R27 terminal2350|R28 terminal3130|
+|---|---:|---:|
+|All60, field F1 excluding handling|0.902739|0.903639|
+|All60, field accuracy excluding handling|0.857790|0.863254|
+|Same54 parseable, field F1 excluding handling|0.926374|0.927468|
+|Same54 parseable, field accuracy excluding handling|0.901321|0.903428|
+|Same54 parseable, relation F1|0.978723|0.945107|
+|Same54 parseable, relation accuracy|0.958333|0.895928|
+|Same54 parseable, category F1|0.916512|0.939571|
+
+The all60 policy-controlled field gain is **0.000899 F1**, or0.090 percentage
+points, rather than the native0.003837. Correct non-handling scalar values
+decrease14; fewer wrong/extra predictions compensate. On the shared54, correct
+non-handling scalars are2,183→2,161 against the same2,342 gold values, while
+predicted values fall2,371→2,318. Again, the gain is precision-led.
+
+The shared54 comparison confirms that **the relation regression is not solely
+caused by different JSON failures**. Correct relations fall207→198 against208
+gold facts; exact relation graphs fall49→46. Category exactness remains42/54,
+despite higher category F1.
+
+Descriptive paired bootstrap,10,000 draws, gives an all60 handling-excluded
+field-F1 delta interval of[-0.03167,+0.03314]; on shared54 it is
+[-0.01050,+0.01162]. These reused validation documents do not support a claim
+that the small overall field improvement is statistically secure or causal.
+They do support identifying concrete changed errors and preserving both models.
+
+### 25.6 Field and category breakdown: what actually improved
+
+Correct counts below are aligned scalar exact matches unless marked as
+category facts. Whole descriptions and addresses each count as one string;
+case normalization follows the unchanged case-insensitive metric.
+
+|Field/group|R27 terminal correct|R28 terminal correct|Gold support / interpretation|
+|---|---:|---:|---|
+|Party names|152|156|182 values; improvement|
+|Party addresses|134|134|175; no exact-count gain|
+|Goods descriptions|39|39|60; no exact-count gain|
+|Phone values|98|97|119; fewer predictions improve F1 slightly, not recall|
+|All country values|236|237|256; essentially stable aggregate|
+|HS values|46|45|51; predictions51→46, so F1 improves despite one fewer correct|
+|Container identifiers|116|111|120; worse inventory recovery|
+|Seals|120|111|122; important regression|
+|Package quantities|50|54|59; improvement|
+|Gross-weight numeric values|40|40|48; stable correct count|
+|Net-weight numeric values|13|12|15; slight regression|
+|Volume numeric values|26|29|33; improvement|
+|Anchored package categories|47|50|59; F10.817391→0.854701|
+|Anchored container type categories|101|98|106; F10.914027→0.951456 through fewer extras|
+|Anchored container size categories|101|98|106; same precision/recall trade-off|
+
+For container type and size, each has predicted115→100, precision0.8783→0.9800
+and recall0.9528→0.9245. This is useful reduction of unsupported equipment
+attributes, but it must not be described as improved inventory completeness.
+
+Package-category details:
+
+- PALLET improves10/12→12/12; RACK0/1→1/1; generic PACKAGE15/18→17/18.
+- BALE remains2/2; CASE remains3/3. Their coverage repairs do not show a new
+  improvement on this small validation support because these examples were
+  already correct.
+- STEEL DRUM remains0/1: the model outputs generic DRUM despite the source's
+  material-bearing packing statement.
+- IBC remains0/1 through generic PACKAGE substitution; UNPACKED SINGLE remains
+  0/1 through VEHICLE substitution; VEHICLE remains0/1 through PACKAGE substitution.
+- The one DG document, `d9be84a2`, retains correct UN3077/class9/PGIII but
+  predicts fibreboard BOX rather than the declared CARTON category.
+- There is **no SET package gold** in this validation split. A product named
+  `TUBING SET` is not a declared SET package row and must not be counted as one.
+
+R28 terminal's overall category F10.9306 therefore does **not** mean package
+classification itself reaches that score: its package-category F1 is0.8547.
+The larger container type/size support dominates the combined metric.
+
+Country performance is not uniformly improved. Shipper countries improve42/45→
+44/45 and consignee countries47/52→49/52; delivery-agent countries regress15/16→
+12/16, notify34/36→33/36 and discharge countries31/32→30/32. Loading-country
+correctness remains31/33, with one more prediction. These are role-level
+presence/ownership distinctions, not evidence of a general country-mapping
+breakthrough or a general failure of alias rendering.
+
+The shared54 content control also retains weaknesses: correct descriptions
+37→37, addresses127→127, phones92→87, container IDs112→109 and seals115→109.
+Party names improve144→150 and package quantities49→50. Thus descriptions and
+address boundaries remain substantial work even after the broader synthesis.
+
+### 25.7 Source-reviewed relation failures and absence errors
+
+There are **18 missing relation facts** in R28 terminal. The following inventory
+accounts for all18, with current positioned OCR and saved gold/predictions
+checked together:
+
+|Document|Missing facts|Observed failure|
+|---|---:|---|
+|`684f442c`|2|Malformed JSON: missing comma after the description prevents the entire output being scored.|
+|`6a1350a5`|6|Malformed equipment-size string (`"sizeCategory":"0.0}`); no recovered relation credit. Source does not establish that size.|
+|`5cabcd4b`|6|Ten-container inventory collapses to seven distinct containers: three missing links and their three allocation quantities.|
+|`5fa29caa`|2|Both container links are present, but their printed tyre allocations3,270 and2,377 are omitted.|
+|`9f97c8ed`|1|Single-container allocation is1,466 instead of printed1,467; the shipment package total is correctly1,467.|
+|`13ea92fa`|1|All seven links are retained, but the one printed eight-pallet allocation for `CMAU2325606` is still absent.|
+
+The first two account for eight misses through parsing. The other ten are real
+inventory/allocation errors in parseable outputs. No unsupported per-container
+split should be filled merely to increase scores; the partial-allocation case
+requires only its actually printed quantity.
+
+The repeated inventory is particularly informative. `5cabcd4b` prints ten45HC
+containers, five packages each, total50. R27 terminal recovers all ten container
+links and allocations but gets the shipment total wrong at44. R28 fixes that
+total to50, yet terminal output has **nine container rows representing only
+seven unique containers**, and11 allocation rows representing those same seven.
+It omits `ECMU8155217`, `ECMU8122430` and `ECMU8126040`, and repeats
+`ECMU8103300`/`ECMU8134873`. This is not evidence that package total and container
+enumeration are interchangeable learning objectives.
+
+There are also **13 extra relation facts**:
+
+- Four repeated allocation facts in `5cabcd4b`.
+- Two equipment/link facts in `53e77979`, where text from the shipper/postcode
+  becomes the invented ID `SILVERLINE_SERVICES_WITH_BEGIN_33647`, and the loader's
+  VIN is moved into a seal field. The source does not declare carrying equipment.
+  R27 also failed this boundary, using the VIN as a container ID instead.
+- Two in `ff7f0853`, where a company name becomes a container identifier.
+- One wrong1,466 allocation in `9f97c8ed`.
+- Two646 allocations in `e42f749e` where gold leaves local allocations absent.
+  This is a longstanding allocation-ownership adjudication case, not proof that
+  the numeric646 never occurs in source. Gold was not changed in this audit.
+- Two local48 allocations in `ff146232`, where the shipment prints a separate
+  total48 pallets without those individual allocations.
+
+Relative to R27 terminal, relation F1 worsens on five documents (the two new
+malformed outputs, repeated inventory, tyre quantities and off-by-one carton
+allocation), improves on two newly parseable documents, and is unchanged on53.
+The correct-relation difference reconciles exactly:
+**−8 parsing −6 inventory −2 tyres −1 carton +4 newly parseable = −13 facts**.
+
+A separate absence error remains in `5d6b477c`: the goods description includes
+`TUBING SET`, but no package count/type is declared. R28 terminal invents
+33,522 IBCs. Its earlier3128 output invents36 generic packages. Neither is
+supported and neither is an example of legitimate SET-package extraction.
+
+These cases define concrete future evaluation targets: enumeration completeness,
+duplicate suppression, scalar-total versus local-allocation ownership, and
+absence of equipment/package declarations. They do not by themselves identify
+which training examples caused the behavior.
+
+### 25.8 Why checkpoint3128 must remain in the comparison
+
+Only two optimizer updates separate3128 from3130. Both use the same stable
+evaluation plan, so the observed difference is **not the old batch-order replay
+problem**. Nine generated strings change; three documents change aligned scalar
+correctness:
+
+|Document|Change at3130|Effect|
+|---|---|---|
+|`5222fa98`|`ABERDEIN` becomes `ABERDEEN`|One corrected scalar.|
+|`aa9ed483`|Recovers volume53.9 and its unit|Two corrected scalars.|
+|`5cabcd4b`|Adds repeated equipment/allocation rows|Aligned correct scalars69→76, predicted71→87; distinct correct relation facts remain14 while extra relations increase by4; schema-valid becomes invalid.|
+
+The scalar alignment metric can credit matching size/seal values in repeated
+rows even when inventory identity is wrong or duplicated. Accordingly, the
+last row's seven extra scalar matches do **not** demonstrate seven recovered
+distinct shipment facts. Relation and schema checks expose what field F1 alone
+does not.
+
+The remaining six changed outputs include the unsupported package-count/type
+change in `5d6b477c`; their primary scalar correctness does not improve. The
+full before/after inventory is saved, rather than treating all changed wording
+as progress.
+
+Overall,3130 gains **0.000750 field F1** and0.003153 field accuracy over3128,
+but loses **0.008619 relation F1**,0.015143 relation accuracy and one schema-valid
+document. Category metrics and whole-document exactness are identical.
+
+**Recommendation:** retain3130 as the correctly exported automatic field-F1
+winner, and keep3128 as the relation/schema-oriented alternative. On the user's
+previous task-weighted priorities,3128 merits consideration before declaring
+3130 the best overall R28 checkpoint. Neither replaces R27 terminal's superior
+relation result. No weights or automatic-selection rule were changed here.
+
+### 25.9 Handling cleanup, syntax and limits of this validation set
+
+R27 has21 handling strings; R28 has nine across eight documents. R28 terminal
+matches five exactly, predicts six, and has nine gold strings. No final
+prediction retains the removed free detention/demurrage terms. Reviewed stowage
+instructions are recovered in `a44bb232` and `891555b9`.
+
+Remaining handling issues are concrete:
+
+- `40e523d2`: source/gold retains the literal doubled `TO TO` in its transit
+  instruction. Prediction removes the repetition and appends a responsibility
+  clause. That fails literal extraction and the intended instruction boundary.
+- `48c177a3`: humidity85% and ventilation15 instructions are omitted.
+- `9f97c8ed`: the complete mixed4°C/closed-ventilation clause is omitted.
+
+This is evidence that the commercial-term cleanup is reflected in outputs,
+not proof that handling is solved. Its new F1 must not be compared directly with
+the former broader-field F1 as though gold were unchanged.
+
+Of the terminal eight schema-invalid documents, two are malformed JSON
+(`684f442c`, `6a1350a5`). The six parseable failures are:
+
+- `53e77979`: invented invalid container identifier.
+- `5cabcd4b`: duplicate equipment identifiers.
+- `5e03e6b2`: unsupported notify `sameAs: "non_negotiable"`; only `shipper`
+  or `consignee` is permitted.
+- `891555b9`: placement references without the required container inventory.
+- `a44bb232`: email included in the postal address.
+- `ff7f0853`: company name used as container identifier.
+
+JSON-constrained decoding might prevent malformed syntax, but it cannot be
+assumed to fix these semantic/ownership failures. No such decoding experiment
+was run in this audit.
+
+The current validation set is also too narrow to certify several R28 additions:
+
+- **Zero multi-public-package-row targets**, although synthesis now supports
+  and includes them.
+- Only **one DG document**, with one UN/class/PG declaration.
+- Four thermal documents; insufficient to establish broad temperature,
+  ventilation and humidity generalization.
+- Six forwarding-agent and25 delivery-agent documents.
+- Twenty-four multi-container,30 single-container and six no-container targets.
+
+Thus broad multi-row, multi-DG and new physical/thermal coverage cannot be
+judged from these60 alone. A separately held-out, source-reviewed challenge set
+would be useful for those capabilities; training descendants must not simply
+be moved into validation and called unseen evaluation.
+
+### 25.10 Validation, evidence and handoff to the Paddle discussion
+
+The eight-pass CPU audit replays all five R28 checkpoints and three historical
+prediction sets, checks original gold/constraints, retains matched cohorts and
+reconciles scalar/category/relation counts. Its ten guards cover identity,
+recursive list permutation, one wrong scalar, malformed-output zero credit,
+case normalization, formatting negatives, native replay, count conservation,
+input/target-contract checks and protected hashes. Two complete replays took
+**14.82 and15.39seconds,529.35MiB peak RSS**. This measures analysis cost, not
+inference throughput. No production hot path was changed.
+
+Targeted existing tests: **41 passed,3 skipped in3.90seconds**. The skipped
+best-checkpoint test module and two real-Trainer tests require Torch, which is
+not installed in this host virtualenv. They are explicitly not claimed as run.
+The NumPy504-tensor equality check, saved native/final prediction equality and
+CPU metric replay above are separate successful checks of this actual run.
+Ruff passes for the audit script.
+
+Reproduction command from the repository root:
+
+```bash
+.venv/bin/python docs/analysis/r28-training-results-20261102/audit.py
+```
+
+Evidence:
+[complete metrics, cohorts, integrity and hash receipt](analysis/r28-training-results-20261102/summary.json),
+[native progression](analysis/r28-training-results-20261102/progression.json),
+[exact changed validation handling values](analysis/r28-training-results-20261102/validation-label-changes.json),
+[field groups](analysis/r28-training-results-20261102/groups.csv),
+[individual fields](analysis/r28-training-results-20261102/fields.csv),
+[category values](analysis/r28-training-results-20261102/categories.csv),
+[document results](analysis/r28-training-results-20261102/documents.csv),
+[scalar errors](analysis/r28-training-results-20261102/errors.csv),
+[relation/category error facts](analysis/r28-training-results-20261102/fact-errors.csv),
+[schema diagnostics](analysis/r28-training-results-20261102/schema-errors.json),
+[3128 versus3130 outputs](analysis/r28-training-results-20261102/last-two-updates.json)
+and [replay implementation](analysis/r28-training-results-20261102/audit.py).
+
+**Handoff:** R28 provides a verified modern baseline with improved category
+precision and valid-output coverage, but no decisive overall field improvement
+and a specific relation/inventory regression relative to R27 terminal. Preserve
+R28's3130 and3128 plus R27's2350 for the next discussion. A Paddle-only experiment
+should distinguish text-capture gains, coordinate representation changes and
+label additions; this audit does not establish that Paddle would resolve the
+observed output-side duplication or ownership failures. Paddle migration remains
+unimplemented and is intentionally deferred to the user's next discussion.
+
+## 26. R28 cargo relation regression diagnosis
+
+Follow-up audit, 2026-11-02. **There is no broad loss of the relation representation
+or detected structural corruption of the training targets.** The observed loss
+combines syntax failures, repeated generated rows, and three localized content
+regressions. Some relevant training combinations are sparse or absent, but their
+causal effect has not been isolated by a training ablation.
+
+This section analyzes diagnostic copies of saved predictions. Original metrics,
+model outputs, checkpoints, labels and production inference remain unchanged.
+No new GPU inference was required for the measurements below.
+
+### 26.1 Recoverable JSON versus schema invalidity
+
+The metric's behavior is important: malformed JSON receives no recovered-fact
+credit, whereas **parseable but schema-invalid output already receives partial
+field and relation credit**. Fixing an unrelated country, enum or notify field
+does not automatically restore additional relations.
+
+Both malformed terminal R28 outputs contain correct cargo relations:
+
+- `684f442c`: insert the missing comma/opening quote before `grossWeight`.
+  The already-generated container link and quantity 1,400 then become readable.
+- `6a1350a5`: repair three malformed string/object boundaries around
+  `sizeCategory: "0.0"`. All three links and quantities 990, 891 and 539 were
+  already generated correctly. The illegal `0.0` category remains illegal:
+  the diagnostic does not substitute a valid size or infer absent equipment facts.
+
+Together these recover **eight correct relation facts**. Equivalent review was
+applied to all four malformed R27 terminal outputs: a missing goods-array
+closure, an unclosed locality string, malformed phone-list punctuation, and a
+space inside a numeric literal. That recovers four correct relations and exposes
+one additional unsupported VIN-as-container relation. No words or digit
+sequences are added, removed, reordered or replaced by these edits. The malformed
+phone list remains assigned to its generated address field, even though that
+field/type is semantically invalid; it was not silently corrected into contact data.
+
+The separate duplicate diagnostic removes only byte-equivalent structured rows
+within the same list. It does not merge conflicting quantities, infer missing
+containers or transfer rows between goods. Only R28 terminal's `5cabcd4b` changes:
+two duplicate equipment rows and four duplicate allocation rows are removed.
+
+|Comparison on all 60 documents|R27 terminal relation F1 / accuracy|R28 terminal relation F1 / accuracy|
+|---|---:|---:|
+|Original outputs|0.970655 / 0.942982|0.928736 / 0.866953|
+|Reviewed syntax repairs only|0.977679 / 0.956332|0.948081 / 0.901288|
+|Syntax plus exact-duplicate removal|0.977679 / 0.956332|0.956720 / 0.917031|
+
+The native relation-F1 difference is 0.041919; after both diagnostics it is
+0.020959. Thus roughly half of the measured gap disappears under these reviewed
+transformations, **but half remains**. This is a diagnostic of information
+already generated, not a measured constrained-decoding or production-repair result.
+
+For context, syntax-only native field F1/accuracy becomes 0.914726/0.883271 for
+R27 and 0.918634/0.891667 for R28. Excluding handling on both sides, field F1 is
+0.918395 versus 0.919374. The slight field advantage remains, alongside a larger
+relation disadvantage. Removing exact duplicates from R28 raises relation F1,
+but scalar accuracy slightly decreases: repeated rows had received some aligned
+scalar credit. This reinforces the need to track both metrics.
+
+On the **same 45 documents whose original outputs pass schema validation in both
+models**, relation F1 is 0.985423 versus 0.973607. Filtering to schema-valid output
+does not remove the content regression and must not replace the all-document result.
+
+### 26.2 The remaining content difference is concentrated in three documents
+
+After syntax recovery and exact deduplication, R27 has **219 correct / 228
+predicted / 220 gold** relation facts; R28 has **210 / 219 / 220**. Both have nine
+extra facts. Their nine-correct-fact difference is fully accounted for by:
+
+|Document|R28 loss relative to R27|Observed mechanism|
+|---|---:|---|
+|`5cabcd4b`|6 facts|Three omitted container identities, each losing its membership link and allocation quantity.|
+|`5fa29caa`|2 facts|Both container identities are correct, but the printed per-container quantities are omitted.|
+|`9f97c8ed`|1 fact|The package total is correct at 1,467, but the repeated allocation value is 1,466.|
+
+The long-standing missing eight-pallet allocation in `13ea92fa` affects both
+terminal models; it is not an additional R28 regression.
+
+For localization only, excluding those three cases from the repaired comparison
+leaves the same **193 correct of 194 gold relations** in both models. Relation F1
+is 0.974747 for R27 and 0.977215 for R28 over those remaining 57 documents.
+This does not excuse the three failures; it establishes that the remaining
+relation recall is not broadly degraded.
+
+#### Repeated inventory and downstream repetition
+
+`5cabcd4b` prints ten distinct `ECMU` container IDs, all with five packages. The
+missing R28 IDs occur in the actual input, including positioned lines; they were
+not lost by OCR or input truncation. The source spans pages and repeats a highly
+similar row structure.
+
+R28 checkpoint behavior is revealing:
+
+|Checkpoint|Inventory / allocations|
+|---:|---|
+|782|Eight distinct containers; two omitted.|
+|1564|Nine distinct containers; one omitted.|
+|2346|All ten containers and all ten quantities correct.|
+|3128|Seven distinct containers; three omitted.|
+|3130|The same seven distinct containers, plus repeated equipment and allocation rows.|
+
+The capability was present at epoch 7.5 and was not retained at the selected
+terminal checkpoint. This rules out the stronger claim that the architecture,
+schema or input could never represent this document correctly. It does not
+identify which later gradient updates or training examples caused the loss.
+
+The allocation list repeats the same reduced identity set as the earlier
+generated equipment inventory. At terminal, it has eleven rows summing to 55,
+while the correctly extracted shipment total is 50. After deduplication there
+are only seven allocations summing to 35. Deduplication fixes repetition, not
+inventory completeness. The observed output is consistent with propagation of
+an earlier generated inventory error into later allocations; no claim about
+internal attention or a proven neural copying circuit is made.
+
+The selected field metric also provides an imperfect checkpoint criterion for
+this failure. The last two updates add matching scalar fields in repeated rows
+without recovering distinct container relations. That contributes to selecting
+3130 over the more relation-consistent 3128. It explains the selection outcome,
+not why the weights started producing duplicates.
+
+#### Spatial association and numeric distractors
+
+In `5fa29caa`, the exact input includes:
+
+```text
+TCLU5473302/40HC || 104,430
+3270 PACKAGE    || 297,429
+
+TLLU5170541/40HC || 103,558
+2377 PACKAGE    || 297,557
+```
+
+The left-column container blocks occur earlier in text order than the
+right-column goods/quantity blocks. Their nearly equal y coordinates provide
+the association. The document also prints equipment tare weights, local net
+weight and shipment totals.
+
+At checkpoint 782, the model assigns 3,840 to the first container—exactly its
+printed **tare weight**, not its package count—and assigns an incorrect 3,847
+to the second. From checkpoint 1564 onward, it omits both quantities instead.
+Thus the local problem is not absence of the numbers: it is identifying the
+correct numerical role and associating separate columns. R28 nevertheless fixes
+the shipment net weight to 40,928.95 where R27 used one container's 14,650.6.
+This is a selective ownership trade-off, not blanket loss of numerical extraction.
+
+The input already contains useful coordinates. Paddle or a row-oriented
+presentation could make association easier, but no changed-input inference has
+yet demonstrated that effect for this case.
+
+#### Inconsistent repetition of a correct scalar
+
+`9f97c8ed` is a one-container document. R28 extracts package total 1,467 and the
+correct CARTON category but writes allocation 1,466. This needs neither a new
+package schema nor an unknown split. It is an inconsistent repeated value.
+Earlier checkpoints 782 and 1564 produced the correct quantity; late checkpoints
+3128 and 3130 do not. A conditional consistency check can flag it, but should
+not be generalized into forced conservation for documents with incomplete or
+contradictory allocations.
+
+For example, `13ea92fa` has only one printed local quantity. At epoch 5, R28
+assigns eight to all seven containers; later it omits every local quantity.
+Neither behavior is correct. Requiring every allocation to be populated or
+balanced would teach the wrong policy for this source.
+
+### 26.3 What the training audit rules out
+
+The paired scan covers both training versions and their original validation
+references. Every target passes its relevant task contract. For R28 synthetic
+training, it finds:
+
+- No duplicated container identifiers or duplicated placement identifiers.
+- No placement referencing an identifier outside the equipment inventory.
+- No inventory identifiers left unlinked to the single goods item.
+- All target container IDs found on at least one input line after stripping
+  presentation separators. This is a text-presence check, not a proof of every
+  spatial association.
+- **8,728 complete allocation sets**, all with allocated quantities summing to
+  the declared public package quantities.
+- Partial and missing quantities excluded from that conservation check.
+
+All **6,900 retained synthetic identities** preserve their container count,
+placement count and quantity-visibility pattern between R27 and R28. Refreshes
+change identifiers, values and package rows, but do not systematically delete
+local quantities. The 600 real records retain exactly the same equipment-ID
+lists and placement values/order. Eight existing real arithmetic discrepancies
+and one validation discrepancy remain visible in the audit; they are not new
+R28 changes and were not relabeled to force conservation.
+
+Nor did relation supervision disappear under other output fields. Using the
+identical saved tokenizer and canonical decoder serialization, tokens overlapping
+`splitGoodsPlacement` occupy **6.693% of target content tokens in R27 versus
+6.757% in R28**, excluding special tokens. This measures token representation,
+not the size or direction of gradient contributions. It does not support a
+general claim that more description/package text displaced allocation supervision.
+
+### 26.4 Concrete coverage weaknesses and distribution changes
+
+|Synthetic training property|R27|R28|
+|---|---:|---:|
+|Documents|6,900|9,400|
+|Multi-container documents|2,104|2,904|
+|Multi-container, complete quantities|1,770|2,446|
+|Multi-container, all quantities absent|327|427|
+|Multi-container, partially visible quantities|7|31|
+|Equal quantities among complete multi-container documents|393 / 1,770 = 22.2%|357 / 2,446 = 14.6%|
+|Documents with at least ten containers|105|133|
+|Parents supplying those high-count documents|3|3|
+|At least eight containers, one ID prefix, equal quantities|0|0|
+
+The extra 2,500 documents contribute only **49 equal-load cases among 676
+fully allocated multi-container examples**, or 7.2%. Within the retained 6,900,
+the number of equal-load examples decreases from 393 to 308 during regeneration.
+By comparison, complete multi-container real training has 73/168 equal-load
+cases (43.5%), and validation has 11/19 (57.9%). Unequal allocations are valuable;
+the issue is preserving coverage of both patterns rather than replacing one
+with the other.
+
+Every synthetic shipment with at least ten containers still comes from
+`e827ecdd`, `af151047` or `f36409a0`; their current inventories have 13 or 14
+containers. There are no synthetic ten-container inventories, despite two in
+validation. Exact length ten is not inherently necessary, but the concentration
+in three source layouts shows that more total samples did not broaden this
+part of the task much.
+
+More specifically, neither version's real or synthetic training has the joint
+pattern **eight-or-more containers + identical four-letter ID prefix + equal
+allocations**. `5cabcd4b` does. This is a defensible challenge-set and coverage
+target, but a **pre-existing gap**, not proof that R28 introduced the failure.
+Its successful epoch-7.5 output demonstrates some generalization beyond that gap.
+
+The tyre layout has another narrower imbalance. A typography-tolerant screen
+for multi-container documents with `TARE WT`/`TARE WEIGHT` plus a number finds:
+
+- R27 synthetic: **43 complete / 7 partial** allocation examples.
+- R28 synthetic: **55 complete / 31 partial** examples.
+- Real training: **five complete** examples in both versions.
+
+The 31 current partial examples all derive from `b8544221`, correctly printing
+only the fifth container's package quantity. The exact `Tare Wt :` presentation
+used in the failed validation case occurs in that partial synthetic family,
+while the real two-container source `4a48581c` supplies a close complete-allocation
+positive example but no synthetic descendants. Broader typography variants do
+have complete examples, so it would be wrong to say the model has seen none.
+
+This is a plausible opportunity for balancing complete versus partial layouts
+with the same numeric distractors. It is **not** evidence that the correctly
+labeled partial examples should be removed or filled with invented quantities.
+
+### 26.5 What is established and what remains causal speculation
+
+Established mechanisms at the output/evaluation level are:
+
+1. Syntax failures hide correctly generated relations.
+2. Duplicate rows create extra facts; removing them cannot restore missing IDs.
+3. Late training loses a previously successful long-inventory realization.
+4. Some quantities are confused with unrelated weights, then omitted.
+5. Correct totals are not always repeated consistently in allocation fields.
+6. Field-F1-only checkpoint selection can prefer a model with worse distinct
+   relations and structural validity.
+
+The training scan identifies plausible contributing coverage problems, but does
+not prove that equal-load dilution, partial-allocation expansion, multi-row
+synthesis, alias changes, adapter capacity or any individual batch caused the
+regression. R27/R28 also differ in total optimizer exposure and native evaluation
+batch plans. No claim of a universal causal explanation is warranted from this
+one comparison and three concentrated semantic regressions.
+
+### 26.6 Recommended bounded experiments
+
+**First, separate generation robustness from content.** Test JSON/schema-constrained
+generation or an explicit validation-and-retry path on the same frozen inputs,
+with reproducible batching. Measure all fields and relation facts, not only JSON
+validity. The syntax-repair scores quantify recoverable existing content; they
+do not predict how a constrained decoder would actually complete its outputs.
+
+Add source-aware consistency diagnostics for unique equipment, repeated identical
+placements, inventory/placement membership and provably complete quantity
+conservation. Flag disagreements for review/re-extraction; do not silently fill
+missing allocations, guess container identities or force totals on partial cases.
+No such serving behavior was implemented by this audit.
+
+**Second, test the concentrated semantic patterns.** A small independently held-out
+set should cross inventory length, shared versus different ID prefixes, equal
+versus unequal counts, page breaks, column-separated quantities, tare/weight
+distractors, and complete versus partial visibility. Keep package family and
+goods variety broad. Do not regenerate validation documents into training.
+
+For a training intervention, target those combinations on suitable training
+sources, rather than adding arbitrary multi-container volume. The complete
+two-container tyre source is one candidate; the long inventories need more
+source/layout diversity or an explicitly validated variable-row presentation.
+Maintaining both equal and unequal allocations is preferable to a global
+quota change based solely on 19 validation examples.
+
+**Third, make checkpoint selection reflect the task.** Keep the original native
+field-F1 winner for reproducibility, but compare a prespecified relation/schema
+guardrail or task-weighted selection criterion. Checkpoint 3128 already supplies
+a useful candidate without retraining. Do not retrofit a score solely to make
+one inspected validation example win.
+
+Only a matched ablation can determine whether targeted sampling restores these
+relations while preserving R28's category gains. Paddle input experiments remain
+separate: better text capture or geometry may help spatial association, but the
+enumeration and repeated-value failures also exist with all necessary text present.
+
+### 26.7 Evidence and validation
+
+[Diagnostic scores, full dataset distributions and protected hashes](analysis/r28-training-results-20261102/relation-diagnostics.json),
+[every reviewed punctuation edit and exact duplicate removal](analysis/r28-training-results-20261102/relation-repair-inventory.json),
+[checkpoint-by-checkpoint cargo outputs](analysis/r28-training-results-20261102/relation-trajectories.json),
+[six original validation inputs and targets](analysis/r28-training-results-20261102/relation-validation-focus.json),
+[per-record structural inventory](analysis/r28-training-results-20261102/relation-training-records.csv),
+[retained-record structural changes](analysis/r28-training-results-20261102/relation-training-structural-changes.json),
+[parent distributions](analysis/r28-training-results-20261102/relation-parent-distributions.json),
+[read-only diagnostic implementation](analysis/r28-training-results-20261102/relation_diagnosis.py)
+and [diagnostic regression tests](analysis/r28-training-results-20261102/test_relation_diagnosis.py).
+
+The final diagnostic pass validates all 17,620 versioned train/validation targets,
+replays nine model/stage combinations, tokenizes the original targets and checks
+ten protected source artifacts. Runtime is **27.79 seconds**, with **599.64 MiB
+peak RSS**. This is analysis cost, not inference performance. No production hot
+path, training sample, schema, checkpoint or original prediction was modified.
+
+The seven new diagnostic guards plus existing metric/output-order tests pass:
+**44 passed in 2.93 seconds**, with no skips. Guards verify repair scope,
+unchanged already-parseable outputs, fail-closed handling of unreviewed malformed
+text, non-mutating exact deduplication, preservation of conflicting rows and
+partial visibility, schema-invalid relation credit, and receipt reconciliation.
+Ruff, report-table/link checks and `git diff --check` pass.
+
+## 27. Cargo refresh scope and Paddle migration audit — 2026-11-02
+
+The [detailed follow-up](analysis/paddle-migration-scope-20261102/REPORT.md)
+separates narrow coverage refreshes from a Paddle-only dataset migration.
+No datasets, templates, production code or model artifacts changed in this audit.
+
+- **Smallest missing-combination repair:** 24 older records across seven parents
+  already have at least eight containers and equal allocations. A same-prefix
+  identifier refresh can preserve goods, package totals and allocation quantities.
+- **Equal-load candidate pool:** 345 older unequal, complete-allocation records
+  have divisible totals; 183 have one public package row. These are arithmetic
+  candidates, not capacity/binding-certified edits. Repeated masses, volumes and
+  nested counts must be updated consistently where the allocation changes them.
+- **Long-layout coverage:** the admitted registry has only the three existing
+  13/14-container layouts. Nine further >=10-container real-training sources
+  remain unadmitted, including five ten-container candidates.
+- **Tyre source confirmed:** its left-column equipment and right-column counts
+  are aligned in the real PDF. GLM orders the columns separately; Paddle places
+  each count within two region entries of its container. This is not a synthetic
+  rendering defect or proof of Paddle-model improvement.
+- **Paddle rebinding scope:** 24,513/31,151 existing binding occurrences have
+  literal region candidates; 6,638 need segmentation/recognition/geometry review.
+  Additional unowned regions still need field/privacy dispositions. Source review
+  spans 707 unique identities when real600, validation60 and template parents are
+  combined, with 409 overlapping real/template identities.
+- **Existing-state preservation:** all9,400 synthetic provenance references were
+  located. Direct current raw/position receipts match4,306 records; an additional
+  2,054 match the alias publication endpoint exactly. The other3,040 need further
+  correction-chain reconciliation, not automatic rollback to old candidates.
+- **Geometry:** 948 generated logical envelopes across200 distinct parents
+  reproduce current centroids. Wrapped logical envelopes are not individual
+  Paddle regions. The isolated centroid/bbox serializer passes all660 sources;
+  production physical-fragment output and full Paddle migration remain work ahead.
+
+The audit also separates true recognition changes from interleaved-region lookup
+failures, inventories transfer of existing anonymization decisions, and defines
+the paired20-template/60-descendant full-document gate before broader conversion.
+Its60 region-level transfer controls are not full-document certification.
+The new and existing position/OCR tests pass **117 tests in 41.52 seconds**.
+
+## 28. R29 intermediary equal-allocation refresh — 2026-11-02
+
+The [refresh report](analysis/r29-equal-load-refresh-20261102/REPORT.md)
+documents a new R29 copy; R28, real600, validation60 and model artifacts stay
+unchanged. No R29 training or Paddle conversion is scheduled by this work.
+
+- **432 older synthetic records refreshed/replaced**, keeping 9,400 synthetic
+  plus 600 anonymized real training records. Both overlapping UAE sidecars are
+  synchronized; they are not additional membership.
+- **400 donor-free cargo refreshes across 84 parents**, including 112 mixed and
+  288 uniform equipment examples. Repeated counts, package nouns, cargo
+  measurements and DG/thermal facts move together. Noncargo facts and existing
+  container/seal identifiers stay protected in this cohort.
+- **24 shared-prefix-only refreshes** supply the formerly absent long/equal/shared
+  ID-prefix pattern without resampling cargo.
+- **Six source-preserving identifier variants**, three each from the anonymized
+  11-flexitank and 40-container layouts, replace six other older records. Neither
+  source has a published production template contract; the historical 40-container
+  compilation was rejected. The user-authorized fallback was used, **not presented
+  as donor-free admission**. Complete independent admission remains separate work.
+- Two older source-only tonnage repetitions were brought into agreement with
+  their already-correct net-weight targets; labels did not change.
+
+Equal allocations rise **357/2,446 (14.60%) → 763/2,446 (31.19%)**; their parent
+coverage rises **83 → 100**. Equal/mixed cases rise **125 → 237** and equal/multi-row
+cases **31 → 227**. At least eight containers plus one shared prefix plus equal
+allocations rise **0 → 30 across nine parents**. At least ten-container inventories
+rise **133 → 139**, with parent coverage **3 → 5** (the two new parents are the
+explicit source-preserving cohort). Overall mixed-equipment examples rise
+**1,067 → 1,129**, and multiple-public-package-row examples **1,900 → 1,967**.
+
+The production extension exposes an explicit equal-allocation preference, uses
+the multi-group ledger with capacity/indivisibility checks, and does not impose
+equality on ordinary synthesis. Scoped refresh now follows explicit private
+cargo-owner dependencies, preventing stale repeated nouns/chemical identities.
+Two campaign-construction issues (repeated rows mistaken for distinct groups;
+mix probability without an eligible source scope) were caught before publication,
+corrected and regression-tested. One gas-as-solid/drum proposal was excluded by
+main-agent review; no substance-specific exception was added.
+
+Validation includes exact native/scoped replay, full hybrid text review, schema,
+literal values, arithmetic, equipment capacity, existing field absence, geometry,
+sidecars and frozen hashes. **559 tests pass.** Prepared corpus readback took
+17.27 seconds/758.64 MiB peak RSS; explicit equalization adds 12.36 µs in the
+planner microbenchmark. Total recorded provider spend, including retries and
+unselected attempts, is **$2.49876070**. This is not an accepted-only unit price.
+
+Cargo page reflow can move unchanged neighboring text; it is not a promise of
+unchanged centroids. All previously anchored unchanged lines retain anchors and
+the generated layouts pass the existing bounds/clearance checks. Identifier-only
+cohorts retain exact coordinate suffixes. These are still logical-line centroids,
+not Paddle-region or bbox certification.
+
+The longest new target is 3,129 tokens including EOS: within the unchanged 5,500
+training limit, but above the current 3,072 evaluation-generation cap. These are
+training replacements, not new validation records. Future evaluation of these
+40-container inventories needs adequate output length; no target was truncated.
+
+DG, thermal, forwarding, delivery and transshipment counts remain unchanged.
+The complete before/after census records smaller cargo-frequency shifts as well.
+Improved relation-model performance remains a hypothesis for the next training
+comparison. Section 27 and its linked reports already preserve the Paddle audit
+and probe results; this intermediary does not perform that migration.
+
+## 29. R30 Paddle-centroid preparation — 2026-11-02
+
+The [R30 preparation specification](../configs/training/preparation/r30_paddle_centroids.yaml)
+sets **evaluation.generation_max_length: 5500** for both local and RunPod profiles,
+matching the existing training target budget. It is deliberately not a runnable
+training config: certified Paddle files, target views and their final hashes do
+not yet exist. Preserve the override when materializing the final configs; do not
+silently run the R29 GLM data under an R30/Paddle name. Normal EOS termination is
+unchanged; long/nonterminating generations can cost more, so benchmark the final
+Paddle inputs and decoding cap before launch.
+
+The preparation override validates against both actual training-config schemas;
+only the evaluation length differs from each inherited hardware profile. Three
+new preparation guards plus the existing configuration suite pass **30 tests in
+18.64 seconds**. The preparation file itself is rejected by the trainer, preventing
+an accidental launch with unmigrated data. No generation-throughput or VRAM
+measurement is claimed by these configuration-only checks.
+
+The migration starts from **published R29**, including its 432 replacements and
+their receipts—not an old R28 generation endpoint. R29 remains a frozen GLM-view
+intermediary. The prior all660/456/9400 audit counts describe the R28 snapshot;
+refresh its provenance inventory for the R29 changes before applying conversion.
+The two identifier-only long layouts also need Paddle ownership review; they
+were not independently admitted by the R29 refresh.
+
+First agree/pin native Paddle page/region order, existing page markers and the
+centroid serializer. Then complete a paired real-training pilot (20 representative
+sources, favoring overlap with template parents) and the separate validation60
+target view. Transfer the approved anonymization choices onto owned Paddle spans;
+review newly visible private data and preserve the validation set's separate,
+currently non-anonymized policy. For each field record retain/change/add/remove
+with its exact evidence and policy. PDF review adjudicates ownership but does not
+silently insert corrected/GLM text into a Paddle-only input.
+
+After that pilot establishes the contract, scale the remaining real/source review
+and rebase a 20-template/60-descendant full-document synthesis pilot. Implement
+physical text fragments with full-precision boxes underneath both centroid and
+bbox serializers. Existing donor-free sampling, cargo ledgers, aliases, multi-row
+packages and DG/thermal capabilities stay in place. Source certification proceeds
+in batches of 20; current-state descendant conversion in batches of 100 follows
+accepted source bindings and resolved correction chains. Do not recreate current
+samples from obsolete candidates or append unmatched private/source cargo text.
+
+The prior 60 transfer controls were region-level probes, not fully migrated
+documents. Full migration, rendered-image/re-OCR controls, throughput measurement
+and Paddle-trained model parity remain unperformed. Package factorization remains
+deferred; it should not be coupled to this OCR-input experiment.
+
+## 30. R30 Paddle baseline completed — 2026-11-02
+
+The [bounded pilot report](analysis/r30-paddle-pilot-20261102/REPORT.md) and
+[certificate](analysis/r30-paddle-pilot-20261102/certification.json) now cover
+20 anonymized real sources, all 60 validation sources, and 20 rebased Paddle
+template overlays with three complete descendants each. No holds remain in this
+cohort. Immutable pilot shards are published under the certificate, not as the
+full R30 training dataset. All 37 protected R29/source pins remain unchanged.
+
+Targets changed in 18/20 real and 56/60 validation records. The real inputs have
+650 explicit privacy replacements, including newly visible native repetitions;
+validation retains its original non-anonymized policy. Registered-office versus
+factory ownership in `684f442c` is resolved without borrowing another party's
+country or concatenating two addresses. Detailed decisions and final readback
+hashes accompany the report.
+
+The 60 descendants comprise 58 current-shipment paired replays and two fresh
+donor-free thermal generations, not 60 fresh LLM draws. They exercise multi-row
+packages, DG/thermal, long inventories, tank/NOR/vehicle and nested presentations.
+Native repeated measurements/identities, literal phone projection, source-equal
+ventilation and physical ownership were repaired and rerun through the combined
+path. Both centroid and bbox views share full-precision physical boxes.
+
+All 146 targeted and existing position/configuration tests pass. The full
+60-document double replay takes 3.63 seconds after setup. On all 660 original
+sources, centroid serialization is 9.1% faster than the audit prototype (median);
+bbox serialization is 2.8% faster, with slightly lower incremental Python heap.
+This is preprocessing evidence, not a model-quality or re-OCR result.
+
+Next scope remains the other 580 real sources, remaining templates and full
+synthetic conversion, followed by final input/token/VRAM checks and training
+publication. The prepared 5,500-token generation limit remains required for both
+hardware profiles. No training was launched and package factorization was not
+introduced into this migration.
+
+### R30 full-source rebase and newly exposed privacy — 2026-11-02
+
+The full600-real/60-validation/456-template scope is pinned and unchanged; the
+191 real sources without admitted templates remain source-only. The user's
+Paddle privacy clarification applies to newly exposed input-only information as
+well as new targets, while preserving goods, public information and localities.
+See the [full-rebase working report](analysis/r30-full-rebase-20261102/REPORT.md).
+
+Historically, the first additional20-source batch had788 private-span replacements, including
+40 explicit extra entries across12 sources, and passes structural/preservation
+checks. Five of its12 admitted templates have15 passing full shipment replays.
+At that interim point it was not certified; it has since been published. Newly
+visible repeated B/Ls, headers, private Marks and split contact names receive
+explicit ownership; known private residues now fail synthetic replay too.
+All60 prior pilot renderings remain exactly reproducible;45 focused tests pass.
+R29, original PDFs/Paddle artifacts, and published pilot data remain unchanged.
+
+### R30 rebase checkpoint after real-13 — 2026-11-03
+
+At the user's request, work stops after completing the current batch, before
+starting the next one. Published status is now **280/600 anonymized real sources,
+60/60 validation sources and180/456 reviewed Paddle template overlays**, with
+540 reviewed replay controls. The full dataset remains explicitly not trainable.
+These template certificates cover native rendering/target projection over pinned
+accepted shipment facts; standalone fresh-generation admission is still required.
+
+The completed batch adds20 sources (38 pages,2,837 native regions),587 audited
+private-span replacements,14 overlays and42 paired full shipment controls.
+New B/L/party/net/date fields, repeated counts/masses, private source-only owners,
+split contacts and literal target boundaries are bound and reviewed. All89 focused
+tests and Ruff pass; all618 protected pins remain unchanged. The final checksum
+audit verified1,951 pinned files. No9400-synthetic conversion or training occurred.
+
+The [checkpoint report](analysis/r30-full-rebase-20261102/batches/real-13/REPORT.md)
+records the per-template baseline and targeted continuation: one unified native
+review packet, existing-fact reuse for exact matches, explicit exception queues,
+new wording only for genuinely new linguistic owners, and complete three-shipment
+replay with changed-span/target readback. Earlier real-12 templates remain openly
+unpublished, including a source needing newly owned nested carton/piece facts.
+The remaining source/template scope has not been removed.
+
+### R30 match-first efficiency probe — 2026-11-03
+
+The next20 real sources are reviewed, validated and published: **300/600 real,
+60/60 validation,180/456 template overlays**. R30 remains not trainable. This batch
+has35 pages/3,072 native regions and471 private-span replacements, including52 new
+privacy decisions across15 records. Target leaf changes are51 added,57 changed
+and13 removed; frozen R29 data are not rewritten.
+
+The [efficiency report](analysis/r30-full-rebase-20261102/batches/real-14/REPORT.md)
+distinguishes the historical84.93% GLM-centroid matching measurement from actual
+Paddle rebase coverage. The new packet finds1,976/3,072 native regions with unique
+literal matches and495/624 used template owners with unique-span proposals.
+These are review hints, not automatic acceptance. Full native boxes, boundaries,
+target paths and privacy context remain alongside the matches. A historical
+backtest matched590/598 proposed spans to accepted spans; eight still needed
+semantic/boundary correction.
+
+Three layouts have nine passing, directly reviewed paired shipment controls;
+the other11 drafts remain incomplete with explicit owner-review failures. The
+14-template batch is **not certified or published**. Completed probe repairs are
+retained for continuation; no fresh-generation readiness or full synthetic
+migration is claimed. A newly exposed two-HS/two-mass presentation also needs
+coherent independent product facts, not simply text matching.
+
+All88 focused tests pass in18.80s and Ruff passes. Packet construction0.901s,
+paired probe0.880s, source staging/audit/publication1.108/0.404/1.900s. These measure
+local execution, not human review throughput; no end-to-end speedup has yet been
+established. No inference/generation hot path changed and no new provider calls
+were needed for this deterministic probe. Continue with consolidated exception
+review and unchanged publication gates, not LLM-only diffing or auto-acceptance.
+
+### R30 streamlined continuation through real-17 — 2026-11-03
+
+The previously incomplete real-14 overlays and subsequent real-15/16/17 batches
+are now published after direct review and three paired controls per template.
+Current verified totals: **360/600 real, 60/60 validation, 238/456 overlays,
+714 reviewed controls**. These remain native presentation/replay acceptance,
+not standalone fresh-generation admission; R30 is still explicitly not trainable.
+
+The [real-17 completion report](analysis/r30-full-rebase-20261102/batches/real-17/REPORT.md)
+records newly visible contacts, route roles, numeric repetitions, literal
+description continuations and privacy owners. A mixed-equipment tare remainder
+uses the actual sampled ledger rather than copying a neighbouring tare. All73
+focused tests and Ruff pass; measured common recipe overhead is0.110ms/20,000
+calls. All618 protected inputs verify. No synthetic9400 conversion is claimed;
+the remaining source/template membership stays in scope.
+
+### R30 completed real-18 checkpoint — 2026-11-03
+
+At the user's requested stopping point, real-18 is complete:20 source records,
+11 native-template overlays and33 reviewed paired shipment controls are published.
+Verified totals are **380/600 real,60/60 validation,249/456 overlays and747
+reviewed controls**. Since the real-13 checkpoint this adds100 real records,
+69 overlays and207 controls. No real-19 processing has begun.
+
+The [full checkpoint breakdown](analysis/r30-full-rebase-20261102/batches/real-18/REPORT.md)
+documents42 pages/4,065 native regions,618 private-span replacements, and22 added,
+48 changed/11 removed target leaves across18 records. Corrections include fax vs
+phone ownership, complete postal/handling continuations, new bill/date/reference
+and repeated numeric owners, corrupted unchanged equipment aliases, narrow-cell
+package rendering, parenthesis framing and preferred-country-name projection.
+Native real text is retained except reviewed anonymization. All33 official replay
+artifacts equal their manually reviewed probes before provenance pins are added.
+
+All87 focused tests pass in16.12s. Official replay took5.183s, template publication
+2.633s and process peak543.70MiB. Final verification checked2,028 pinned files in
+5.508s; all618 protected inputs verify with only the already approved policy
+subsection amendment. No shared hot-path code changed in this final batch.
+
+R30 is still not trainable. Remaining:220 real records,148 associated templates,
+12 earlier real-12 overlays and47 wider-only templates; then standalone fresh-
+generation/aggregate admission. The9,400 synthetic migration is separate future
+work. Overlay/replay certificates are not silently treated as fresh-generation
+certificates or migrated training descendants. The match-first process saves
+duplicate mapping work but still requires semantic/private-content readback;
+no measured human-throughput multiplier is claimed.
+
+### R30 reusable-workbench investigation: real-19 and real-20 — 2026-11-03
+
+Both requested cohorts are complete and published:40 real records,27 native
+template overlays and81 reviewed paired controls. Totals are420/600 real,
+60/60 validation,276/456 overlays and828 reviewed controls including the pilot.
+No Codex subagents were used. R30 remains not trainable; the9,400 synthetic
+migration and standalone fresh-generation admission remain in scope but unfinished.
+
+The [efficiency investigation](analysis/r30-full-rebase-20261102/EFFICIENCY-REAL19-20.md)
+documents the reusable workbench, failed combined privacy/field-proposal approach,
+separate fields/bindings proposals, declarative decisions, all-owner preflight,
+exact source-span target projection, separate native-line geometry frames and
+pinned field-shape readback. These retained all source/privacy/rendering gates.
+The two cohorts contain995 private replacement operations and target changes in
+38 records. Two fresh DG controls required scoped wording regeneration; their
+numbers remained authoritative.
+
+All92 focused tests pass.726 prior full-rebase controls reproduce exactly; median
+30-control rendering is0.73537s before/0.73058s after (within noise), with no
+meaningful runtime or memory regression.2,186 pinned files and618 protected inputs
+verify. The requested15–30-minute end-to-end batch throughput is **not yet
+demonstrated**: internal stage timings must not be presented as full batch times.
+Remaining:180 real records and180 overlays (121 associated,12 unfinished real-12,
+47 wider-only), then complete generation/aggregate admission.
+
+### R30 continued source rebasing: real-21 and real-22 — 2026-11-03
+
+Two further batches are published:40 real records,26 overlays and78 reviewed
+paired controls. Current totals:460/600 real,60/60 validation,302/456 overlays,
+906 controls including the pilot. Reports:
+[real-21](analysis/r30-full-rebase-20261102/batches/real-21/REPORT.md),
+[real-22](analysis/r30-full-rebase-20261102/batches/real-22/REPORT.md).
+
+These cohorts cover81 pages,8,282 native regions and1,288 surgical privacy edits.
+Newly visible fields and repetitions include complete allocations, gross/net
+measurements, party/contact blocks, seals, IMOs, signatures and commercial refs.
+Unreliable native OCR remains literal; PDF inspection establishes ownership, not
+replacement text. Input-only references remain outside the reduced target schema.
+
+A source-only target amendment corrects nine locality leaves in four real-21
+records without changing inputs or historical certificates. A second finding
+restores explicit frozen-schema checks to shortcut replay and template publication;
+only three unpublished candidates were affected. All879 saved full-rebase controls
+now validate.95 focused tests pass. The added offline schema gate measures about
+0.87ms/control and94,034bytes incremental traced peak; no generation/inference
+hot path changes. The country projection uses the pinned preferred-name registry,
+not ISO display-name strings. R30 remains not trainable. Remaining:140 real and154
+overlays; real-23 is prepared and under direct review, followed by full admission.
+
+### R30 complete source/template baseline — 2026-11-03
+
+The complete 600 anonymized real-training and 60 validation records are now
+rebased and published, with all 456 existing templates (409 real-training
+parents and 47 wider references). The 191 real sources without templates remain
+input/label-only, as instructed. No membership was added or removed.
+
+All 1,368 reviewed controls reproduce through the shared native renderer and
+pinned catalog, with zero validation failures. They include 39 fresh controls
+across 17 templates tested without old-dataset targets. Eleven overlapping fresh
+controls also pass the standalone CLI, including the two newly exposed nested
+packing ledgers and thermal/equipment variation. All 456 sampler prerequisites
+pass in the combined configuration. Generated wording and final documents
+still require semantic audit; passing controls do not auto-accept future draws.
+
+The source aggregate changes targets in 553/600 real and 56/60 validation records;
+these are OCR-conditioned projections and scope/privacy corrections, not model
+errors. Additional private owners exposed by Paddle are anonymized and bound.
+ICC ISBP821 establishes KOS as kilograms in the reviewed mass contexts; seven
+existing source labels and four overlays were amended, while tare and unitless
+volume are not silently relabeled as cargo measurements. The wider4d47f5e7
+reference is also resolved without adding it to training membership.
+
+Shared rendering is output-identical and measures 36.85s versus37.16s median
+over1,368 controls. Full catalog validation, including I/O, schema/privacy gates
+and fresh double-controls, takes142.96s with639.08MiB peak RSS. No R29 artifact
+was changed. The 9,400 synthetic migration is still the next separate task;
+R30 is not a complete training mixture yet.
+
+See the [complete report](analysis/r30-full-rebase-20261102/REPORT.md),
+[completion certificate](analysis/r30-full-rebase-20261102/completion.json), and
+[synthesis handoff](analysis/r30-full-rebase-20261102/HANDOFF.md).
+
+### R30 independent source/template audit — 2026-11-03
+
+The complete 600-real/60-validation baseline and all 456 native templates were
+independently re-audited. Corrections are published for 86 real and six validation
+records, including ownership, literal projection, privacy and one cross-column
+reflow defect. Ninety-three template overlays were corrected; one additional
+template's retained control uses a narrowly regenerated goods description after
+an older product response leaked party-field instructions.
+
+All 1,368 controls passed the final audited catalog replay (156.98 s total,
+83.32 s rendering/validation, 645.75 MiB peak RSS). The paired amended-template
+render benchmark was 20.02 s versus 21.45 s baseline; no throughput regression
+was observed. The relevant regression suite passed 178 tests; three additional
+receipt-composition guards also pass. R29 and old batch evidence remain unchanged.
+
+At this audit publication, the active catalog was
+`artifacts/synthesis-templates/mpci-bl-v7-paddle-reviewed/r30/audit-20261103/catalog.json`,
+SHA-256 `710994eb29e9293cbe4f395ad56aba46edabd29366a5dece2b07b948869a9713`.
+The dataset manifest pins this revision and its complete controls. The 9,400
+synthetic migration is the next distinct publication step, in batches of 100;
+this audit does not yet make R30 a complete training mixture.
+
+See [audit findings and exact repair scope](analysis/r30-independent-audit-20261103/REPORT.md)
+and [publication receipt](analysis/r30-independent-audit-20261103/publication.json).
+
+### R30 synthetic migration checkpoint — 2026-11-03
+
+The first 100/9,400 synthetic records are certified and published alongside the
+600 real and 60 validation records. **9,300 synthetic records remain uncertified;
+R30 is not trainable yet.** OpenRouter returned HTTP 402 (insufficient credits)
+during semantic review; further provider work requires restored credit.
+
+Migration readback additionally corrected two real targets (one previously
+repaired), bringing the independent-audit total to 93 distinct sources: 87 real
+and six validation. Native repetitions now consume semantic shipment authorities
+instead of assuming every historical receipt has newer compound-owner keys.
+Existing sampled equipment tare is retained even when its unchanged value produced
+no text edit. All 456 templates / 1,368 controls pass final replay; 147.26 s total,
+81.99 s rendering, 647.90 MiB peak RSS. The active catalog is pinned by the manifest
+under `r30/migration-repetitions-20261103`; older certificates retain their own pins.
+
+The next three 100-record batches mechanically render 99 each. Their remaining
+three `5c2fdc31` cases need coherent three-level packing for the retained cargo,
+or a narrowly scoped cargo refresh—not invented counts or omitted hierarchy.
+Separate historical receipt composition and additional-owner wording remain for
+later batches. Exact current-text transport receipts are not dataset acceptance.
+
+See the [migration report and resume sequence](analysis/r30-synthetic-migration-20261103/REPORT.md).
+
+### R30 resumed migration and numeric-layout correction — historical 2,800-record checkpoint
+
+Current publication: 600 anonymized real, 60 validation, 2,800 synthetic records
+(batches 001–028). **6,600 synthetic identities remain unpublished; R30 is not
+ready for training.** A new OpenRouter HTTP 402 stopped paid semantic reviews.
+
+The user's goods-origin boundary is documented and applied: unambiguous attached
+country qualifiers can establish origin without an ORIGIN heading; genuinely
+ambiguous brand/market qualifiers remain description-only when inside the
+policy-owned passage. Detached text is not appended to descriptions.
+
+A complete numeric-fragment screen found 105 published documents with scalar
+numbers split across physical lines. The scoped repair and repeated screen now
+give zero such documents. An incorrectly bound demurrage tariff was restored in
+39 descendants, without changing cargo volume targets. Two source-target repairs
+were propagated to six synthetic targets. Full relevant tests: 390 passed;
+full template control replay: 1,368/1,368, followed by six passing controls for
+two additional exact numeric/retained-owner corrections. All 400 records in
+batches 029–032 mechanically pass, but remain unpublished pending exact-current
+semantic review. The working migration report records
+the exact changes, rejected intermediate candidates, timing/memory evidence,
+publication pins and remaining provider boundary. These checks are not evidence
+that the unfinished synthetic dataset is fully accepted.
+
+### R30 continuation — 4,000 published synthetic records, 2026-11-04
+
+Publication has advanced through complete batches 001–040: **4,000 synthetic,
+600 anonymized real-training and 60 validation records**. The remaining 5,400
+synthetic identities are not certified. R30 remains **not ready for training**.
+
+Fresh full remaining-set staging renders 4,843 of those 5,400 records; 557 are
+explicitly held. The batch-100 renderer scan takes about 3.5 minutes for the
+whole pending set, but semantic review and missing-data/ownership repairs are
+separate requirements. The active-publication audit passes for all 4,660
+published records, and no fragmented numeric scalar remains among the 4,000
+published synthetic records.
+
+The current catalog includes reviewed retained-owner and compound-party
+boundaries, exact physical-measure rounding checks, marked consignee email
+continuations, complete repeated private signatures and explicit equipment
+authority for new tare occurrences. Full control replay passed 1,368/1,368
+unchanged after the shared rounding correction; later source-specific edits
+passed their scoped controls and published-record readbacks. The final broader
+regression suite passed 603 tests in 126.04 s. Existing semantic reviews are reused only
+when the entire reviewed input/target and request are exactly unchanged.
+
+The synthesis account again reports exhausted credits, confirmed by a read-only
+check using the same credential loader at 21:37 UTC. Paid calls stopped; local
+repairs and validation continued. This is separate from the remaining local
+binding/private-data/numeric holds, which are explicitly inventoried, not
+attributed to billing. See the [current migration report](analysis/r30-synthetic-migration-20261103/REPORT.md)
+for exact correction scopes, rejected proposals, costs, timings, publication
+pins and resume requirements. Rendered candidates and repaired receipts are not
+counted as certified records.
+
+### R30 Paddle migration completed — 2026-11-05
+
+The historical incomplete checkpoints above are superseded. **All 9,400 synthetic
+records, 600 anonymized real-training records and 60 validation records are now
+certified and published**, with all 456 native templates covered by current
+controls. The frozen membership was preserved. This completes the data rebase,
+not a training run or a demonstration of Paddle model parity.
+
+The final independent audit verifies all 10,060 records, exact active
+certificate/aggregate equality, schemas, native order and raw/centroid/bbox views.
+A fresh replay of all 9,400 synthetic records through the current native path
+has zero differences (169.78 seconds, no provider calls). The whole-dataset
+publication audit takes 106.15 seconds and 191.48 MiB peak RSS. The regression
+suite passes 810 tests; every exact current template is covered by three passing
+controls. Completion evidence is pinned in the R30 dataset manifest.
+
+The remaining 5,400 records after the 4,000 checkpoint required **$7.22183221
+additional accounted provider cost**, including $0.0423225 retained as an unknown
+request-cost reserve. This is not the total historical migration cost and not
+a fresh-generation price forecast. Readiness-first paid review, exact evidence
+reuse, scoped generation and individual adjudication replaced front-loaded
+review of mechanically unfinished records. Final batch certification took
+51.29 seconds without provider calls; manual exception review is separate.
+
+See the [completed migration report](analysis/r30-synthetic-migration-20261103/REPORT.md)
+and [completion receipt](analysis/r30-synthetic-migration-20261103/completion595.json)
+for final counts, cost/attempt ledgers, correction scopes, benchmarks and pins.
+R28/R29 remain unchanged. Next: materialize R30 training configs with the current
+dataset/task pins, retain the 5,500-token evaluation generation limit, and run
+the final input/target-length and VRAM preflight before training.

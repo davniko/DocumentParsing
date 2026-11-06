@@ -23,6 +23,7 @@ from document_ocr.synthesis.declared_packages import DeclaredPackages
 from document_ocr.synthesis.scoped_cargo_refresh import (
     apply_edits,
     cargo_auxiliary_keys,
+    cargo_surface_keys,
     migrate,
     reconstruct_source,
 )
@@ -108,6 +109,7 @@ def audit():
                 keys = set(physical.surface_values) | set(physical.variable_values)
                 keys |= {r.key for r in bp.regions if r.kind == "product"}
                 keys |= cargo_auxiliary_keys(auxiliary.get(sid, {}).get("bindings", {}))
+                keys |= cargo_surface_keys(bp)
                 keys |= set(scoped.get(sid, {}).get("keys", []))
                 expected, proof = migrate(
                     row["before"],

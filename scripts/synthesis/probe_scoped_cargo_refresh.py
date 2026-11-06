@@ -11,7 +11,11 @@ from document_ocr.synthesis.curated_campaign import create_campaign
 from document_ocr.synthesis.curated_layout import PositionPolicy
 from document_ocr.synthesis.curated_positions import load_page_geometry, transfer_positions
 from document_ocr.synthesis.curated_reflow import ReflowEngine
-from document_ocr.synthesis.scoped_cargo_refresh import cargo_auxiliary_keys, migrate
+from document_ocr.synthesis.scoped_cargo_refresh import (
+    cargo_auxiliary_keys,
+    cargo_surface_keys,
+    migrate,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "docs/analysis/r28-combination-refresh300-20261101"
@@ -58,6 +62,7 @@ def main():
             | set(physical.variable_values)
             | {r.key for r in bp.regions if r.kind == "product"}
             | cargo_auxiliary_keys(auxiliary.get(sid, {}).get("bindings", {}))
+            | cargo_surface_keys(bp)
             | set(scoped_owners.get(sid, {}).get("keys", []))
         )
         for item in [

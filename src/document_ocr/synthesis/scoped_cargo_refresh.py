@@ -8,10 +8,63 @@ provenance, never replacement private-party values. Ambiguous joins fail closed.
 from __future__ import annotations
 
 import copy
+import re
 from difflib import SequenceMatcher
 from functools import lru_cache
 
 from document_ocr.synthesis.curated import digest, flat
+from document_ocr.synthesis.curated_descriptions import (
+    CompiledDescriptionBlocks,
+    CompiledDescriptionField,
+    CompiledDescriptionSpan,
+    project_rendered_descriptions,
+)
+
+
+def reproject_scoped_descriptions(fresh, source, rendered, edits):
+    """Replay certified description membership after retaining noncargo owners.
+
+    An origin or identifier can be protected from refresh while belonging to a
+    continuous description block. Copying the fresh description would then
+    contradict the composed text. Use its exact certified spans, not a lexical
+    replacement of country names that could also occur in product wording.
+    """
+    projection = fresh["proof"].get("descriptionProjection")
+    if projection is None:
+        return {}, None
+    if projection["sourceSha256"] != digest(source):
+        raise ValueError("scoped description source differs from certified projection")
+    fields = []
+    for field in projection["fields"]:
+        spans = []
+        previous_end = -1
+        for span in field["spans"]:
+            start, end = span["sourceByteStart"], span["sourceByteEnd"]
+            if not 0 <= start < end <= len(source) or start < previous_end:
+                raise ValueError("invalid scoped description span ordering")
+            spans.append(CompiledDescriptionSpan(start, end, source[start:end].decode()))
+            previous_end = end
+        if not spans:
+            raise ValueError("empty scoped description membership")
+        fields.append(CompiledDescriptionField(field["path"], tuple(spans)))
+    blocks = CompiledDescriptionBlocks(
+        projection["sourceSha256"], projection["contractSha256"], tuple(fields)
+    )
+    expected = {
+        key: value for key, value in flat(fresh["target"]).items()
+        if re.fullmatch(r"documentPatch\.goodsItemDetails\[\d+\]\.description", key)
+    }
+    if len(fields) != len(blocks.paths) or blocks.paths != expected.keys():
+        raise ValueError("scoped description projection membership differs from targets")
+    values, verified = project_rendered_descriptions(
+        blocks, source, fresh["joinedRawText"].encode(), fresh["proof"]["edits"],
+        casing=projection["casing"],
+    )
+    if values != expected or verified != projection:
+        raise ValueError("fresh description projection does not replay its authority")
+    return project_rendered_descriptions(
+        blocks, source, rendered, edits, casing=projection["casing"]
+    )
 
 
 @lru_cache(maxsize=4)
@@ -101,7 +154,13 @@ def cargo_path(path: str) -> bool:
     if path.startswith("documentPatch.goodsItemDetails["):
         return ".origin" not in path and not path.endswith(".equipmentIdentifier")
     return path.startswith("documentPatch.containerInformation[") and path.endswith(
-        (".sizeCategory", ".typeCategory", ".tareWeight.value")
+        (
+            ".sizeCategory",
+            ".typeCategory",
+            ".tareWeight.value",
+            ".temperatureSetpoint.value",
+            ".temperatureSetpoint.unit",
+        )
     )
 
 
@@ -110,8 +169,38 @@ def cargo_auxiliary_keys(bindings: dict) -> set[str]:
     return {
         key
         for key, recipe in bindings.items()
-        if "target" in recipe and cargo_path(recipe["target"])
+        if ("target" in recipe and cargo_path(recipe["target"])) or "dg_fact" in recipe
     }
+
+
+def cargo_surface_keys(blueprint) -> set[str]:
+    """Include source-only repetitions whose explicit authority is cargo.
+
+    These surfaces have no public target path of their own. In particular, a
+    repeated package noun must change with an aggregate multi-group allocation.
+    Party aliases and expressions with any non-cargo dependency stay protected.
+    """
+    products = {v.key for v in blueprint.contract.variables if v.kind == "product"}
+    result = set()
+    for key, recipe in blueprint.ownership_data.get("surfaces", {}).items():
+        paths = [recipe[name] for name in ("package_path", "measure_path") if name in recipe]
+        paths.extend(re.findall(r"\{([^{}]+)\}", recipe.get("expression", "")))
+        if (
+            (paths and all(cargo_path(p) for p in paths))
+            or recipe.get("lexical_key") in products
+            or "product_reference" in recipe
+            or "dg_fact" in recipe
+            or "contained_quantity" in recipe
+        ):
+            result.add(key)
+    # A compiled inventory summary owns no public scalar of its own, but its
+    # explicit derivation depends on the equipment being refreshed.
+    result.update(
+        key
+        for key, binding in blueprint.historical_bindings.items()
+        if binding.get("derivation") == "equipment_receipt"
+    )
+    return result
 
 
 def apply_edits(raw: bytes, edits: list[dict]) -> bytes:
@@ -236,7 +325,7 @@ def migrate(
     for before, after, proposed in zip(
         old_containers, result["target"]["containerInformation"], new_containers, strict=True
     ):
-        for key in ("sizeCategory", "typeCategory", "tareWeight"):
+        for key in ("sizeCategory", "typeCategory", "tareWeight", "temperatureSetpoint"):
             if (key in before) != (key in proposed):
                 raise ValueError("cargo migration changes equipment field presence")
             if key in proposed:
@@ -309,6 +398,15 @@ def migrate(
         "renderedSha256": digest(result_raw),
         "edits": geometry_edits,
     }
+    descriptions, description_proof = reproject_scoped_descriptions(
+        native, new_source, result_raw, geometry_edits
+    )
+    if description_proof is not None:
+        geometry_proof["descriptionProjection"] = description_proof
+        for index, goods in enumerate(result["target"]["goodsItemDetails"]):
+            path = f"documentPatch.goodsItemDetails[{index}].description"
+            if path in descriptions:
+                goods["description"] = descriptions[path]
     before_flat, after_flat = flat(old_target), flat(result["target"])
     changed = {
         key

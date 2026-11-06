@@ -148,6 +148,21 @@ def expand(campaign, result, authority, contract, request, *, attempt, equipment
                 in {"non_dg_liquid_system", "tank_loading_lot"}
             ],
         )
+        if campaign.config.get("allocation_sampling", "source") == "equal":
+            from document_ocr.synthesis.declared_packages import equalize_groups
+
+            ledger = equalize_groups(
+                ledger,
+                minimum_group_count=minimum,
+                minimum_load_counts=load_minima,
+                exclusive_groups=[
+                    i
+                    for i, draw in enumerate(draws)
+                    if old_draw["equipment"]
+                    and draw["provenance"]["countedUnitContext"]
+                    in {"non_dg_liquid_system", "tank_loading_lot"}
+                ],
+            )
         group_draws = [
             _resize(draw, unit, tuple(row[i] for row in ledger.matrix))
             for i, (draw, unit) in enumerate(zip(draws, units, strict=True))

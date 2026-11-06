@@ -6,7 +6,65 @@ from decimal import Decimal as D
 import pytest
 
 from document_ocr.synthesis.curated_scenarios import CandidateIncompatibility
-from document_ocr.synthesis.declared_packages import CountedPackage, DeclaredPackages, sample_groups
+from document_ocr.synthesis.declared_packages import (
+    CountedPackage,
+    DeclaredPackages,
+    equalize_groups,
+    sample_groups,
+)
+
+
+@pytest.mark.parametrize("seed", range(100))
+def test_equal_load_campaign_conserves_multiple_groups_and_partial_visibility(seed):
+    original = sample_groups(
+        [group(), group("PACKAGE_BAG", multiple=2)],
+        [(D(18000), D(28)), (D(20000), D(40)), (D(18000), D(28))],
+        seed=seed,
+        key="equal-campaign",
+        utilization=(D(".2"), D(".4")),
+    )
+    equal = equalize_groups(original, minimum_group_count=5, minimum_load_counts=[1, 3, 1])
+    assert len({sum(row) for row in equal.matrix}) == 1
+    assert equal.groups == original.groups
+    assert equal.capacities == original.capacities
+    assert all(row[1] % 2 == 0 and min(row) >= 3 for row in equal.matrix)
+    assert DeclaredPackages.from_receipt(equal.receipt()) == equal
+    placements = equal.project_placements(
+        [{"equipmentIdentifier": "A"}, {"equipmentIdentifier": "B", "packageQuantity": 3}],
+        ["A", "B", "C"],
+    )
+    assert placements[0] == {"equipmentIdentifier": "A"}
+    assert placements[1]["packageQuantity"] == sum(equal.matrix[1])
+
+
+def test_equal_load_does_not_overfill_smaller_mixed_equipment():
+    ledger = DeclaredPackages((group(),), ((1,), (100,)), ((D(150), D(1)), (D(20000), D(40))))
+    with pytest.raises(CandidateIncompatibility):
+        equalize_groups(ledger)
+
+
+def test_equal_installed_systems_do_not_gain_shared_contents():
+    ledger = DeclaredPackages(
+        (group("PACKAGE_FLEXITANK"), group()),
+        ((1, 0), (0, 2)),
+        ((D(20000), D(40)),) * 2,
+    )
+    with pytest.raises(CandidateIncompatibility, match="installed-system"):
+        equalize_groups(ledger, exclusive_groups=[0])
+
+
+@pytest.mark.parametrize("minimum", [[], [0, 1], [True, 1], [1]])
+def test_equal_load_minima_must_be_explicit_positive_and_aligned(minimum):
+    ledger = DeclaredPackages((group(),), ((2,), (3,)), ((D(20000), D(40)),) * 2)
+    with pytest.raises(ValueError, match="minima"):
+        equalize_groups(ledger, minimum_load_counts=minimum)
+
+
+@pytest.mark.parametrize("exclusive", [[-1], [1], [0, 0], [True]])
+def test_equal_load_exclusive_indexes_cannot_be_guessed(exclusive):
+    ledger = DeclaredPackages((group(),), ((1,), (1,)), ((D(20000), D(40)),) * 2)
+    with pytest.raises(ValueError, match="indexes"):
+        equalize_groups(ledger, exclusive_groups=exclusive)
 
 
 def group(category="PACKAGE_DRUM", multiple=1):

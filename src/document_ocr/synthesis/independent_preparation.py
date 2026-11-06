@@ -64,6 +64,7 @@ from document_ocr.synthesis.independent_geography import (
 )
 from document_ocr.synthesis.independent_numeric import (
     IndependentNumericCertificates,
+    packing_contents_kind,
     required_packing_levels,
 )
 from document_ocr.synthesis.independent_packages import (
@@ -465,6 +466,14 @@ def packing_presentation_context(certificate: Mapping[str, Any], relations: Sequ
             "by giving it a generic name at one level and a material-qualified name at "
             "the next. Do not collapse the middle and innermost levels."
         )
+        if packing_contents_kind(certificate) == "goods_pieces":
+            text += (
+                " In this presentation the innermost level specifically counts GOODS PIECES, "
+                "not additional receptacles. Select an arrangement of outer/support units "
+                "and intermediate packages containing individual products. Loose liquids, "
+                "gases and powders are not countable pieces; do not add bottling to pretend "
+                "they are. Return unknown when the goods cannot support this presentation."
+            )
     return text
 
 

@@ -34,6 +34,10 @@ Frozen food stays at -18 C or colder. Chilled animal/fish products are non-live,
 non-respiring. Fresh edible fruit/vegetables can respire; frozen produce does not.
 Zero fresh-air exchange does not disable internal circulation. Numeric RATE slots
 allow zero; CLOSED requires zero; ABSENT requires null, never an invented field.
+ABSENT means the document does not print a ventilation setting, not that the
+equipment lacks ventilation. For ABSENT, still propose the goods-appropriate
+temperature range, leave both airflow fields null, and do not return UNKNOWN
+solely because ventilation is unprinted.
 Non-respiring foods require closed fresh air. Fresh produce needs a plausible
 commodity-dependent exchange, not a universal zero. Select narrow compatible
 ranges for EVERY product sharing one compartment. Do not average disjoint storage

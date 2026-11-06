@@ -15,6 +15,23 @@ from document_ocr.synthesis.independent_numeric import NUMERIC_REGION_PREFIX
 from document_ocr.synthesis.independent_wording import META, phrase_surfaces
 
 
+def disjoint_support_wording(text, child, group_count):
+    """Distinguish private supports from separately declared counted groups."""
+    if text and group_count > 1 and child.get("relation") == "ON_SUPPORT":
+        return text + " SUPPORT UNITS ARE ADDITIONAL TO THE DECLARED PACKAGE GROUPS."
+    return text
+
+
+def join_unit_net_prefixes(terms):
+    """Add disjoint counted groups before their one shared product phrase."""
+    if len(terms) == 1:
+        return terms[0]
+    suffix = " OF "
+    if not terms or any(not term.endswith(suffix) for term in terms):
+        raise ValueError("unit-net group prefix lacks its owned product connector")
+    return " + ".join(term[: -len(suffix)] for term in terms) + suffix
+
+
 def _fact(ledger, group):
     matches = [
         scope["facts"][group]
@@ -87,8 +104,16 @@ def combine(blueprint, certificate, ledger, children, original, *, noun_renderer
                     raise ValueError("complete group owner requires one literal surface")
                 if values[0]:
                     text = values[0]
+                    if role in {"packing_clause", "support_statement", "receptacle_statement"}:
+                        text = disjoint_support_wording(text, child, len(children))
                     if len(active) > 1 and (
-                        role in {"unit_inner_packing", "dual_unit_net_statement"}
+                        role
+                        in {
+                            "unit_inner_packing",
+                            "dual_unit_net_statement",
+                            "support_mass_breakdown",
+                            "component_mass_pair",
+                        }
                         or (
                             role == "support_statement"
                             and child["relation"] not in {"SUPPORTS", "ON_SUPPORT"}
@@ -108,7 +133,11 @@ def combine(blueprint, certificate, ledger, children, original, *, noun_renderer
             # Whole clauses retain their own counts/units. A component-package
             # cell instead lists the additive outer portions of that Marks lot.
             separator = " + " if role == "component_package" else "\n"
-            text = separator.join(terms)
+            text = (
+                join_unit_net_prefixes(terms)
+                if role == "unit_net_prefix"
+                else separator.join(terms)
+            )
         result["surfaces"][key] = [text]
     # Per-unit appends lack the counted-group context carried by complete
     # count/unit clauses. Name that group so an inner bag/drum cannot inherit
@@ -121,6 +150,7 @@ def combine(blueprint, certificate, ledger, children, original, *, noun_renderer
     for index, child in enumerate(children):
         result["wordingFacts"].extend(child["wordingFacts"])
         for key, value in child["wordingAppends"].items():
+            value = disjoint_support_wording(value, child, len(children))
             if len(children) > 1 and key in unscoped_appends:
                 if noun_renderer is None:
                     raise ValueError("scoped per-unit append requires a package noun renderer")

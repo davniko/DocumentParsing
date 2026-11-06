@@ -18,7 +18,11 @@ from document_ocr.synthesis.curated_campaign import create_campaign
 from document_ocr.synthesis.curated_layout import PositionPolicy
 from document_ocr.synthesis.curated_positions import load_page_geometry, transfer_positions
 from document_ocr.synthesis.curated_reflow import ReflowEngine
-from document_ocr.synthesis.scoped_cargo_refresh import cargo_auxiliary_keys, migrate
+from document_ocr.synthesis.scoped_cargo_refresh import (
+    cargo_auxiliary_keys,
+    cargo_surface_keys,
+    migrate,
+)
 
 
 def position_preservation(before, after):
@@ -119,6 +123,7 @@ def stage(config_path, refresh_native=()):
             | set(physical.variable_values)
             | {r.key for r in bp.regions if r.kind == "product"}
             | cargo_auxiliary_keys(auxiliary.get(sid, {}).get("bindings", {}))
+            | cargo_surface_keys(bp)
         )
         private.update(scoped_owners.get(sid, {}).get("keys", []))
         options = pool.get(sid, [])

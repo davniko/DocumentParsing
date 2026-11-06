@@ -165,6 +165,28 @@ Examples of the distinction:
 These are semantic examples, not automatic rewrite rules. No new multi-goods
 adjudication was performed in the R7 filtering pass.
 
+### R30 reviewed source presentations (2026-11-03)
+
+`6c14020d` has a shared 19-pallet / 19,394 kg main-page declaration and an
+attachment with two HS-specific masses (8,537 and 10,857 kg). The two codes alone
+do not establish two goods entries, but the separate masses are genuine accounting
+detail; they must not be described as merely duplicate codes. Keep both literal
+HS/mass rows in the real Paddle input and the existing single-goods target. Per
+the user's explicit synthesis decision, a descendant with one sampled product
+uses one coherent HS/mass row; omit the second row with an auditable presentation
+decision rather than copying another commodity's code or inventing a product.
+
+GS1 GPC is a separate product classification, not an HS/HTS alias. A printed
+`GPC CODE` therefore creates no HS target. For the reviewed R30 source `6826506a`,
+keep its native GPC input unchanged. Per the user's explicit instruction,
+descendants retain the caption and use an input-only deterministic eight-digit
+synthetic code with the same initial-1 format. This is non-authoritative synthetic
+context, not a claim that the generated code is an assigned GS1 brick or a valid
+classification of the sampled goods. Do not relabel it as HS or as a private
+product reference. [GS1 brick-code explanation](https://resources.gs1ie.org/helpdesk/how-do-i-find-my-brick-code)
+and [GS1 classification qualifiers](https://www.publikationen.gs1-germany.de/Complete/eancom_v9.3/profiles/ae/gesamt/desadv/en/html/0644.htm)
+establish the distinction.
+
 ## Shipment packaging and allocations (2026-10-09)
 
 Use the **declared shipment accounting unit**, established by package columns,
@@ -381,6 +403,41 @@ There is no agreed independent purpose for a cargo product-overflow field.
 current targets. Do not reintroduce them to shorten long product descriptions.
 Goods-specific handling instructions have a separate, defined purpose; they are
 not a renamed overflow field for product wording.
+
+### Goods-origin evidence and description boundary — R30 clarification, 2026-11-04
+
+The optional goods `origin` field remains supported. An `ORIGIN` or `MADE IN`
+heading is sufficient but **not required**. A country or geographic adjective
+directly qualifying the whole product can establish its documentary origin:
+`KENYA BLACK TEA`, `BRAZILIAN COFFEE`, `FRENCH MILLING WHEAT`, and the standalone
+`UNITED STATES` attached to the product/packing passage in `630cd159` qualify.
+This supersedes the earlier overly strict omission for `630cd159`; its country
+is not borrowed from the exporter address. Preserve the literal origin wording
+in uppercase, as required by OriginV7; do not invent an ISO identifier or silently
+normalize a printed adjective to a different country-name string.
+
+Country presence anywhere in the cargo column is **not** sufficient. Separate
+exporter/manufacturer-office addresses, destination/market labels, component
+origin and product/brand names have different roles. `USA COTTON ... MADE IN INDIA`
+establishes India for the finished yarn, not USA. `BRAZIL NUTS`, `NORWAY LOBSTERS`,
+`SUDAN GRASS`, `FRENCH FRIES`, `JERSEY` fabric, `CHINA` ceramics and `ANGUILLA`
+species are not origin evidence solely because their names resemble countries.
+
+The user explicitly resolved genuinely ambiguous product qualifiers as
+**description-only**, provided they belong to the policy-defined continuous
+product passage (or a clearly delineated list/continuation). This covers
+`BRAND "HEG" INDIA` in `551f3a34` and `EXTRACORPOREAL TUBING SET ADULT -EGYPT`
+in `5d6b477c`: neither establishes goods origin unambiguously. Do not append such
+words from a nearby independent field merely to preserve them in a target.
+
+Description ownership and structured origin are independent. Keep an embedded
+origin qualifier within the bounded product passage even when it also supplies
+`origin`; do not remove it surgically. Conversely, a detached `MADE IN` statement
+can establish origin without being appended to description. In `630cd159`, retain
+the attached country at the end of the product passage and keep the separately
+identified UN/class/PG in their DG fields. Apply the same evidence rule to real,
+validation and synthetic inputs; an original source's origin must not survive
+when synthesis replaces the entire qualifying passage with different goods.
 
 ### Handling boundary — R28 clarification, 2026-10-30
 
@@ -949,11 +1006,30 @@ separator; their existing independent target ownership is retained.
   `GW 7,737.00 KOS` for shipment gross. The user explicitly permits interpreting
   these two source-only numeric owners as kilograms **privately for synthesis**.
   Render the sampled tare/gross through those owners, retain the literal `KOS`,
-  and preserve the absent public weight targets. This is not a global unit alias,
-  an OCR correction, or permission to infer kilograms in other documents.
+  and preserve the absent public weight targets under that historical decision.
+  The unit interpretation is superseded by the evidence-backed R30 clarification
+  below; source text remains unchanged.
 - `2763b891`: retain a **single public package row**. Its right-aligned quantity
   cell does not fit a disjoint count/type list at the measured source font. The
   user chose single-row synthesis rather than moving that list into the goods
   column. Do not shrink text, invent coordinates, or introduce a multi-row
   presentation into this template. Three fresh single-row descendants validate
   continued source support; the restriction does not remove it from the registry.
+
+### R30 kilogram abbreviation clarification — 2026-11-03
+
+In an explicit shipping mass context, `KOS`/`kos.` is an accepted abbreviation
+for kilograms, not an unknown unit or a character repair to `KGS`. ICC ISBP 821
+paragraph A1 explicitly lists this equivalence; UNECE Recommendation 22 fields
+15 and 17 recognize the abbreviation while recommending `kg` for form design.
+See [ICC ISBP 821](https://library.iccwbo.org/content/tfb/RULES/tfb-isbp-2023-rules.htm?AGENT=ICC_QAT+title%3D)
+and [UNECE Recommendation 22](https://unece.org/sites/default/files/2023-10/Rec22_ECE-TRADE-168E.pdf).
+
+Preserve the printed OCR spelling, but normalize its established mass unit to
+`kilogram` in targets. This applies consistently to previously reviewed sources,
+including `e18486c6`, when the printed number and gross/net role are established.
+It does not make carrying-equipment tare into cargo gross/net weight, resolve
+ambiguous numbers, or supply a unit for a separate unitless measurement. Do not
+treat `KOS` as mass in unrelated quantity, locality, reference or language contexts.
+For `4d47f5e7`, the user additionally authorizes cubic metres privately for its
+unitless volume; retain that presentation and omit the public volume target.

@@ -4,7 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from document_ocr.synthesis.declared_package_private import combine
+from document_ocr.synthesis.declared_package_private import (
+    combine,
+    disjoint_support_wording,
+    join_unit_net_prefixes,
+)
 from document_ocr.synthesis.declared_packages import CountedPackage, DeclaredPackages
 
 
@@ -42,6 +46,55 @@ def test_complete_nested_groups_stay_disjoint_and_do_not_add_inner_counts(case):
     assert result["grossKg"] == "117"
     assert result["unitNetKg"] is None
     assert (original, children) == before
+
+
+def test_disjoint_unit_prefixes_do_not_create_accidental_nested_reading(case):
+    bp, ledger, original, children = case
+    children[0]["surfaces"] = {"held-numeric:0": ["7 BOXES X 2 KG NET EACH OF "]}
+    children[1]["surfaces"] = {"held-numeric:0": ["8 DRUMS X 10 KG NET EACH OF "]}
+    result = combine(bp, {"regions": [{"role": "unit_net_prefix"}]}, ledger, children, original)
+    assert result["surfaces"]["held-numeric:0"] == [
+        "7 BOXES X 2 KG NET EACH + 8 DRUMS X 10 KG NET EACH OF "
+    ]
+    assert join_unit_net_prefixes(["7 BOXES X 2 KG NET EACH OF "]) == "7 BOXES X 2 KG NET EACH OF "
+    with pytest.raises(ValueError, match="connector"):
+        join_unit_net_prefixes(["unowned text", "8 DRUMS OF "])
+
+
+@pytest.mark.parametrize("role", ["support_mass_breakdown", "component_mass_pair"])
+def test_mass_breakdowns_explicitly_name_the_disjoint_counted_group(case, role):
+    bp, ledger, original, children = case
+    children[0]["surfaces"] = {"held-numeric:0": ["TOTAL SUPPORTS: 3 PALLETS"]}
+    children[1]["surfaces"] = {"held-numeric:0": ["TOTAL SHIPPING GROSS WEIGHT: 96 KG"]}
+    result = combine(
+        bp,
+        {"regions": [{"role": role}]},
+        ledger,
+        children,
+        original,
+        noun_renderer=lambda category, count: category,
+    )
+    assert result["surfaces"]["held-numeric:0"] == [
+        "7 PACKAGE_BOX: TOTAL SUPPORTS: 3 PALLETS\n"
+        "8 PACKAGE_DRUM_STEEL: TOTAL SHIPPING GROSS WEIGHT: 96 KG"
+    ]
+
+
+def test_private_supports_are_not_confused_with_another_declared_group(case):
+    bp, ledger, original, children = case
+    children[0]["relation"] = "NONE"
+    children[1]["relation"] = "ON_SUPPORT"
+    children[1]["surfaces"] = {"held-numeric:0": ["8 DRUMS ON 7 SUPPORT BOXES"]}
+    children[1]["wordingAppends"] = {"product": "8 DRUMS ON 7 SUPPORT BOXES; 10 KG NET PER DRUM."}
+    result = combine(bp, {"regions": [{"role": "packing_clause"}]}, ledger, children, original)
+    suffix = " SUPPORT UNITS ARE ADDITIONAL TO THE DECLARED PACKAGE GROUPS."
+    assert result["surfaces"]["held-numeric:0"][0].endswith("8 DRUMS ON 7 SUPPORT BOXES" + suffix)
+    assert result["wordingAppends"]["product"].endswith("10 KG NET PER DRUM." + suffix)
+    assert result["publicQuantity"] == 15
+    assert result["grossKg"] == "117"
+    assert children[1]["surfaces"]["held-numeric:0"] == ["8 DRUMS ON 7 SUPPORT BOXES"]
+    for relation, count in (("NONE", 2), ("SUPPORTS", 2), ("CONTAINS", 2), ("ON_SUPPORT", 1)):
+        assert disjoint_support_wording("unchanged", {"relation": relation}, count) == "unchanged"
 
 
 @pytest.mark.parametrize("fact,expected", [("netKg", "94.00"), ("grossKg", "117.00")])
@@ -173,8 +226,14 @@ def test_per_unit_wording_append_names_its_counted_group(case):
     before = deepcopy(children)
     certificate = {"regions": [], "wordingOwners": [{"key": "product", "append": "dual_unit_net"}]}
     result = combine(
-        bp, certificate, ledger, children, original,
-        noun_renderer=lambda category, count: "BOXES" if category == "PACKAGE_BOX" else "STEEL DRUMS",
+        bp,
+        certificate,
+        ledger,
+        children,
+        original,
+        noun_renderer=lambda category, count: (
+            "BOXES" if category == "PACKAGE_BOX" else "STEEL DRUMS"
+        ),
     )
     assert result["wordingAppends"]["product"] == (
         "7 BOXES: NET CONTENT PER UNIT: 2 KG. 8 STEEL DRUMS: NET CONTENT PER UNIT: 10 KG."
@@ -201,11 +260,16 @@ def test_dual_unit_region_identifies_distinct_groups_even_with_the_same_noun(cas
     for value, child in zip(("2", "10"), children, strict=True):
         child["surfaces"] = {"held-numeric:0": [f"NET CONTENT PER PACKAGE: {value} KG."]}
     certificate = {"regions": [{"role": "dual_unit_net_statement"}]}
-    result = combine(bp, certificate, ledger, children, original,
-                     noun_renderer=lambda category, count: "PACKAGES")
+    result = combine(
+        bp,
+        certificate,
+        ledger,
+        children,
+        original,
+        noun_renderer=lambda category, count: "PACKAGES",
+    )
     assert result["surfaces"]["held-numeric:0"] == [
-        "7 PACKAGES: NET CONTENT PER PACKAGE: 2 KG.\n"
-        "8 PACKAGES: NET CONTENT PER PACKAGE: 10 KG."
+        "7 PACKAGES: NET CONTENT PER PACKAGE: 2 KG.\n8 PACKAGES: NET CONTENT PER PACKAGE: 10 KG."
     ]
     assert result["netKg"] == "94" and result["publicQuantity"] == 15
     with pytest.raises(ValueError, match="noun renderer"):
@@ -216,6 +280,7 @@ def test_single_dual_unit_region_is_unchanged(case):
     bp, ledger, original, children = case
     children[1]["surfaces"] = {}
     children[0]["surfaces"] = {"held-numeric:0": ["NET CONTENT PER BOX: 2 KG."]}
-    result = combine(bp, {"regions": [{"role": "dual_unit_net_statement"}]},
-                     ledger, children, original)
+    result = combine(
+        bp, {"regions": [{"role": "dual_unit_net_statement"}]}, ledger, children, original
+    )
     assert result["surfaces"]["held-numeric:0"] == ["NET CONTENT PER BOX: 2 KG."]

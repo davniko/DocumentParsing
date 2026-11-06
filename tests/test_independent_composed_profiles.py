@@ -63,6 +63,58 @@ def answer(relation="ON_SUPPORT"):
     }
 
 
+def test_goods_pieces_are_distinct_from_inner_package_levels():
+    from document_ocr.synthesis.independent_composed_profiles import (
+        TopologyRequest,
+        topology_prompt,
+    )
+
+    values = request("SUPPORTS").model_dump(mode="json")
+    values.update(packingLevels=3, innerContentsKind="goods_pieces")
+    values["topology"]["contents"] = {
+        "packageSingular": "PIECE",
+        "packagePlural": "PIECES",
+        "unitsPerRelated": 25,
+    }
+    req = ComposedRequest.model_validate(values)
+    proposal = {
+        "topology": values["topology"],
+        "basis": "Cartons of individual products on a pallet.",
+    }
+    model = topology_output_type("SUPPORTS", 3, "goods_pieces")
+    model.model_validate(proposal)
+    bad = deepcopy(proposal)
+    bad["topology"]["contents"]["packageSingular"] = "BOTTLE"
+    with pytest.raises(ValueError):
+        model.model_validate(bad)
+    with pytest.raises(ValueError):
+        ComposedRequest.model_validate({**values, "topology": bad["topology"]})
+    top = TopologyRequest.model_validate({k: v for k, v in values.items() if k != "topology"})
+    assert "individual GOODS PIECES" in topology_prompt(top)
+    assert "not more packages" in composed_prompt(req)
+    assert "not product pieces" not in composed_prompt(req)
+    net, gross, cube, authority = sample_composed_profile(
+        req,
+        answer("SUPPORTS"),
+        [(Decimal(28000), Decimal(76))],
+        DeterministicStream(44, "pieces", "test"),
+        mass_quantum_kg=Decimal("0.01"),
+        volume_quantum_m3=Decimal("0.0001"),
+    )
+    facts = scope_composition(
+        {
+            "provenance": {"numericEnvelope": authority},
+            "internalCategory": req.selectedCategory,
+            "physical": {"unitNetKg": str(net), "unitGrossKg": str(gross)},
+        },
+        req.privatePacking,
+        3,
+    )
+    assert facts["relatedQuantity"] == 72
+    assert facts["contents"]["quantity"] == 1800
+    assert 0 < net < gross and cube > 0
+
+
 @pytest.mark.parametrize("relation", ["ON_SUPPORT", "SUPPORTS", "CONTAINS", "MIXED"])
 def test_complete_group_arithmetic_varies_without_fixed_support_tare(relation):
     req, value = request(relation), answer(relation)

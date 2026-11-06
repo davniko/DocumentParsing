@@ -547,6 +547,16 @@ class Registry:
             # Brazilian road designators are not postal country occurrences.
             if postal and code == "BR" and re.match(r"[ \t]*-[ \t]*\d", text[end:]):
                 continue
+            # Brunei-Muara is a district, not an independently printed country.
+            # Source: Brunei Information Department, "Brunei in Seconds" (2018).
+            # Do not suppress a separate BRUNEI/BN occurrence later in the address.
+            if (
+                postal
+                and code == "BN"
+                and match.group().casefold() == "brunei"
+                and re.match(r"(?:[ \t]*[-–—][ \t]*|[ \t]+)MUARA\b", text[end:], re.I)
+            ):
+                continue
             matches.append((start, end, match.group()))
         return matches
 

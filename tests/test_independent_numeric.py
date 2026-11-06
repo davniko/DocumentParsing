@@ -203,17 +203,28 @@ def test_container_serial_batches_render_the_shared_nonoverlapping_ranges(tmp_pa
     source = "\n".join(f"SKID NOS. {100 + i * 10} - {109 + i * 10}" for i in range(5))
     bp = FakeBlueprint("range-batch", source, target(containers=5, allocation_rows=5))
     regions = [
-        quoted(source, text, "inclusive_range", prefixPattern="", digits=3,
-               rangeBatch="shipment_counted_units", scope={"kind": "container", "index": i})
+        quoted(
+            source,
+            text,
+            "inclusive_range",
+            prefixPattern="",
+            digits=3,
+            rangeBatch="shipment_counted_units",
+            scope={"kind": "container", "index": i},
+        )
         for i, text in enumerate(source.splitlines())
     ]
     authority = write_inventory(tmp_path / "ranges.json", bp, certificate(bp, regions=regions))
     bound = authority.apply_blueprint(bp, bp.document_id)
     for seed in range(20):
         result = authority.build_ledger(
-            bound, draw("PACKAGE_SKID", quantities),
-            {"privatePackingRelation": "NONE", "relatedPackageType": None}, seed, 1,
-            noun_renderer=lambda category, quantity: "SKD", allow_empty_group_scopes=True,
+            bound,
+            draw("PACKAGE_SKID", quantities),
+            {"privatePackingRelation": "NONE", "relatedPackageType": None},
+            seed,
+            1,
+            noun_renderer=lambda category, quantity: "SKD",
+            allow_empty_group_scopes=True,
         )
         batch = result["facts"]["rangeBatch:shipment_counted_units"]
         assert batch["quantity"] == sum(quantities)
@@ -308,6 +319,113 @@ def test_source_readiness_hold_is_typed_separate_from_numeric_role_support(tmp_p
     # Numeric application remains a numeric check; campaign/preparation gates
     # independently refuse whole-document readiness before native calls.
     authority.apply_blueprint(blueprint)
+
+
+def test_native_support_packing_is_shipment_owned_not_repeated_in_scalar_scopes(tmp_path):
+    from document_ocr.synthesis.independent_numeric import (
+        packing_contents_kind,
+        required_packing_levels,
+    )
+
+    bp = FakeBlueprint("native-support", "MASS 1", target(containers=2, allocation_rows=2))
+    regions = [
+        quoted(
+            bp.source,
+            "1",
+            "private_measurement",
+            scope={"kind": "shared_container"},
+            fact="unitGrossKg",
+            factGroup="unitGrossKg",
+            baseline="1",
+            unit="kilogram",
+        )
+    ]
+    cert = certificate(bp, regions=regions, constraints=[{"kind": "equal_container_loads"}])
+    cert["externalPackingPresentation"] = {
+        "owner": "supports",
+        "nativeFingerprint": "a" * 64,
+        "levels": 2,
+        "contentsKind": "support_packages",
+    }
+    authority = write_inventory(tmp_path / "supports.json", bp, cert)
+    assert authority.allowed_private_relations(bp.document_id) == ("ON_SUPPORT",)
+    assert required_packing_levels(cert) == 2 and packing_contents_kind(cert) == "packages"
+    prepared = authority.apply_blueprint(bp)
+    load = draw("PACKAGE_DRUM", (8, 8))
+    plan = {"privatePackingRelation": "ON_SUPPORT", "relatedPackageType": "PACKAGE_PALLET"}
+    with pytest.raises(ValueError, match="complete composed"):
+        authority.build_ledger(prepared, load, plan, 1, 1)
+    load["provenance"]["numericEnvelope"] = {
+        "authority": "native_goods_conditioned_composed_profile_v1",
+        "composition": {
+            "relation": "ON_SUPPORT",
+            "countedPerGroup": 4,
+            "relatedPerGroup": 1,
+            "supportPerGroup": 1,
+            "loosePerGroup": 0,
+            "supportTareKgPerGroup": "20",
+        },
+    }
+    ledger = authority.build_ledger(prepared, load, plan, 1, 1)
+    assert ledger["publicQuantity"] == 16 and ledger["relatedQuantity"] == 4
+    assert ledger["facts"]["supportEnvelope"]["totalTareKg"] == "80"
+    assert ledger["surfaces"]["held-numeric:0"] == ["192"]
+    assert all(
+        "externalPackingPresentation" not in child["facts"]
+        for child in ledger["scopeLedgers"].values()
+    )
+    cert["externalPackingPresentation"]["levels"] = 3
+    with pytest.raises(ValueError, match="presentation kind"):
+        write_inventory(tmp_path / "bad.json", bp, cert)
+
+
+def test_external_native_packing_requires_its_complete_sampled_ledger(tmp_path):
+    from document_ocr.synthesis.independent_numeric import (
+        packing_contents_kind,
+        required_packing_levels,
+    )
+
+    bp = FakeBlueprint("doc-native-packing", "SOURCE", target(containers=1, allocation_rows=1))
+    cert = certificate(bp)
+    cert["externalPackingPresentation"] = {
+        "owner": "inner-counts",
+        "nativeFingerprint": "a" * 64,
+        "levels": 3,
+        "contentsKind": "goods_pieces",
+    }
+    authority = write_inventory(tmp_path / "numeric.json", bp, cert)
+    assert authority.allowed_private_relations(bp.document_id) == ("CONTAINS", "SUPPORTS")
+    assert required_packing_levels(cert) == 3
+    assert packing_contents_kind(cert) == "goods_pieces"
+    prepared = authority.apply_blueprint(bp)
+    load = draw("PACKAGE_PALLET", (4,))
+    plan = {"privatePackingRelation": "SUPPORTS", "relatedPackageType": "PACKAGE_CARTON"}
+    with pytest.raises(ValueError, match="complete composed"):
+        authority.build_ledger(prepared, load, plan, 1, 1)
+    load["provenance"]["numericEnvelope"] = {
+        "authority": "native_goods_conditioned_composed_profile_v1",
+        "composition": {
+            "relation": "SUPPORTS",
+            "countedPerGroup": 1,
+            "relatedPerGroup": 7,
+            "supportPerGroup": 1,
+            "loosePerGroup": 0,
+            "supportTareKgPerGroup": "3",
+            "contents": {
+                "packageSingular": "PIECE",
+                "packagePlural": "PIECES",
+                "unitsPerRelated": 11,
+            },
+        },
+    }
+    ledger = authority.build_ledger(prepared, load, plan, 1, 1)
+    fact = ledger["facts"]["externalPackingPresentation"]
+    assert fact["relatedQuantity"] == 28 and fact["contents"]["quantity"] == 308
+    assert ledger["publicQuantity"] == 4 and ledger["surfaces"] == {}
+    assert bp.target == prepared.target
+    cert["externalPackingPresentation"]["nativeFingerprint"] = "unpinned"
+    with pytest.raises(ValueError):
+        write_inventory(tmp_path / "bad.json", bp, cert)
 
 
 @pytest.mark.parametrize(

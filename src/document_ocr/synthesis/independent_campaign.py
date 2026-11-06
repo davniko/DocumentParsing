@@ -63,7 +63,9 @@ from document_ocr.synthesis.independent_geography import (
 )
 from document_ocr.synthesis.independent_numeric import (
     IndependentNumericCertificates,
+    packing_contents_kind,
     project_handling_targets,
+    required_packing_levels,
 )
 from document_ocr.synthesis.independent_packages import verify_native_choice_evidence
 from document_ocr.synthesis.independent_presentation import (
@@ -450,6 +452,8 @@ class IndependentCampaign(Campaign):
     sampling_mode = "independent"
 
     def __init__(self, root: Path, config: dict[str, Any]) -> None:
+        if config.get("allocation_sampling", "source") not in {"source", "equal"}:
+            raise ValueError("allocation_sampling must be source or equal")
         independent = config["independent"]
         if set(independent) != _INPUT_KEYS:
             raise ValueError(
@@ -575,6 +579,14 @@ class IndependentCampaign(Campaign):
                     provider=self.calls.config["provider"],
                     physical_states=self.sampler.hmt_states,
                 )
+                certificate = self.numeric.certificate(sid)
+                profile_request = request["nativeComposedProfileEvidence"]["request"]
+                if profile_request.get("packingLevels", 2) != required_packing_levels(
+                    certificate
+                ) or profile_request.get("innerContentsKind", "packages") != packing_contents_kind(
+                    certificate
+                ):
+                    raise ValueError("composed packing depth/contents differ from source authority")
             required_authority = self.numeric.certificate(sid).get("requiredPhysicalAuthority")
             required_key = {
                 "native_goods_conditioned_unit_profile_v1": "nativeUnitProfileEvidence",
@@ -726,7 +738,10 @@ class IndependentCampaign(Campaign):
         rows = len(blueprint.target["documentPatch"].get("containerInformation", []))
         if equal and rows < 1:
             raise ValueError("equal-container-load certificate has no container rows")
-        quantity_multiple = rows if equal else 1
+        requested_equal = self.config.get("allocation_sampling", "source") == "equal"
+        if requested_equal and rows < 2:
+            raise ValueError("equal allocation campaign requires multiple carrying containers")
+        quantity_multiple = rows if equal or requested_equal else 1
         return original.model_copy(
             update={
                 "family": family,
@@ -1135,6 +1150,12 @@ class IndependentCampaign(Campaign):
                         else draw,
                         result[1].provenance["physicalRows"],
                     )
+                    if self.config.get("allocation_sampling", "source") == "equal":
+                        allocations = result[1].provenance["independentDraw"]["allocations"]
+                        if len({row["packageQuantity"] for row in allocations}) != 1:
+                            raise CandidateIncompatibility(
+                                "realized numeric ledger does not satisfy requested equal loads"
+                            )
                     self.physical_render(result[0], result[1], result[3])
                     prepare_phone_rendering(
                         blueprint,

@@ -7,6 +7,7 @@ from document_ocr.synthesis.scoped_cargo_refresh import (
     apply_edits,
     cargo_auxiliary_keys,
     cargo_path,
+    cargo_surface_keys,
     complete_cargo_edits,
     current_interval,
     frozen_geometry_edits,
@@ -89,6 +90,45 @@ def test_protected_paths_never_owned_by_cargo():
         "documentPatch.containerInformation[0].equipmentIdentifier",
     ]:
         assert not cargo_path(path)
+
+
+def test_carrying_temperature_belongs_to_thermal_cargo_refresh():
+    assert cargo_path("documentPatch.containerInformation[0].temperatureSetpoint.value")
+    assert cargo_path("documentPatch.containerInformation[0].temperatureSetpoint.unit")
+    assert not cargo_path("documentPatch.parties.shipper.temperatureSetpoint.value")
+
+
+def test_source_only_allocation_noun_follows_package_authority():
+    blueprint = SimpleNamespace(
+        contract=SimpleNamespace(variables=[SimpleNamespace(key="product", kind="product")]),
+        historical_bindings={
+            "inventory_summary": {"derivation": "equipment_receipt"},
+            "protected_party": {"derivation": "party_reference"},
+        },
+        ownership_data={
+            "surfaces": {
+                "repeated_type": {
+                    "package_path": (
+                        "documentPatch.goodsItemDetails[0].numberAndTypeOfPackages[0].typeCategory"
+                    )
+                },
+                "repeated_product": {"lexical_key": "product"},
+                "party": {"expression": "{documentPatch.parties.shipper.name}"},
+                "mixed": {
+                    "expression": (
+                        "{documentPatch.goodsItemDetails[0].description} "
+                        "{documentPatch.parties.shipper.name}"
+                    )
+                },
+            }
+        },
+    )
+    assert cargo_surface_keys(blueprint) == {
+        "repeated_type", "repeated_product", "inventory_summary"
+    }
+    assert cargo_auxiliary_keys({"chemical_repeat": {"dg_fact": "properShippingName"}}) == {
+        "chemical_repeat"
+    }
 
 
 def test_auxiliary_dependency_owns_product_repeat_not_party_repeat():

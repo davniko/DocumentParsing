@@ -446,6 +446,12 @@ _DOCUMENT_IDENTIFIER_SUFFIXES = (
 )
 
 
+def shifted_public_date(value: str, stream: DeterministicStream) -> str:
+    """Use one shipment-wide date offset for all printed date occurrences."""
+    shift = timedelta(days=30 + stream.derive("date-shift").randbelow(730))
+    return (date.fromisoformat(value) + shift).isoformat()
+
+
 def public_identity_updates(
     target: dict, scenario: ShipmentScenario, stream: DeterministicStream
 ) -> dict:
@@ -454,11 +460,10 @@ def public_identity_updates(
     leaves = flat(result)
     identities = {}
     date_paths = [p for p in leaves if p.endswith((".issueDate", ".shippedOnBoardDate"))]
-    shift = timedelta(days=30 + stream.derive("date-shift").randbelow(730))
     for path, old in leaves.items():
         value = old
         if path in date_paths:
-            value = (date.fromisoformat(old) + shift).isoformat()
+            value = shifted_public_date(old, stream)
         elif path.endswith(".equipmentIdentifier"):
             identity = ("container", old)
             if identity not in identities:
