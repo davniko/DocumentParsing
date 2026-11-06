@@ -4334,3 +4334,57 @@ for final counts, cost/attempt ledgers, correction scopes, benchmarks and pins.
 R28/R29 remain unchanged. Next: materialize R30 training configs with the current
 dataset/task pins, retain the 5,500-token evaluation generation limit, and run
 the final input/target-length and VRAM preflight before training.
+
+### R30 independent training-readiness review — 2026-11-06
+
+The current dataset and native registry are **approved for the first controlled
+Paddle-centroid training experiment**, subject to materializing the training
+configs and measuring GPU memory/throughput. This is not a guarantee of model
+parity. No dataset/template correction was warranted by this review; no provider
+calls or Codex subagents were used.
+
+Fresh checks cover all 10,060 records, the pinned trainer tokenizer and exact
+raw/centroid/bbox serialization. Every input/target fits 19,200/5,500 tokens.
+Template replay passes 1,368/1,368 controls across all 456 templates, unchanged;
+816 Paddle/R30 tests pass. Real and synthetic median line heights are both 9.192
+on the 0–1000 grid, with closely matched text-density distributions and no
+quantized-centroid collisions. Inputs are approximately 40–46% longer than R29.
+
+Synthetic equal-load coverage is 860/2,664 complete labeled multi-container cases
+(32.3%), across 106 parents; 56 examples combine eight-plus containers, one ID
+prefix and equal quantities. The report also records limitations without hiding
+them: long inventories remain concentrated in five parents, mixed equipment
+decreased 1,129→1,068 during coupled migration resampling, a narrow goods-slot
+family wraps awkwardly, and synthetic descriptions remain longer than real ones.
+Screened arithmetic mismatches trace to approved literal OCR conflicts or missing
+valid container identifiers, not a reason to balance targets by invention.
+
+**56/60 validation targets changed with the input evidence.** Next-run reporting
+must distinguish the full R30-native task from comparisons on unchanged evidence;
+raw aggregate scores alone are not a clean R28-vs-R30 model comparison. The R28
+per-record hash-field setting also cannot be copied blindly: current R30
+real/validation records lack `positionedTextSha256`.
+
+See the [independent readiness report](analysis/r30-training-readiness-20261106/REPORT.md)
+for exact pins, examples, plots, measured audit costs, limitations and launch
+requirements. The next useful evidence is controlled training, not another
+unrestricted paid review sweep.
+
+### R30 runnable config and full-coordinate follow-up — 2026-11-06
+
+Both local and RunPod R30 training configs are now materialized with current
+dataset/constraint hashes, fresh run IDs and the same optimization settings as
+their R28 counterparts. Generation is capped at **3,329**, replacing the planned
+5,500: the longest current label is 3,200 tokens including EOS, plus one decoder
+start and 128 spare tokens. Training target-length budget remains unchanged.
+
+The actual frozen-vocabulary build caught a previously missed registration for
+the reviewed real-only `PACKAGE_PALLET_PLASTIC` category. R30's registry now
+includes it as an extraction-only semantic extension, with no invented MPCI
+code and no target changes. The bound trainer inspection passes all 10,060 rows.
+
+Coordinate coverage is **100%**: 104,694 real-training regions, 1,662,608 synthetic
+regions and 9,584 validation regions all have valid boxes and exact centroid/bbox
+views. Headers/separators are not OCR regions. Sixty-six focused tests pass; no
+training or GPU-memory benchmark was launched. See the follow-up section of the
+[readiness report](analysis/r30-training-readiness-20261106/REPORT.md).

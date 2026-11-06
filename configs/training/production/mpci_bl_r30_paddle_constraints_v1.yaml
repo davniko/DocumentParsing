@@ -1,0 +1,20 @@
+schema_version: 1
+task: bill_of_lading_extraction_v7_reduced_direct
+sources:
+  - path: data/curated/mpci-bl-r30-paddle-centroids-v1/synthetic-train.jsonl
+    sha256: a702722e4706da9bdb9108daeae37481c017af895cdf6783c4d1beb8df76ff40
+    records: 9400
+  - path: data/curated/mpci-bl-r30-paddle-centroids-v1/real-train.jsonl
+    sha256: 62716fda32f8b8c318660f866b26fd80f9a9e2a1df92b62d0bd0a98db3c03399
+    records: 600
+  - path: data/curated/mpci-bl-r30-paddle-centroids-v1/validation.jsonl
+    sha256: 02655196628bd7d07400e701aa6c239c95ed9a8f3fa6f2d56d88e91b6389d750
+    records: 60
+target_field: target
+package_registry:
+  path: artifacts/sampling-registries/package-extraction-vocabulary-r30.json
+  sha256: 7fa641bc9a32354bcbc5c1c454d09c5486e730c84d8e35c68493ef659d1753cd
+container_registry:
+  path: artifacts/registries/sources/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json
+  sha256: aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb
+output_dir: configs/training/production/contracts/mpci_bl_r30_paddle

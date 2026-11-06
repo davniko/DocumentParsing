@@ -1,0 +1,40 @@
+{
+  "configSha256": "23ea58c78567468cc600487bd97090e3d5599e4f81c28e78b5cda88aa93bda84",
+  "output": {
+    "bytes": 1613,
+    "containerCategoryTokens": 5,
+    "packageCategoryTokens": 49,
+    "path": "task-constraints.json",
+    "sha256": "148e33bc18f7282bde38df1bcc6391a14b15218bbb151172aeef7d4cfae8e851"
+  },
+  "publicationStatus": "complete",
+  "registries": {
+    "container": {
+      "path": "artifacts/registries/sources/equipment/bic-iso6346-2022-web-snapshot-20260831/source-manifest.json",
+      "sha256": "aaa609a2b87b0ea7802606acf4ed4c64d3fc3cc1882718e52759895f5cb006cb"
+    },
+    "package": {
+      "path": "artifacts/sampling-registries/package-extraction-vocabulary-r30.json",
+      "sha256": "7fa641bc9a32354bcbc5c1c454d09c5486e730c84d8e35c68493ef659d1753cd"
+    }
+  },
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "path": "data/curated/mpci-bl-r30-paddle-centroids-v1/synthetic-train.jsonl",
+      "records": 9400,
+      "sha256": "a702722e4706da9bdb9108daeae37481c017af895cdf6783c4d1beb8df76ff40"
+    },
+    {
+      "path": "data/curated/mpci-bl-r30-paddle-centroids-v1/real-train.jsonl",
+      "records": 600,
+      "sha256": "62716fda32f8b8c318660f866b26fd80f9a9e2a1df92b62d0bd0a98db3c03399"
+    },
+    {
+      "path": "data/curated/mpci-bl-r30-paddle-centroids-v1/validation.jsonl",
+      "records": 60,
+      "sha256": "02655196628bd7d07400e701aa6c239c95ed9a8f3fa6f2d56d88e91b6389d750"
+    }
+  ],
+  "task": "bill_of_lading_extraction_v7_reduced_direct"
+}

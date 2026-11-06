@@ -28,7 +28,13 @@ def x_overlap(a, b):
 
 
 def layout_page(
-    boxes, replacements, *, gap_ratio: float, row_lock_fraction: float, bottom_guard_fraction: float
+    boxes,
+    replacements,
+    *,
+    gap_ratio: float,
+    row_lock_fraction: float,
+    bottom_guard_fraction: float,
+    row_groups=(),
 ):
     """Longest-path solution of row/column clearance constraints, not jitter.
 
@@ -63,6 +69,39 @@ def layout_page(
             bands.append({"anchor": nodes[ix]["anchor"], "nodes": []})
         bands[-1]["nodes"].append(ix)
         nodes[ix]["band"] = len(bands) - 1
+    if row_groups:
+        # Reviewed caption/value rows can straddle the measured automatic
+        # tolerance. Join their existing bands without changing column owners,
+        # source offsets, text order, or the automatic policy for other pages.
+        owners = {}
+        for ix, node in enumerate(nodes):
+            for box in node.get("ownedBoxKeys", [node["source"]]):
+                key = tuple(box)
+                if key in owners:
+                    raise ValueError("ambiguous reviewed row owner")
+                owners[key] = ix
+        joins = set()
+        for group_id, group in enumerate(row_groups):
+            keys = [tuple(box) for box in group]
+            if len(keys) < 2 or len(set(keys)) != len(keys) or any(k not in owners for k in keys):
+                raise ValueError("reviewed row requires distinct present source rectangles")
+            if max(k[1] for k in keys) >= min(k[3] for k in keys):
+                raise ValueError("reviewed row rectangles do not share a source row")
+            members = {owners[k] for k in keys}
+            positions = [nodes[ix]["band"] for ix in members]
+            # Including intervening bands preserves the solver's acyclic order
+            # and any automatic row ties already established for these nodes.
+            joins.update(range(min(positions), max(positions)))
+            for ix in members:
+                nodes[ix].setdefault("reviewedRows", []).append(group_id)
+        merged = []
+        for ix, band in enumerate(bands):
+            if not merged or ix - 1 not in joins:
+                merged.append({"anchor": band["anchor"], "nodes": []})
+            merged[-1]["nodes"].extend(band["nodes"])
+            for node_ix in band["nodes"]:
+                nodes[node_ix]["band"] = len(merged) - 1
+        bands = merged
     edges = defaultdict(list)
     for b in nodes:
         bb = b["source"]
@@ -130,6 +169,13 @@ def validate_page(nodes, scale, *, minimum_gap: float):
                 new = a["box"][1] - other["box"][1]
                 if abs(old - new) > 1e-6:
                     failures.append(("row_alignment", a["id"], other["id"]))
+            if a.get("reviewedRows") and set(a["reviewedRows"]) & set(
+                other.get("reviewedRows", ())
+            ):
+                old = a["source"][1] - other["source"][1]
+                new = a["box"][1] - other["box"][1]
+                if abs(old - new) > 1e-6:
+                    failures.append(("reviewed_row_alignment", a["id"], other["id"]))
             for upper, lower in [(a, other), (other, a)]:
                 if (
                     x_overlap(upper["box"], lower["box"])
