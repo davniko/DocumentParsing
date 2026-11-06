@@ -1,8 +1,9 @@
-"""R30 changes input/constraints/cap, not the established optimization settings."""
+"""R30 contract and explicitly approved hardware-specific training schedules."""
 
 import importlib.util
 import json
 from copy import deepcopy
+from math import ceil
 from pathlib import Path
 
 import pytest
@@ -26,7 +27,7 @@ def config(version, hardware):
 
 
 @pytest.mark.parametrize("hardware", ["local", "runpod"])
-def test_preserves_r28_hyperparameters_and_binds_fresh_r30_contract(hardware):
+def test_preserves_r28_except_approved_overrides_and_binds_r30_contract(hardware):
     old = config("r28", hardware).model_dump(mode="json")
     current = config("r30", hardware)
     new = current.model_dump(mode="json")
@@ -35,6 +36,11 @@ def test_preserves_r28_hyperparameters_and_binds_fresh_r30_contract(hardware):
         expected[section] = new[section]
     expected["peft"]["adapter_name"] = new["peft"]["adapter_name"]
     expected["evaluation"]["generation_max_length"] = 3329
+    if hardware == "runpod":
+        expected["optimization"]["gradient_accumulation_steps"] = 12
+        expected["optimization"]["schedule_free_adamw"]["warmup_steps"] = 105
+        expected["evaluation"]["steps"] = 522
+        expected["checkpoint"]["steps"] = 522
     assert new == expected
     assert current.run.run_id != old["run"]["run_id"]
     assert current.checkpoint.resume_from_checkpoint is None
@@ -48,6 +54,38 @@ def test_preserves_r28_hyperparameters_and_binds_fresh_r30_contract(hardware):
     task = load_training_task(ROOT, current)
     assert len(task.constraints.packageCategoryTokens) == 49
     assert "PACKAGE_PALLET_PLASTIC" in task.constraints.packageCategoryTokens
+
+
+@pytest.mark.parametrize(
+    "hardware,microbatch,accumulation,effective,updates,logging_steps",
+    [("local", 1, 32, 32, 3130, 5), ("runpod", 4, 12, 48, 2090, 3)],
+)
+def test_batch_and_step_schedule_track_dataset_and_hardware(
+    hardware, microbatch, accumulation, effective, updates, logging_steps
+):
+    current = config("r30", hardware)
+    optimization = current.optimization
+    assert current.runtime.distributed_processes == 1
+    assert not current.dataloader.drop_last
+    assert optimization.max_steps == -1
+    assert optimization.num_train_epochs == 10.0
+    assert optimization.per_device_train_batch_size == microbatch
+    assert optimization.gradient_accumulation_steps == accumulation
+    assert microbatch * accumulation == effective
+    records = sum(source.records for source in current.dataset.splits.train)
+    # Trainer flushes the final partial accumulation at each epoch boundary.
+    per_epoch = ceil(ceil(records / microbatch) / accumulation)
+    assert ceil(per_epoch * optimization.num_train_epochs) == updates
+    assert optimization.schedule_free_adamw.warmup_steps == ceil(updates * 0.05)
+    assert current.evaluation.steps == current.checkpoint.steps == int(per_epoch * 2.5)
+    assert current.evaluation.run_final_evaluation
+    assert current.evaluation.per_device_batch_size == 2
+    assert current.logging.steps == logging_steps
+    tags = current.logging.mlflow.tags
+    assert tags["effective_optimizer_batch"] == str(effective)
+    assert tags["projected_optimizer_updates"] == str(updates)
+    assert tags["microbatch_size"] == str(microbatch)
+    assert tags["gradient_accumulation_steps"] == str(accumulation)
 
 
 def test_registry_propagates_reviewed_category_without_inventing_submission_code():

@@ -19,11 +19,10 @@ def test_r30_output_override_fits_the_unchanged_training_budget(hardware):
     values = base.model_dump(mode="python")
     values["evaluation"].update(spec["training_overrides"]["evaluation"])
     prepared = TrainingConfig.model_validate(values, strict=True)
-    assert prepared.evaluation.generation_max_length == 5500
+    assert prepared.evaluation.generation_max_length == 3329
     assert prepared.evaluation.generation_max_length >= 3129
     assert (
-        prepared.evaluation.generation_max_length
-        == prepared.dataset.preprocessing.max_target_length
+        prepared.evaluation.generation_max_length < prepared.dataset.preprocessing.max_target_length
     )
     assert prepared.optimization == base.optimization
     assert prepared.peft == base.peft
@@ -32,8 +31,11 @@ def test_r30_output_override_fits_the_unchanged_training_budget(hardware):
 
 def test_preparation_is_not_an_accidentally_runnable_glm_training_config():
     spec = yaml.safe_load(SPEC.read_text())
-    assert spec["status"] == "preparation_only_awaiting_training_config_and_benchmark"
+    assert spec["status"] == "configs_materialized_gpu_preflight_pending"
     assert spec["input_contract"]["text"] == "paddle_only"
     assert spec["input_contract"]["coordinate_mode"] == "centroid"
+    for path in spec["runnable_configs"].values():
+        current = load_training_config(ROOT / path)
+        assert current.evaluation.generation_max_length == 3329
     with pytest.raises(ValidationError):
         load_training_config(SPEC)

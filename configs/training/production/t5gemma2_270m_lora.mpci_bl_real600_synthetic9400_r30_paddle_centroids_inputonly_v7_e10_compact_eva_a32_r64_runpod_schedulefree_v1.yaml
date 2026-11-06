@@ -1,9 +1,10 @@
-# Fresh R30 Paddle-centroid run; preserve the R28 rank-64 training settings.
+# Fresh R30 Paddle-centroid run; rank-64 settings with RunPod effective batch 48.
 # Generation cap: 3,200 target tokens incl. EOS + one decoder start + 128 headroom.
-# 10,000 rows, effective batch 32: 313 updates/epoch, 3,130 over ten epochs.
-# Preserve ~5% ScheduleFree warmup (157) and ~2.5-epoch eval/save cadence (782).
+# 10,000 rows, effective batch 48: 209 updates/epoch, 2,090 over ten epochs.
+# Preserve ~5% ScheduleFree warmup (105) and ~2.5-epoch eval/save cadence (522).
 # Prior 96GB RunPod profile: microbatch 4 with gradient checkpointing.
-# Accumulation 8 preserves effective batch 32 (old RunPod GA12 used batch 48).
+# Accumulation 12; the final update of each epoch contains 16 samples.
+# Log every 3 updates (~144 examples, compared with local 5 * 32 = 160).
 # MLflow follows the earlier RunPod configs: localhost:5003.
 schema_version: 1
 task: bill_of_lading_extraction_v7_reduced_direct
@@ -90,12 +91,12 @@ optimization:
   num_train_epochs: 10.0
   max_steps: -1
   per_device_train_batch_size: 4
-  gradient_accumulation_steps: 8
+  gradient_accumulation_steps: 12
   learning_rate: 0.0001
   optimizer: schedule_free_adamw
   optimizer_args: null
   schedule_free_adamw:
-    warmup_steps: 157
+    warmup_steps: 105
     r: 0.0
     weight_lr_power: 2.0
     foreach: true
@@ -138,7 +139,7 @@ evaluation:
   case_sensitive: false
   strategy: steps
   split: validation
-  steps: 782
+  steps: 522
   per_device_batch_size: 2
   on_start: false
   predict_with_generate: true
@@ -157,7 +158,7 @@ evaluation:
   - validation
 checkpoint:
   strategy: steps
-  steps: 782
+  steps: 522
   total_limit: null
   load_best_model_at_end: true
   metric_for_best_model: field_value_f1
@@ -169,7 +170,7 @@ checkpoint:
   restore_callback_states_from_checkpoint: true
 logging:
   strategy: steps
-  steps: 5
+  steps: 3
   first_step: true
   report_to:
   - mlflow
@@ -198,14 +199,14 @@ logging:
       lora_alpha: '32'
       lora_initialization: eva
       optimizer: schedule-free-adamw
-      effective_optimizer_batch: '32'
+      effective_optimizer_batch: '48'
       epochs: '10'
       target_format: compact
       field_scoring: case-insensitive-values
-      projected_optimizer_updates: '3130'
+      projected_optimizer_updates: '2090'
       hardware: rtx-pro-6000-blackwell-server
       microbatch_size: '4'
-      gradient_accumulation_steps: '8'
+      gradient_accumulation_steps: '12'
       gradient_checkpointing: 'true'
       description_policy: main-product-passage-v2
       package_policy: declared-shipment-accounting-v1-semantic-set-bale

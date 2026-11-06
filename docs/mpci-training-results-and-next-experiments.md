@@ -4373,8 +4373,11 @@ unrestricted paid review sweep.
 ### R30 runnable config and full-coordinate follow-up — 2026-11-06
 
 Both local and RunPod R30 training configs are now materialized with current
-dataset/constraint hashes, fresh run IDs and the same optimization settings as
-their R28 counterparts. Generation is capped at **3,329**, replacing the planned
+dataset/constraint hashes and fresh run IDs. Local retains R28 settings; RunPod
+now uses the requested **effective batch 48** (microbatch 4, accumulation 12):
+209 updates/epoch, 2,090 total, warmup 105, eval/save every 522 updates and logging
+every 3 updates. Rank, learning rate, epochs and other optimizer settings remain
+unchanged. Generation is capped at **3,329**, replacing the planned
 5,500: the longest current label is 3,200 tokens including EOS, plus one decoder
 start and 128 spare tokens. Training target-length budget remains unchanged.
 

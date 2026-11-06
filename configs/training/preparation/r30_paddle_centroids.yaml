@@ -13,8 +13,9 @@ runnable_configs:
   local: configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic9400_r30_paddle_centroids_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml
   runpod: configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic9400_r30_paddle_centroids_inputonly_v7_e10_compact_eva_a32_r64_runpod_schedulefree_v1.yaml
 
-# Apply to both hardware profiles. Preserve other hyperparameters unless the
-# final Paddle token/VRAM benchmark justifies an explicitly reviewed adjustment.
+# Apply to both hardware profiles. The runnable RunPod config additionally uses
+# the user-approved effective batch 48 (4 * 12), 105 warmup steps and 522-step
+# eval/save cadence; local remains batch 32 / warmup 157 / cadence 782.
 training_overrides:
   evaluation:
     # Longest R30 target: 3,200 incl. EOS; one decoder-start token + 128 spare.
