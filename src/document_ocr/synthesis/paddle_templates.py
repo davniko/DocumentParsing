@@ -19,6 +19,7 @@ from document_ocr.spatial_inputs.paddle import fingerprint, pages_from_record
 from document_ocr.synthesis.curated_equipment_aliases import EquipmentAliasRegistry
 from document_ocr.synthesis.curated_reflow_policy import ReflowPolicy
 from document_ocr.synthesis.package_presentations import PackageVocabulary
+from document_ocr.synthesis.paddle_package_modes import validate_package_mode_owners
 from document_ocr.synthesis.paddle_reflow import PaddleReflow
 from document_ocr.synthesis.paddle_render import render_one, requires_wording
 from document_ocr.synthesis.paddle_validation import (
@@ -85,6 +86,13 @@ class PaddleTemplateCatalog:
         self.packages = PackageVocabulary(read_pin(self.root, self.manifest["packages"]))
         self.engine = PaddleReflow(self.root, ReflowPolicy.model_validate(self.manifest["reflow"]))
         self._loaded = {}
+        self.package_modes = self.manifest.get("declaredPackages")
+        if self.package_modes is not None:
+            self.package_contracts = read_pin(self.root, self.package_modes["contracts"])["sources"]
+            if set(self.entries) - self.package_contracts.keys():
+                raise ValueError("native package modes lack source contracts")
+            if set(self.package_modes["singleRowOnly"]) - self.entries.keys():
+                raise ValueError("single-row restriction names a nonmember template")
 
     def _template(self, source_id: str):
         if source_id not in self.entries:
@@ -95,6 +103,13 @@ class PaddleTemplateCatalog:
             validate_override_selectors(template["overlay"])
             source = read_pin(self.root, template["source"])
             transfer = read_pin(self.root, template["transfer"])
+            if (
+                self.package_modes is not None
+                and source_id not in self.package_modes["singleRowOnly"]
+            ):
+                validate_package_mode_owners(
+                    source_id, self.package_contracts[source_id], template, transfer
+                )
             if template["sourceDocumentId"] != source_id or source["documentId"] != source_id:
                 raise ValueError("native template/source identities differ")
             native = fingerprint(pages_from_record(source))
@@ -115,6 +130,12 @@ class PaddleTemplateCatalog:
         relative = path.relative_to(self.root)
         candidate = json.loads(path.read_text())
         source_id, identity = candidate["sourceDocumentId"], candidate["documentId"]
+        if self.package_modes is not None and source_id in self.package_modes["singleRowOnly"]:
+            goods = candidate["target"]["documentPatch"].get("goodsItemDetails", [])
+            if any(len(g.get("numberAndTypeOfPackages", [])) > 1 for g in goods):
+                raise ValueError(
+                    "native source is explicitly certified for single-row packages only"
+                )
         template, source, transfer, sampling_source = self._template(source_id)
         if (
             candidate["proof"]["sourceSha256"]

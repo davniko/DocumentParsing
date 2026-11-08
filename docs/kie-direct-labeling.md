@@ -115,10 +115,12 @@ Core agreed semantics are recorded directly on the models:
 
 - Parties: full postal `addressLine` including printed city, postcode and country;
   separate `country`, no city target or legacy stripped `address`. Preserve source
-  wording/order with comma-space separators between postal components and spaces
-  at ordinary word boundaries; wraps inside words/identifiers are rejoined. Names, tax IDs and
+  wording/order and printed punctuation; join physical lines with spaces without
+  inserting commas. Wraps inside words/identifiers are rejoined. Names, tax IDs and
   contacts remain outside postal text. Owned continuations can follow nonpostal
-  lines. Do not concatenate alternative addresses. Explicit contacts are distinct
+  lines. An explicit own-branch qualifier belongs with the party identity regardless
+  of wrapping; care-of branches and address landmarks remain postal components.
+  Do not concatenate alternative addresses. Explicit contacts are distinct
   from uncaptioned identity names; multiple contact names use `; `.
 - Roles: distinguish carrier, signing/forwarding/delivery agents and consolidator.
   Bare `TO ORDER` supplies no named consignee. A named bank/entity in `TO ORDER OF`

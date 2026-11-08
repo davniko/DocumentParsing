@@ -496,6 +496,20 @@ def sampled_source_slice(spec, edits):
     return "".join((*parts, suffix))
 
 
+def project_sampled_lines(value, line, *, stride=None):
+    """Project a repeated presentation row from every independently sampled group."""
+    lines = value.splitlines()
+    if type(line) is not int or line < 0:
+        raise ValueError("sampled line index must be a nonnegative integer")
+    if stride is None:
+        if line >= len(lines):
+            raise ValueError("sampled line projection is outside its owner")
+        return lines[line]
+    if type(stride) is not int or stride <= line or not lines or len(lines) % stride:
+        raise ValueError("sampled group lines do not match the reviewed presentation stride")
+    return "\n".join(lines[line::stride])
+
+
 def extra_value(
     extra,
     candidate,
@@ -509,7 +523,10 @@ def extra_value(
 ):
     """Evaluate one reviewed new owner, without inventing missing shipment facts."""
     if "sourceSlice" in extra:
-        return sampled_source_slice(extra["sourceSlice"], candidate["proof"]["edits"]), None
+        value = sampled_source_slice(extra["sourceSlice"], candidate["proof"]["edits"])
+        if "line" in extra:
+            value = project_sampled_lines(value, extra["line"], stride=extra.get("lineStride"))
+        return value, None
     if "omission" in extra:
         decision = extra["omission"]
         if (
@@ -791,7 +808,7 @@ def extra_value(
                 raise ValueError("unknown email component")
             value = local if extra["emailPart"] == "local" else domain
         if "line" in extra:
-            value = value.splitlines()[extra["line"]]
+            value = project_sampled_lines(value, extra["line"], stride=extra.get("lineStride"))
         if "segments" in extra:
             pieces = []
             for start, end in extra["segments"]:
@@ -1869,6 +1886,40 @@ def existing_repetition_edits(extra, edits):
     ]
 
 
+def consumed_native_extra(extra, logical_owners, pages):
+    """A reviewed compound mode replaces its scalar presentation components.
+
+    This is explicit ownership, not text matching or a rendering fallback. Target
+    projections cannot be suppressed: the aggregate/group target is owned by the
+    sampled shipment, and this rule is limited to redundant presentation extras.
+    """
+    selectors = extra.get("consumedBy", [])
+    if not selectors:
+        return False
+    if any(k in extra for k in ("target", "targets")):
+        raise ValueError("compound consumption cannot discard a target projection")
+    if (
+        not isinstance(selectors, list)
+        or not all(isinstance(s, str) and s for s in selectors)
+        or len(set(selectors)) != len(selectors)
+    ):
+        raise ValueError("compound consumption needs distinct exact owner selectors")
+    owners = [logical_owners[s] for s in selectors if s in logical_owners]
+    if not owners:
+        return False
+    if len(owners) != 1:
+        raise ValueError("compound consumption modes are not mutually exclusive")
+    for span in spans_for(extra, pages):
+        if not any(
+            (span.page, span.region) == (part.page, part.region)
+            and part.start <= span.start < span.end <= part.end
+            and part.expected[span.start - part.start:span.end - part.start] == span.expected
+            for part in owners[0].spans
+        ):
+            raise ValueError("compound owner does not contain its native scalar extra")
+    return True
+
+
 def render_one(
     record,
     transfer,
@@ -1974,7 +2025,9 @@ def render_one(
                 project_root=project_root,
             )
         if override and "afterLine" in override[0]:
-            value = value.splitlines()[override[0]["afterLine"]]
+            value = project_sampled_lines(
+                value, override[0]["afterLine"], stride=override[0].get("lineStride")
+            )
         if override:
             value = render_soft_line_breaks(value, override[0])
         if override and "boundaryMarkers" in override[0]:
@@ -2003,6 +2056,8 @@ def render_one(
             for piece in pieces
         )
     for extra in overlay["extras"]:
+        if consumed_native_extra(extra, logical_owners, pages):
+            continue
         if "existingKey" in extra or "existingOwners" in extra:
             matches = existing_repetition_edits(extra, candidate["proof"]["edits"])
             if matches:

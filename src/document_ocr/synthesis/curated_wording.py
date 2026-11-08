@@ -249,6 +249,8 @@ may change. A locality/country belongs once in the complete address, in its requ
 Keep postal text separate from company names, contacts, tax IDs and headings.
 The name field owns the party identity: postal fields must neither repeat it nor
 introduce another company identity. Preserve explicitly supplied care-of recipients and named sites.
+An organization's own named branch qualifies its identity, not its postal address;
+care-of recipients, street names and address landmarks remain postal information.
 Changing only an office/location qualifier does not create a new company identity.
 When description fields are requested, write natural commercial product wording.
 Required product facts and physical form describe the actual shipment. Classification

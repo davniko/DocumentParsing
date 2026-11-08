@@ -82,6 +82,7 @@ def catalog(tmp_path):
     atomic_publish_json(path, candidate)
     cat = object.__new__(native.PaddleTemplateCatalog)
     cat.root = tmp_path
+    cat.package_modes = None
     cat.entries = {
         "source": {
             "samplingSource": {"sha256": candidate["proof"]["sourceSha256"]},
@@ -107,6 +108,21 @@ def test_fresh_receipt_selection_is_local_and_does_not_need_old_dataset(catalog)
     assert transfer["descendants"][0]["id"] == candidate["documentId"]
     assert transfer["descendants"][0]["receiptSha256"] == sha256_file(path)
     assert cat._loaded["source"][2]["descendants"] == [{"id": "certified-control"}]
+
+
+def test_single_row_admission_rejects_multirow_before_wording(catalog):
+    cat, path, candidate = catalog
+    cat.package_modes = {"singleRowOnly": ["source"]}
+    rows = [{"packageQuantity": 1, "typeCategory": "PACKAGE_PACKAGE"}]
+    candidate["target"]["documentPatch"]["goodsItemDetails"] = [
+        {"numberAndTypeOfPackages": rows}
+    ]
+    path.write_text(json.dumps(candidate))
+    cat.shipment(path)
+    rows.append({"packageQuantity": 2, "typeCategory": "PACKAGE_BAG"})
+    path.write_text(json.dumps(candidate))
+    with pytest.raises(ValueError, match="single-row"):
+        cat.wording_specification(path)
 
 
 @pytest.mark.parametrize("invalid", ["source", "hash", "text", "range", "negative"])

@@ -31,7 +31,7 @@
   },
   "requiredActiveTask": {
     "path": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/task-constraints.json",
-    "sha256": "a58474d5af3a3bf7829c545c4284366465420f5089e8ba5a53dea6fc56a4ef77"
+    "sha256": "bccc99595bde135f2c9cc5734ed92aeac5ec258d964b753cbcb19f627d2a18ad"
   },
   "requiredAdditionalFamilies": [
     "BARREL",

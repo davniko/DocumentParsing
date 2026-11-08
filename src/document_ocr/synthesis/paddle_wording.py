@@ -12,6 +12,8 @@ hazard or quantity. Only the requested fields are generated. Respect their state
 A company name belongs only in its name field, never repeated in its postal address. Names must
 be actual plausible fictional names, not instructions or labels. Do not copy the original private
 identity. Keep legal suffix and source casing style when requested. Return just the schema object.
+An organization's own named branch qualifies its identity, not its postal address;
+care-of recipients, street names and address landmarks remain postal information.
 """
 
 

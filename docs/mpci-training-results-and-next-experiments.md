@@ -1,13 +1,15 @@
 # MPCI extraction: run results and next experiments
 
-Updated: 2026-11-02. This is the consolidated results ledger for **sixteen completed runs**, now including **P/R28: 9,400 synthetic +600 anonymized real, rank64**, the same-data **O/R27 rank64 versus N/R27 rank48** comparison, synthetic-only **L/R22** and restored-real **M/R23**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
+Updated: 2026-11-08. This is the consolidated results ledger for **seventeen completed runs**, now including **Q/R30: Paddle-only inputs, 9,400 synthetic +600 anonymized real, rank64, RunPod effective batch48**, P/R28, the same-data **O/R27 rank64 versus N/R27 rank48** comparison, synthetic-only **L/R22** and restored-real **M/R23**. Keep this document as the entry point rather than reconstructing the experiment history from artifact directories.
 
 **Default for subsequent experiments: LoRA rank64**, explicitly accepted by the
 user after the native terminal checkpoint comparison. Historical rank48 configs
 and completed-run exports are not rewritten. The contained R28 sampling follow-up
 is documented in [its report](analysis/r28-donor-independent-followup-20261018/REPORT.md).
 
-**Current result:** **P/R28's field-F1-selected checkpoint and terminal checkpoint are both3130, epoch10**, with field F1/accuracy **0.902930/0.862200**, relation F1/accuracy **0.928736/0.866953**, category F1 **0.930582**, JSON58/60, schema52/60 and whole-document exact8/60. The saved scheduled and final prediction passes agree exactly; all504 exported adapter tensors match3130. This is **not an unqualified improvement over R27**: category precision and validity improve, but container inventory/allocation recall regresses. Excluding handling symmetrically because its gold changed, field F1 is **0.902739→0.903639**, a small gain. **Checkpoint3128 is a meaningful alternative**, with field F10.902180, relation F10.937355 and schema53/60. Preserve both; no export is changed by this audit. See [section25](#25-pr28-completed-10000-record-rank64-run).
+**Current result:** **Q/R30's selected checkpoint1044, approximately epoch5, is the preferred unmodified checkpoint**, with field F1/accuracy **0.902204/0.865176**, relation F1/accuracy **0.948936/0.902834**, JSON58/60 and schema55/60. Its two saved evaluations agree byte-for-byte, and all504 exported adapter tensors match1044. **Terminal2090 is weaker on native field/relations** (0.895197/0.889344 F1), despite better descriptions and whole-document exact9/60. On unchanged relation gold, R30 best improves over R28 (0.934343→0.975369); on unchanged field families overall it is near parity, but regresses on the shared-parseable cohort, especially names/addresses. **56/60 validation targets changed**, and effective batch32→48, so this is not a pure OCR ablation. All87 run files and MLflow history/artifacts are archived locally. See [section31](#31-qr30-completed-paddle-only-runpod-run) and the [full audit](analysis/r30-training-results-20261108/REPORT.md).
+
+**Previous R28 result:** **P/R28's field-F1-selected checkpoint and terminal checkpoint are both3130, epoch10**, with field F1/accuracy **0.902930/0.862200**, relation F1/accuracy **0.928736/0.866953**, category F1 **0.930582**, JSON58/60, schema52/60 and whole-document exact8/60. The saved scheduled and final prediction passes agree exactly; all504 exported adapter tensors match3130. This is **not an unqualified improvement over R27**: category precision and validity improve, but container inventory/allocation recall regresses. Excluding handling symmetrically because its gold changed, field F1 is **0.902739→0.903639**, a small gain. **Checkpoint3128 is a meaningful alternative**, with field F10.902180, relation F10.937355 and schema53/60. Preserve both; no export is changed by this audit. See [section25](#25-pr28-completed-10000-record-rank64-run).
 
 **Relation follow-up:** reviewed syntax recovery and exact-duplicate removal on
 diagnostic copies give relation F1 **0.977679 for R27 versus 0.956720 for R28**.
@@ -40,7 +42,7 @@ The R28 audit includes artifact inspection, CPU metric replay and source-text re
 4. Older runs did not all use the current explicit-null instruction policy. Before the 1,500-synthetic run, 38 `sameAs` nulls and two negotiability nulls added 40 target facts across 36 validation documents. This particularly changes historical schema-validity scores when evaluated against today's schema.
 5. The previous rank32 1,500-synthetic run selected epoch7.5 but exported epoch10. The rank48 run exports its selected epoch10 checkpoint correctly. Granular comparisons below use the **available saved epoch10 outputs**, not the earlier run's best epoch7.5 predictions.
 
-## 2. Experiment registry: sixteen completed runs
+## 2. Experiment registry: seventeen completed runs
 
 All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout this ledger. Each has 60 validation documents. The configuration links are the launch files; the corresponding run directory contains the authoritative `resolved-config.json` and artifact manifest.
 
@@ -62,6 +64,7 @@ All use T5Gemma2-270M, LoRA/EVA and ScheduleFree AdamW. Alpha is 32 throughout t
 |N|[Anonymized real600 + synthetic6,900, R27](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r48_local_schedulefree_v1.yaml)|7,500|Phone/ID formats, country/wording/privacy repairs,200 package examples added/300 Egypt synthetic archived; keep rank48/settings; resumed after reboot|10 /2350|118, or5%|
 |O|[Same R27 dataset, rank64](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic6900_packages_r27_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml)|7,500|Rank48→64 only scientific config change; alpha32/EVA/settings retained; resumed after power outage; verified best-checkpoint export|10 /2350|118, or5%|
 |P|[R28 real600 + synthetic9,400, rank64](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic9400_r28_positions_inputonly_v7_e10_compact_eva_a32_r64_local_schedulefree_v1.yaml)|10,000|Donor-free coverage/refreshes, alias and multi-package-row synthesis, thermal/DG/party coverage and finite data/handling repairs; stable evaluation batching; retain rank64/settings|10 /3130|157, or5%|
+|Q|[R30 Paddle-only real600 + synthetic9,400, rank64 RunPod](../configs/training/production/t5gemma2_270m_lora.mpci_bl_real600_synthetic9400_r30_paddle_centroids_inputonly_v7_e10_compact_eva_a32_r64_runpod_schedulefree_v1.yaml)|10,000|Paddle-only centroid inputs and rebased targets/templates; equal-load refresh; effective batch48 on96GB RTX PRO6000; retain rank64/alpha32/LR/epochs|10 /2090|105, or5%|
 
 F and G have identical training/validation file hashes, input/target formatting, seeds, LR, batch/accumulation, model/tokenizer revisions and total updates. Their effective rsLoRA scale nevertheless changes from 32/√32 = 5.657 to 32/√48 = 4.619; EVA also adapts to the new rank. Therefore G is **rank48 plus longer warmup**, not an isolated rank test.
 
@@ -87,6 +90,7 @@ The relation/category values below are at the **field-F1-selected checkpoint**, 
 |N|4.998 /1174|**0.9038**|**0.8640**|0.9364|0.9005|59/60|49/60|
 |O|2.499 /587|0.9001|0.8549|0.9291|0.8897|58/60|52/60|
 |P|10 /3130|0.9029|0.8622|0.9287|0.9306|58/60|52/60|
+|Q|4.9984 /1044|0.9022|0.8652|0.9489|0.9121|58/60|55/60|
 
 **Task-weighted preferred checkpoint, distinct from automatic field-F1 selection:**
 O/rank64 **epoch10 /2350**: field F1/accuracy0.899093/0.851755,
@@ -95,7 +99,7 @@ schema48/60. This remains the preferred R27 checkpoint by the user's stated
 priority; its complete native evaluation has been reproduced exactly. R28's
 selected3130 and alternative3128 are assessed separately in section25.
 
-These are useful historical results, not sixteen controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint. J uses later approved labels; section15 records that historical comparison. J/K have identical validation references and training hyperparameters. L/M/N add further data/target changes; sections18–19 separate own-contract scores from fair unchanged-fact comparisons. N/O are an identical-data/target fixed-alpha rank comparison. M, N and O's separate selected-model prediction passes differ slightly from their scheduled best evaluations despite verified correct exports. P's scheduled terminal and final selected-model passes agree exactly under the corrected evaluation implementation.
+These are useful historical results, not seventeen controlled experiments on an unchanged scoring contract. In particular A is case-sensitive, B/C best checkpoints differ from their exported final predictions, and H has corrected validation labels. H's saved predictions are from its correctly reloaded best495 checkpoint, not epoch10. H/I share identical training-time validation file hashes; I's saved predictions come from its correctly exported970 checkpoint. J uses later approved labels; section15 records that historical comparison. J/K have identical validation references and training hyperparameters. L/M/N add further data/target changes; sections18–19 separate own-contract scores from fair unchanged-fact comparisons. N/O are an identical-data/target fixed-alpha rank comparison. M, N and O's separate selected-model prediction passes differ slightly from their scheduled best evaluations despite verified correct exports. P's scheduled terminal and final selected-model passes agree exactly under the corrected evaluation implementation. Q's selected1044 repeat also agrees exactly; its Paddle rebase changes56/60 validation targets, so section31 separately controls changed field families and parseability.
 
 ### Complete scheduled progression
 
@@ -164,6 +168,11 @@ All values in this table are native logged metrics. Epochs are rounded; integer 
 |P|7.4960 /2346|0.06769|0.8768|0.8144|0.9371|0.8927|54|
 |P|9.9952 /3128|0.07019|0.9022|0.8590|0.9374|0.9306|58|
 |P|10 /3130|0.07007|0.9029|0.8622|0.9287|0.9306|58|
+|Q|2.4992 /522|0.04630|0.8798|0.8243|0.9295|0.8783|55|
+|Q|4.9984 /1044|0.05086|0.9022|0.8652|0.9489|0.9121|58|
+|Q|7.4944 /1566|0.05901|0.8953|0.8476|0.9130|0.8893|57|
+|Q|9.9936 /2088|0.06091|0.8953|0.8505|0.8893|0.9091|58|
+|Q|10 /2090|0.06095|0.8952|0.8512|0.8893|0.9138|58|
 
 More epochs are not uniformly better. G improves late while F peaks earlier, and both lose ground at some intermediate evaluations. G's eval loss rises while its final extraction scores improve. Select checkpoints on extraction metrics, not minimum teacher-forced loss. Retain predictions as well as weights at each evaluation: aggregate logs alone cannot localize the intermediate regressions.
 
@@ -4391,3 +4400,207 @@ regions and 9,584 validation regions all have valid boxes and exact centroid/bbo
 views. Headers/separators are not OCR regions. Sixty-six focused tests pass; no
 training or GPU-memory benchmark was launched. See the follow-up section of the
 [readiness report](analysis/r30-training-readiness-20261106/REPORT.md).
+
+## 31. Q/R30: completed Paddle-only RunPod run
+
+Audited2026-11-08. [Detailed report and evidence](analysis/r30-training-results-20261108/REPORT.md).
+
+### 31.1 Completion, artifacts and experiment import
+
+The complete RunPod run is downloaded to its normal `artifacts/kie-training/`
+directory: **87 files,2.15GB, all SHA-256 verified**, including every full checkpoint
+(522,1044,1566,2088,2090), optimizer/RNG/scheduler state, predictions, logs,
+tokenizer, frozen configurations and selected adapter. All85 internal-manifest
+entries also match. The selected export's504 tensors match1044 and its two
+evaluation prediction files are byte-identical;26 quality/loss/generation metrics
+match exactly. CPU replay reproduces all five checkpoints' structured metrics.
+
+Both RunPod MLflow SQLite stores were snapshot-backed-up, and the completed run
+was imported into the existing local `document-ocr-kie` experiment3. All279,607
+metric records retain their timestamps/steps, and all312 parameters and source
+tags were verified. A pre-import local database backup is retained. Existing
+experiments were not replaced. The entire87-file run is also attached to MLflow
+under `training-run/`, with stored hashes checked. The source had no registered
+models to import; this is a complete experiment/history/artifact import.
+
+[Local MLflow result](http://127.0.0.1:5000/#/experiments/3/runs/73ff4e9efee948bda3bc46e37bf1136f).
+Raw tracking snapshots and receipts are under
+`artifacts/kie-training/runpod-downloads/20261108-r30-complete/`.
+
+The final manifest and tracking status confirm completion. An earlier pending
+manifest status file was not rewritten. EVA completed239 forwards in771.74s;
+logged training runtime is6h47m06s including scheduled evaluations, with EVA and
+the separate selected-model evaluation additional. No new training or GPU
+evaluation was necessary for this audit.
+
+### 31.2 Best versus final and previous preferred checkpoints
+
+|Checkpoint|Field F1|Field accuracy|Relation F1|Relation accuracy|Category F1|JSON/schema|Whole exact|
+|---|---:|---:|---:|---:|---:|---:|---:|
+|R27 rank64 preferred2350|0.899093|0.851755|0.970655|0.942982|0.894831|56/48|4|
+|R28 selected/final3130|0.902930|0.862200|0.928736|0.866953|0.930582|58/52|8|
+|R30 selected1044|0.902204|0.865176|0.948936|0.902834|0.912106|58/55|6|
+|R30 terminal2090|0.895197|0.851211|0.889344|0.800738|0.913793|58/54|9|
+
+Counts are out of60 and scores use each run's own gold. Best1044 has223/238
+correct relation facts, nine extra and15 missed; terminal has217correct,33extra
+and21missed. Best has55 exact relation graphs versus52 at terminal. Terminal
+nevertheless improves exact descriptions40→45 and HS F10.941176→0.969697.
+
+**Recommend1044 for unmodified R30 inference.** Later training is not uniformly
+better, and2090's slightly higher category/extraction-fact F1 does not offset its
+native relation deficit. Neither export nor historical result was changed.
+
+### 31.3 Control changed gold and parseability
+
+Paddle inputs change the evidence, and **56/60 targets differ** from R28. Scalar
+gold facts grow2,567→2,777 and relations220→238. Effective batch also changes32→48,
+and the data includes the R29 refresh. This is not a pure OCR or hardware ablation.
+
+Exclude changed aligned field families per document in both models:
+
+|Comparison|Unchanged field F1|Unchanged field accuracy|
+|---|---:|---:|
+|R28→R30 best, all60|0.918372→0.917309|0.880663→0.885404|
+|R28→R30 best, same56 parseable|0.936953→0.925797|0.915312→0.901402|
+|R27→R30 best, all60|0.920615→0.918231|0.880032→0.886785|
+|R27→R30 best, same54 parseable|0.945423→0.930531|0.926261→0.906466|
+
+Thus overall field performance is near the previous range, but common-parseable
+semantic extraction regresses. Names, addresses and localities account for clear
+losses; they are not all harmless whitespace. Phones, container identifiers,
+allocations, goods descriptions, HS and package categories improve in the
+all60 unchanged-field comparison.
+
+On55 documents with identical relation gold, R27/R28/R30-best/terminal relation
+F1 is **0.980198 /0.934343 /0.975369 /0.900943**. R30 best recovers198/202facts,
+the same number as R27 and13 more than R28, with two more extras than R27.
+Restricting R28/R30 to the same51 parseable identical-relation-gold documents
+still improves0.958549→0.974359. Common-gold category F1 also improves over R28,
+0.942801→0.957198 on54documents, despite the lower native category score.
+
+### 31.4 Error mechanisms and bounded follow-ups
+
+- **Repeated document content:** `cda61263` repeats the same two container rows in
+  its input. Best is exact; terminal outputs six inventory rows and24 allocations.
+  Those duplicates produce22/33 terminal extra relations. Exact-row deduplication
+  on diagnostic copies yields terminal field F1**0.905077**, relations**0.931330**,
+  schema55/60. These are not native scores or a deployed repair; even after this
+  correction, relations remain below1044.
+- **Long inventories:** `5cabcd4b`'s ten equal/shared-prefix containers are all
+  recovered by best but only six by terminal. `13ea92fa` loses four of seven in
+  both models. The complete evidence fits the input budget.
+- **Quantity restraint:** `891555b9` lacks per-container quantities, but both
+  models populate them from shipment-total/commercial numbers such as3,700 and66.
+- **Mixed package aggregation:** `5d6b477c` requires shipment88pallets+1,200boxes
+  and scalar allocations620,620,24,24. Terminal copies group20/600 into shipment
+  totals and misassigns quantities. More public package rows alone do not solve
+  this numerical-role problem.
+- **Paddle literal boundaries:** company/address shifts and extra locality words
+  coexist with punctuation-spacing errors. Only7/41 wrong-valued best-checkpoint
+  addresses are whitespace-only; metric normalization is not a complete remedy.
+- **Malformed/schema-invalid outputs:** best has one no-container repetition loop
+  reaching the3,329 cap; terminal's relation failures occur with EOS reached on
+  all60 and maximum1,298tokens. No-container structures, invented category names,
+  HS fragments and inventory/reference inconsistencies remain review priorities.
+
+The same57 documents parseable at best/terminal still regress in relation F1
+0.948498→0.893004. This is not merely malformed JSON. Validation includes only
+one DG declaration and six temperature examples, so broad DG/thermal conclusions
+remain unsupported even though those structured values are correct in R30.
+
+The next bounded work should investigate those error families and evaluate a
+separate duplicate-output guard if desired, without rewriting validation to fit
+predictions or importing its sources into training. Paddle-only has established
+a viable performance range, not universal superiority or field accuracy>0.90.
+Full per-field, per-source, category and controlled comparison tables accompany
+the detailed report. Three new comparison-guard tests pass; the full CPU audit
+takes12.08s/~352MiB. No datasets, training settings or model artifacts were changed.
+
+### 31.5 Private inference release — 2026-11-08
+
+Selected checkpoint1044 is published privately as
+[Samandarine/t5gemma2-270m-mpci-bl-r30-lora](https://huggingface.co/Samandarine/t5gemma2-270m-mpci-bl-r30-lora),
+revision `c10daac2995fbaacbfb28c5a0c6415b7de91cba5`. The15-file inference bundle
+follows R28's structure, updated for Paddle-native centroid inputs,49 package
+categories and the3,329 generation cap. It excludes base weights, datasets,
+predictions and optimizer state. Private metadata, anonymous401 denial and all
+fresh-download hashes pass; the downloaded adapter reproduces the source's272
+generated token IDs in the bounded offline smoke test. Full evidence is in the
+[release report](analysis/r30-huggingface-release-20261108/REPORT.md).
+
+### 31.6 Epoch-five boundary audit, fresh synthesis and rank96 — 2026-11-08
+
+Detailed [audit and next-run report](analysis/r30-party-boundary-audit-20261108/REPORT.md)
+contains the complete87-field discrepancy taxonomy, full10,060-record mechanical
+census, PDF checks and reproducible probes. No review-agent sweep was used.
+
+- **Party regression is not principally target newlines:** all64,686 party
+  name/address values have no embedded newlines/tabs, coordinate markers or
+  detected prompt leakage. All14 lexical-support screens resolve to linked word
+  fragments/interleaving or Unicode dotted-I equivalence. The model has24 boundary
+  discrepancies across12 role blocks/eight documents,14 spelling/value rewrites,
+  10 wrong-role/owner errors, plus formatting, omissions and JSON failures.
+- **Bounded data findings remain:** the same UNIFREIGHT Alexandria-branch qualifier
+  is assigned inconsistently in two validation documents; one old synthetic
+  shipment has locality-like party names; a stale guidance paragraph conflicts
+  with the current no-added-commas address policy. Frozen labels/scores unchanged.
+- **Fresh synthesis found an integration gap:** seven of eight new shipments
+  pass native rendering/replay; the eighth (`00a165a2`, multi-package rows) lacks
+  the compound package-expression binding, although separate count/type bindings
+  exist. It fails closed. Static screening identifies62 parents with missing
+  exact compound owners (four are deliberately single-row-only); all695 existing
+  descendants are single-row, so successful historical replay did not test this
+  mode. Review/complete the58 remaining parents' mode coverage before claiming
+  unrestricted fresh synthesis. No dataset repair or silent single-row fallback.
+- **Epoch shuffling already occurs:** actual length-grouped Trainer/Accelerate
+  loader covers all10,000 records exactly once and changes order each epoch;
+  evaluation is stable by design. No runtime extension needed.
+- **Rank96 configs ready:** same frozen data, alpha32/rsLoRA/EVA and respective
+  schedules. Local effective batch32; RunPod48. LoRA parameters30.376M→45.564M.
+  All4 new rank96 tests pass inside the trainer image; full dataset inspection
+  passes. No training launched or GPU performance/memory claim made.
+
+Follow-up priorities are bounded: adjudicate branch-qualifier ownership before
+any future gold revision; repair native compound-expression mode coverage;
+compare rank96 with1044 and2090 on unchanged R30 before attributing the boundary
+regression to insufficient capacity. Public package factorization remains separate.
+
+### 31.7 Package-mode repair and scoped party amendments — 2026-11-08
+
+The [detailed repair report](analysis/r30-posttraining-repairs-20261108/REPORT.md)
+supersedes the outstanding repair items in 31.6, not its historical model scores.
+
+- **Compound binding gap repaired:** 95 complete declarations in 58 templates,
+  plus one additional dependent-repetition template; 59 template files changed.
+  All456 mode admissions pass. The four intentionally single-row-only layouts
+  remain explicit restrictions, not silent fallbacks.
+- **Related modes covered:** scalar extras inside compound owners, unchanged
+  aliases, dependent counts/types, the CHEREAU vehicle-count owner and all nested
+  group repetitions. 134 fresh mechanical controls pass; every affected
+  multi-row-capable template has both single- and multi-row generation coverage.
+  Normal content review remains required; questionable fresh wording was rejected
+  and resampled rather than admitted to training.
+- **Historical records preserved:** 1,088 paired outputs are identical, including
+  all695 originally affected descendants. No cargo dataset rewrite was necessary.
+- **Seven party records fixed:** three real, two validation, two synthetic;
+  own-branch qualifiers consistently belong to names. One old synthetic naming
+  outlier was re-rendered in its owned fields. Punctuation/physical-line guidance
+  and generation instructions now agree. Fifteen target leaves changed.
+- **Published readback:** all10,060 records and1,776,886 regions pass;10,053 rows
+  are byte-exact unchanged. Three previously adjudicated source-preserving OCR
+  accounting conflicts remain literal and unchanged, with receipt verification.
+- **Reproducibility:** original splits retained under the November8 audit-history
+  directory. Rank64 configs use those bytes; rank96 configs use corrected R30.
+  Hyperparameters/schedules/schema are unchanged. Compare on common gold or
+  explicitly rescore; do not claim a perfectly unchanged-data rank ablation.
+- **Cost/performance:** $0.19601896 all-attempt provider spend. Paired rendering
+  69.15s before /68.35s after; no observed slowdown. Complete readback48.72s.
+- **Final regression:**4,188 synthesis/render/package tests pass in196.21s;
+  17 host config/audit tests pass, with the host-Torch skip covered by a direct
+  sampler assertion in the pinned trainer image. A stale non-runtime ontology
+  input pin was reverified/repaired; no public factorization was activated.
+
+Current synthesis catalog is the dataset manifest's `package-modes-20261108`
+pin. Updated commands are in the native synthesis handoff. No training or model
+publication was performed in this repair pass.

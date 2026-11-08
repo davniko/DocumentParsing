@@ -12,6 +12,26 @@ only within their stated scope. Independently printed telephone numbers remain
 extractable; standalone abbreviated suffixes/extensions are not separate numbers
 and must not be expanded by guessing missing prefixes.
 
+## Party branch qualifiers and physical wrapping (2026-11-08)
+
+An explicitly named branch of the party qualifies that party's identity. Keep it
+in `name`, whether it shares the company-name line or is printed on the next
+line. This applies to banks as well as logistics companies. For example,
+`UNIFREIGHT GLOBAL LOGISTICS UGL EGYPT SAE ALEXANDRIA BRANCH` is one branch-qualified
+identity; the street address begins after it. A line break is not a field boundary.
+Do not infer a branch from a locality alone or manufacture an address from it.
+
+Distinguish the party's own branch from a care-of recipient's branch, a street
+name, building/unit designation, or a neighbouring bank used as a landmark.
+Those are postal routing/address components, not qualifiers to append to the
+party's name. Ordinary departments used as postal routing remain in the address.
+Preserve actual postal punctuation; join physical address lines with spaces,
+without inventing comma separators.
+
+The November 8 R30 amendment applies this consistently to the reviewed UNIFREIGHT
+pair and analogous explicit own-branch cases. Historical evaluation gold is
+retained in the pre-amendment snapshot, not retrospectively rescored or overwritten.
+
 ## Locality/country homonyms: one printed value, one component (2026-10-18)
 
 In locality-captioned fields, a single printed `SINGAPORE`, `HONG KONG`,

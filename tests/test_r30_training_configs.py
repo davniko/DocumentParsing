@@ -101,6 +101,15 @@ def test_registry_propagates_reviewed_category_without_inventing_submission_code
         registry.application_code("PACKAGE_PALLET_PLASTIC")
 
 
+def test_runpod_local_runtime_changes_only_model_access_and_output_storage():
+    expected = config("r30", "runpod").model_dump(mode="json")
+    expected["model"]["token_env"] = None
+    expected["model"]["local_files_only"] = True
+    expected["run"]["output_dir"] = "/workspace/DocumentParsing/artifacts/kie-training"
+    deployed = load_training_config(ROOT / "configs/training/deployment/r30_runpod_offline.yaml")
+    assert deployed.model_dump(mode="json") == expected
+
+
 def coverage_function():
     spec = importlib.util.spec_from_file_location(
         "r30_coordinate_audit", ROOT / "scripts/migrations/audit_r30_config_and_coordinates.py"
