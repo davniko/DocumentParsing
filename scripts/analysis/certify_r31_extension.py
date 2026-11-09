@@ -28,20 +28,35 @@ def certify(replay=True):
     for split in ['real-train','validation']:
         assert manifest['aggregateRecords'][split]==baseline['aggregateRecords'][split]
         assert sha256_file(ROOT/baseline['aggregateRecords'][split]['path'])==baseline['aggregateRecords'][split]['sha256']
-    amendments={}
+    amendments={};suffix_changes={}
+    digest_aggregate=manifest['aggregateRecords']['synthetic-train']
+    if manifest.get('agencyDiversityAmendment'):
+        ref=manifest['agencyDiversityAmendment'];assert sha256_file(ROOT/ref['path'])==ref['sha256']
+        suffix_receipt=read(ref['path'])
+        assert suffix_receipt['after']==digest_aggregate
+        digest_aggregate=suffix_receipt['before']
+        for change in suffix_receipt['changes']:
+            for key in ['before','after','review']:
+                ref=change[key];assert sha256_file(ROOT/ref['path'])==ref['sha256']
+            suffix_changes[change['id']]=change
     if manifest.get('textDigestAmendment'):
         ref=manifest['textDigestAmendment'];assert sha256_file(ROOT/ref['path'])==ref['sha256']
         receipt=read(ref['path']);ref=receipt['changes']
         assert sha256_file(ROOT/ref['path'])==ref['sha256']
-        assert receipt['after']==manifest['aggregateRecords']['synthetic-train']
+        assert receipt['after']==digest_aggregate
         amendments={r['id']:r['fields'] for r in read(ref['path'])}
-    changed=set()
+    changed=set();suffix_seen=set()
     current=(DATA/'synthetic-train.jsonl').open('rb')
     with (OUT/'baseline/synthetic-train.jsonl').open('rb') as original:
         for old in original:
             new=current.readline()
             if old!=new:
                 before,after=json.loads(old),json.loads(new)
+                if before['documentId'] in suffix_changes:
+                    change=suffix_changes[before['documentId']]
+                    assert after==read(change['after']['path'])
+                    after=read(change['before']['path'])
+                    suffix_seen.add(before['documentId'])
                 fields=amendments[before['documentId']]
                 expected=text_view_digests(after)
                 for key,delta in fields.items():
@@ -51,6 +66,7 @@ def certify(replay=True):
                 assert before==after
                 changed.add(after['documentId'])
     assert changed==set(amendments)
+    assert suffix_seen==set(suffix_changes)
     new=[json.loads(line) for line in current];current.close()
     assert len(new)==750
     ids=set();validation={r['documentId'] for r in map(json.loads,(DATA/'validation.jsonl').open())}
@@ -116,7 +132,8 @@ def certify(replay=True):
     report={'status':'PASS','new':dict(counts),'parents':dict(parents),'parentCount':len(parents),'boundary':dict(boundary),'difficultParents':len(boundary_parents),
         'packageRowsByCategory':dict(packages),'packageCategoryCount':len(packages),'hsSixDigitCount':len(hs),'roles':dict(roles),'fieldCasing':dict(styles),
         'uniquePartyNames':len(names),'partyNameOccurrences':sum(names.values()),'mostRepeatedNames':names.most_common(12),'agencyNameOccurrences':sum(v for k,v in names.items() if 'agency' in k),
-        'batchSizes':[b['count'] for b in batches],'original10000PayloadAndValidation60Unchanged':True,
+        'batchSizes':[b['count'] for b in batches],'original10000PayloadAndValidation60Unchanged':not suffix_changes,
+        'legacySuffixAmendedRecords':len(suffix_changes),'allOtherOriginalPayloadAndValidation60Unchanged':True,
         'legacyTextMetadataAmendedRecords':len(amendments),'exactReplay':replay,'activeCatalogPublicReplay':replay,'zeroDuplicateIdsAndValidationParents':True,
         'measuredCoordinateCoverage':1.0,'examples':examples,'callReceipts':dict(calls),'allAttemptCostUsd':str(cost),'usageFields':dict(tokens),
         'seconds':time.perf_counter()-started,'peakRssKiB':resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,'manifest':pin(DATA/'manifest.json')}

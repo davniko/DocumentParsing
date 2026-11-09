@@ -4925,3 +4925,26 @@ was changed. No GPU benchmark was run:hardware/batching/model settings are uncha
 When deploying RunPod, continue using pod-local code/venv/caches and persistent
 `/workspace` outputs; the old R30 launch script still points to its historical run
 and must not be used to launch R31 unchanged.
+
+## 36. R31 AGENCY-ending follow-up — 2026-11-09
+
+[Detailed audit and scoped amendment](analysis/r31-agency-diversity-20261109/REPORT.md).
+The earlier76 AGENCY-ending continuation documents contain72 distinct company
+names, but come from only two delivery-agent parents (31/45). Their wording
+instructions explicitly required the ending;39 use exactly `(Agency)`.
+Different company stems alone therefore did not remove the boundary-token cue.
+
+Manually varied40 older terminal words (16/24 per parent) across eight plausible
+company/branch endings, retaining36 AGENCY examples. Only the name target and one
+physical line per record change; its geometry is recalculated by the renderer.
+All40 retain the difficult continuation boundary. Addresses, contacts, company
+stems, other targets/coordinates, real/validation and the newer750 are unchanged.
+Old-screen terminal-AGENCY share becomes36/141 (25.5%); new52/799 (6.5%) is unchanged.
+Both template instructions no longer force AGENCY. No paid generation was used.
+
+Immutable before/after wording/rendering/review receipts and an explicit manifest
+amendment preserve provenance. Both local and RunPod rank64 config file hashes
+are refreshed; counts/schedules/settings are unchanged. Targeted replay, boundary,
+coordinate, unrelated-change rejection, config and publication tests pass.
+Full recertification also passes all750 exact and active-catalog replays and the
+explicit40-record amendment chain (150.96s). The new cohort's coverage is unchanged.
