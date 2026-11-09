@@ -32,6 +32,18 @@ def join_unit_net_prefixes(terms):
     return " + ".join(term[: -len(suffix)] for term in terms) + suffix
 
 
+def join_packing_clauses(terms, region):
+    """Keep a shared clause's wrapper once around its disjoint compositions."""
+    prefix, suffix = region.get("prefix", ""), region.get("suffix", "")
+    if not terms or any(not t.startswith(prefix) or not t.endswith(suffix) for t in terms):
+        raise ValueError("packing group clause differs from its owned wrapper")
+    bodies = [t[len(prefix):len(t)-len(suffix) if suffix else None] for t in terms]
+    if any(not body for body in bodies):
+        raise ValueError("packing group clause requires a nonempty composition")
+    separator = "; " if prefix or suffix else "\n"
+    return prefix + separator.join(bodies) + suffix
+
+
 def _fact(ledger, group):
     matches = [
         scope["facts"][group]
@@ -104,7 +116,7 @@ def combine(blueprint, certificate, ledger, children, original, *, noun_renderer
                     raise ValueError("complete group owner requires one literal surface")
                 if values[0]:
                     text = values[0]
-                    if role in {"packing_clause", "support_statement", "receptacle_statement"}:
+                    if role in {"support_statement", "receptacle_statement"}:
                         text = disjoint_support_wording(text, child, len(children))
                     if len(active) > 1 and (
                         role
@@ -136,8 +148,12 @@ def combine(blueprint, certificate, ledger, children, original, *, noun_renderer
             text = (
                 join_unit_net_prefixes(terms)
                 if role == "unit_net_prefix"
+                else join_packing_clauses(terms, region)
+                if role == "packing_clause"
                 else separator.join(terms)
             )
+            if role == "packing_clause" and any(c.get("relation") == "ON_SUPPORT" for _, c in active):
+                text = disjoint_support_wording(text, {"relation": "ON_SUPPORT"}, len(children))
         result["surfaces"][key] = [text]
     # Per-unit appends lack the counted-group context carried by complete
     # count/unit clauses. Name that group so an inner bag/drum cannot inherit

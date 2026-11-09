@@ -19,6 +19,7 @@ from document_ocr.atomic import (
     atomic_write_json,
 )
 from r30_source_preserving import R30Replay
+from document_ocr.spatial_inputs.paddle import text_view_digests
 
 
 def review_first():
@@ -122,6 +123,7 @@ def publish(batch, review_path=None):
         row = copy.deepcopy(old_rows[identity])
         for field in ("target", "pages", "joinedRawText", "positionedText", "bboxText"):
             row[field] = rendered[field]
+        row.update(text_view_digests(row))
         row["evidence"] = {
             "rendered": entry["rendered"],
             "candidate": entry["candidate"],

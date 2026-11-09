@@ -14,6 +14,7 @@ from validate_r30_migration_catalog import semantic_changes
 from document_ocr.atomic import atomic_publish_json
 from document_ocr.synthesis.curated import digest
 from document_ocr.synthesis.paddle_templates import PaddleTemplateCatalog
+from document_ocr.spatial_inputs.paddle import text_view_digests
 
 
 def amendment_wording(evidence, identity, additions):
@@ -122,6 +123,7 @@ def stage(replay_path, wording_review_path=None):
             after["evidence"]["wording"] = wording_pin
             for key in ("pages", "target", "joinedRawText", "positionedText", "bboxText"):
                 after[key] = rendered[key]
+            after.update(text_view_digests(after))
             path = output / (row["documentId"] + ".json")
             atomic_publish_json(path, after)
             rendered_path = output / (row["documentId"] + "-rendered.json")

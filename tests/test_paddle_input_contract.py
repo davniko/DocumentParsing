@@ -1,4 +1,6 @@
 from dataclasses import replace
+from copy import deepcopy
+import hashlib
 
 import pytest
 
@@ -9,7 +11,29 @@ from document_ocr.spatial_inputs.paddle import (
     fingerprint,
     project,
     serialize,
+    text_view_digests,
 )
+
+
+def test_text_view_digests_replace_inherited_metadata_without_changing_payload():
+    row = {"joinedRawText": "New naïve name", "positionedText": "New naïve name || 1,2",
+           "joinedRawTextSha256": "old raw", "positionedTextSha256": "old centroid",
+           "target": {"name": "New naïve name"}}
+    original = deepcopy(row)
+    hashes = text_view_digests(row)
+    assert row == original
+    assert hashes == {field + "Sha256": hashlib.sha256(row[field].encode()).hexdigest()
+                      for field in ("joinedRawText", "positionedText")}
+    row.update(hashes)
+    assert row["target"] == original["target"]
+    assert text_view_digests(row) == hashes
+
+
+def test_text_view_digests_reject_missing_or_nontext_views():
+    with pytest.raises(KeyError):
+        text_view_digests({"joinedRawText": "x"})
+    with pytest.raises(TypeError, match="positionedText"):
+        text_view_digests({"joinedRawText": "x", "positionedText": None})
 
 
 def fixture():

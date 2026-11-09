@@ -1,4 +1,5 @@
 import sys
+from copy import deepcopy
 from dataclasses import asdict
 from datetime import date, timedelta
 from pathlib import Path
@@ -462,6 +463,29 @@ def test_native_support_declaration_retains_public_count_and_private_support_cou
         "12 DRUMS ON 3 PLTS",
         None,
     )
+    partitioned = deepcopy(current)
+    rows = [
+        {"packageQuantity": 5, "typeCategory": "PACKAGE_DRUM"},
+        {"packageQuantity": 7, "typeCategory": "PACKAGE_DRUM"},
+    ]
+    partitioned["target"]["goodsItemDetails"][0]["numberAndTypeOfPackages"] = rows
+    shared = deepcopy(candidate)
+    shared["scenario"]["provenance"].update(
+        declaredPackageContract={"planning": "shared_units"},
+        declaredPackages={"rows": deepcopy(rows)},
+    )
+    assert extra_value(recipe, shared, partitioned, "id", None, Vocabulary(), project_root=ROOT) == (
+        "12 DRUMS ON 3 PLTS", None,
+    )
+    assert partitioned["target"]["goodsItemDetails"][0]["numberAndTypeOfPackages"] == rows
+    with pytest.raises(ValueError, match="exact public group"):
+        extra_value(recipe, candidate, partitioned, "id", None, Vocabulary(), project_root=ROOT)
+    for field, value in (("typeCategory", "PACKAGE_PALLET"), ("packageQuantity", 6)):
+        bad_current, bad_shared = deepcopy(partitioned), deepcopy(shared)
+        bad_current["target"]["goodsItemDetails"][0]["numberAndTypeOfPackages"][0][field] = value
+        bad_shared["scenario"]["provenance"]["declaredPackages"]["rows"][0][field] = value
+        with pytest.raises(ValueError, match="declared partition"):
+            extra_value(recipe, bad_shared, bad_current, "id", None, Vocabulary(), project_root=ROOT)
     group["facts"]["supportEnvelope"]["quantity"] = 4
     with pytest.raises(ValueError, match="support authority"):
         extra_value(recipe, candidate, current, "id", None, Vocabulary(), project_root=ROOT)

@@ -6464,7 +6464,7 @@
     "unit_profile_source_ids": null
   },
   "output": "artifacts/synthesis-candidates/r30-native",
-  "ownership": "artifacts/synthesis-templates/mpci-bl-v7-reviewed/expansion-20261101-v21/ownership.json",
+  "ownership": "artifacts/synthesis-campaigns/r31-boundaries-20261109/locality-frame-repair/ownership.json",
   "phones": {
     "family_weights": [
       {

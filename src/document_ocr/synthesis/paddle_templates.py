@@ -22,6 +22,8 @@ from document_ocr.synthesis.package_presentations import PackageVocabulary
 from document_ocr.synthesis.paddle_package_modes import validate_package_mode_owners
 from document_ocr.synthesis.paddle_reflow import PaddleReflow
 from document_ocr.synthesis.paddle_render import render_one, requires_wording
+from document_ocr.synthesis.paddle_source_casing import POLICY as PRINTED_CASING_POLICY
+from document_ocr.synthesis.paddle_source_casing import project_source_casing
 from document_ocr.synthesis.paddle_validation import (
     check_conservation,
     check_new_private_ownership,
@@ -74,6 +76,9 @@ class PaddleTemplateCatalog:
     def __init__(self, root: Path, manifest: dict):
         self.root = root.resolve()
         self.manifest = read_pin(self.root, manifest)
+        self.target_casing = self.manifest.get("targetCasing")
+        if self.target_casing not in (None, PRINTED_CASING_POLICY):
+            raise ValueError("unsupported native target casing policy")
         if self.manifest["format"] != "native-paddle-templates-v1":
             raise ValueError("unsupported native template format")
         self.entries = self.manifest["templates"]
@@ -102,6 +107,15 @@ class PaddleTemplateCatalog:
             template = read_pin(self.root, entry["template"])
             validate_override_selectors(template["overlay"])
             source = read_pin(self.root, template["source"])
+            for positions in template["overlay"].get("sourceCaseRegions", {}).values():
+                if not positions or len({tuple(r) for r in positions}) != len(positions):
+                    raise ValueError("casing occurrence regions must be nonempty and unique")
+                for page, region in positions:
+                    if not (
+                        0 <= page < len(source["pages"])
+                        and 0 <= region < len(source["pages"][page]["regions"])
+                    ):
+                        raise ValueError("casing occurrence lies outside native source")
             transfer = read_pin(self.root, template["transfer"])
             if (
                 self.package_modes is not None
@@ -219,6 +233,8 @@ class PaddleTemplateCatalog:
             project_root=self.root,
         )
         rendered = json.loads(json.dumps(rendered, ensure_ascii=False, allow_nan=False))
+        if self.target_casing == PRINTED_CASING_POLICY:
+            rendered = project_source_casing(rendered, candidate, template["overlay"], source)
         self.validator.validate(rendered["target"])
         check_views(rendered, pages_from_record(rendered))
         check_conservation(source, rendered, template["overlay"])

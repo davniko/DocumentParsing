@@ -702,6 +702,24 @@ def extra_value(
             else [ledger]
         )
         public = current["target"]["goodsItemDetails"][0]["numberAndTypeOfPackages"]
+        provenance = candidate["scenario"]["provenance"]
+        if (
+            len(public) > 1
+            and ledger["relation"] != "DISJOINT_GROUPS"
+            and provenance.get("declaredPackageContract", {}).get("planning") == "shared_units"
+        ):
+            # Shared-unit public rows partition one physical shipment. Its
+            # support/inner-count statement still describes that whole shipment;
+            # it does not establish a per-group division of supporting pallets.
+            partition = provenance["declaredPackages"]
+            if (
+                partition["rows"] != public
+                or any(row["typeCategory"] != ledger["countedCategory"] for row in public)
+                or any(type(row["packageQuantity"]) is not int or row["packageQuantity"] <= 0 for row in public)
+                or sum(row["packageQuantity"] for row in public) != ledger["publicQuantity"]
+            ):
+                raise ValueError("shared-unit nested presentation differs from declared partition")
+            public = [{"packageQuantity": ledger["publicQuantity"], "typeCategory": ledger["countedCategory"]}]
         if len(groups) != len(public) or package_vocabulary is None:
             raise ValueError("nested presentation requires exact public group and alias authority")
         lines = []

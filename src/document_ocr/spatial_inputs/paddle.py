@@ -28,6 +28,17 @@ class PaddlePage:
     regions: tuple[PaddleRegion, ...]
 
 
+def text_view_digests(record: dict) -> dict[str, str]:
+    """Hash the current raw/centroid text, never inherited pre-migration views."""
+    result = {}
+    for field in ("joinedRawText", "positionedText"):
+        value = record[field]
+        if not isinstance(value, str):
+            raise TypeError(f"{field} must be a string")
+        result[field + "Sha256"] = hashlib.sha256(value.encode("utf-8")).hexdigest()
+    return result
+
+
 def pages_from_record(record: dict) -> tuple[PaddlePage, ...]:
     """Load explicit measured/rendered frames without reordering or filling fields."""
     return tuple(

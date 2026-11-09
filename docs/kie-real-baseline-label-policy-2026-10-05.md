@@ -12,6 +12,31 @@ only within their stated scope. Independently printed telephone numbers remain
 extractable; standalone abbreviated suffixes/extensions are not separate numbers
 and must not be expanded by guessing missing prefixes.
 
+## R31 literal-field casing experiment (2026-11-09)
+
+For R31, preserve the actual printed casing of party `name`, party `addressLine`
+and goods `description`. This narrowly supersedes the uppercase instructions for
+these three field types below; R30 and earlier released datasets remain pinned.
+Do not title-case, lowercase, correct spelling or recover casing from an original
+private document. The final anonymized Paddle input is the authority.
+
+Field ownership, punctuation, ordering, deduplication and physical-line joining
+are unchanged. A word broken by physical wrapping is still joined under the
+existing policy; preserving case does not insert extra spaces. If a primary party
+block and an invoice/related-party repetition use different case, use the owned
+primary occurrence, not the first document-wide match. Unresolved occurrence
+ownership requires review, not an uppercase default. Character-level bindings
+take precedence over a larger reflow block that includes several parties.
+
+Other fields keep their existing normalization: country names, categories,
+identifiers, contact-person names and handling instructions are not included in
+this casing experiment. The wire schema is unchanged. R31's explicit
+`printed-party-and-goods-v1` dataset/catalog policy supplies this semantic override;
+historical V7 schema description annotations remain unchanged to preserve frozen
+training-contract hashes. The current input-only training prompt does not include
+those annotations. Any future schema-guided labeling prompt for R31 must apply
+this dated policy, not the historical uppercase annotation in isolation.
+
 ## Party branch qualifiers and physical wrapping (2026-11-08)
 
 An explicitly named branch of the party qualifies that party's identity. Keep it

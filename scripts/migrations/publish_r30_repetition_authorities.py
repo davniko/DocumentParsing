@@ -14,6 +14,7 @@ from document_ocr.atomic import (
     atomic_write_json,
 )
 from document_ocr.synthesis.curated import digest
+from document_ocr.spatial_inputs.paddle import text_view_digests
 
 
 def main(report_path, destination, amendments_path=None):
@@ -124,6 +125,8 @@ def main(report_path, destination, amendments_path=None):
                 for key in ("pages", "target", "joinedRawText", "positionedText", "bboxText"):
                     if after[key] != rendered[key]:
                         raise ValueError("amended record differs from its fresh rendered evidence")
+                if any(after[key] != value for key, value in text_view_digests(after).items()):
+                    raise ValueError("amended record retains stale input-view checksums")
                 after["evidence"] = {
                     **after["evidence"],
                     "catalog": publication["catalog"],

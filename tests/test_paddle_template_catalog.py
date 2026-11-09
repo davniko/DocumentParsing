@@ -83,6 +83,7 @@ def catalog(tmp_path):
     cat = object.__new__(native.PaddleTemplateCatalog)
     cat.root = tmp_path
     cat.package_modes = None
+    cat.target_casing = None
     cat.entries = {
         "source": {
             "samplingSource": {"sha256": candidate["proof"]["sourceSha256"]},
@@ -114,9 +115,7 @@ def test_single_row_admission_rejects_multirow_before_wording(catalog):
     cat, path, candidate = catalog
     cat.package_modes = {"singleRowOnly": ["source"]}
     rows = [{"packageQuantity": 1, "typeCategory": "PACKAGE_PACKAGE"}]
-    candidate["target"]["documentPatch"]["goodsItemDetails"] = [
-        {"numberAndTypeOfPackages": rows}
-    ]
+    candidate["target"]["documentPatch"]["goodsItemDetails"] = [{"numberAndTypeOfPackages": rows}]
     path.write_text(json.dumps(candidate))
     cat.shipment(path)
     rows.append({"packageQuantity": 2, "typeCategory": "PACKAGE_BAG"})

@@ -99,6 +99,29 @@ def test_disjoint_subfields_share_one_physical_block():
     assert blocks[0].text == "XYZU7654321 / SEAL2 / 9 PALLETS"
 
 
+def test_name_continuation_keeps_shared_address_boundary_and_literal_targets():
+    from document_ocr.synthesis.paddle_bindings import partition_region_frames
+
+    pages = (PaddlePage(0, 1000, 1000, (
+        PaddleRegion(0, "OLD INDUSTRIAL TRADING", (10, 10, 450, 30)),
+        PaddleRegion(1, "LIMITED.7 OLD ROAD", (10, 40, 450, 60)),
+        PaddleRegion(2, "OLD DISTRICT", (10, 70, 450, 90)),
+    )),)
+    name_spans = (RegionSpan(0, 0, 0, len(pages[0].regions[0].text), pages[0].regions[0].text),
+                  RegionSpan(0, 1, 0, 7, "LIMITED"))
+    address_spans = (RegionSpan(0, 1, 8, len(pages[0].regions[1].text), "7 OLD ROAD"),
+                     RegionSpan(0, 2, 0, 12, "OLD DISTRICT"))
+    name = PaddleReplacement("name", name_spans, "New Maritime Equipment Supplies")
+    address = PaddleReplacement("address", address_spans, "12 New Road\nNew District")
+    parts = partition_region_frames(name, len)
+    blocks = compile_blocks(pages, (*parts, address))
+    assert blocks[0].text == "New Maritime Equipment"
+    assert blocks[1].text == "Supplies.12 New Road\nNew District"
+    assert project_replacements(pages, name_spans, (*parts, address)) == name.text
+    assert project_replacements(pages, address_spans, (*parts, address)) == "12 New Road New District"
+    assert pages[0].regions[1].text == "LIMITED.7 OLD ROAD"
+
+
 def test_literal_projection_handles_alternative_package_owners():
     pages = fixture()
     count = RegionSpan(0, 0, 22, 23, "9")

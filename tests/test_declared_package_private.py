@@ -7,9 +7,22 @@ import pytest
 from document_ocr.synthesis.declared_package_private import (
     combine,
     disjoint_support_wording,
+    join_packing_clauses,
     join_unit_net_prefixes,
 )
 from document_ocr.synthesis.declared_packages import CountedPackage, DeclaredPackages
+
+
+def test_packing_clause_shares_wrapper_across_disjoint_groups():
+    region = {"prefix": "(", "suffix": " ON DECK AT SHIPPER'S RISK"}
+    terms = ["(4 DRUMS ON DECK AT SHIPPER'S RISK", "(8 BOXES ON DECK AT SHIPPER'S RISK"]
+    assert join_packing_clauses(terms, region) == "(4 DRUMS; 8 BOXES ON DECK AT SHIPPER'S RISK"
+    assert join_packing_clauses(terms[:1], region) == terms[0]
+    assert join_packing_clauses(["4 DRUMS", "8 BOXES"], {}) == "4 DRUMS\n8 BOXES"
+    with pytest.raises(ValueError, match="wrapper"):
+        join_packing_clauses(["unowned composition"], region)
+    with pytest.raises(ValueError, match="nonempty"):
+        join_packing_clauses(["()"], {"prefix": "(", "suffix": ")"})
 
 
 @pytest.fixture
