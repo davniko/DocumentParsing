@@ -4883,3 +4883,45 @@ correct; current training uses whole-file hashes and disables that optional
 per-record field, so trained inputs/results were unaffected. R31 now recomputes
 the derived fields, with before/after receipts; common digest generation and
 publication checks prevent recurrence. No historical datasets were rewritten.
+
+## 35. R31 rank-64 training configurations prepared — 2026-11-09
+
+Prepared fresh-run local and RunPod profiles under `configs/training/production`,
+named `t5gemma2_270m_lora.mpci_bl_real600_synthetic10150_r31_paddle_centroids_inputonly_v7_e10_compact_eva_a32_r64_{local,runpod}_schedulefree_v1.yaml`.
+They derive from the completed R30 rank-64 profiles, **not rank96**, and pin the
+final R31 aggregate files after the text-checksum metadata amendment:10,150
+synthetic +600 real training records and60 validation records. New run/adapter
+identities and no checkpoint/MLflow resume prevent accidental continuation.
+
+| Setting | Local | RunPod 96GB |
+|---|---:|---:|
+| Microbatch | 1 | 4 |
+| Gradient accumulation | 32 | 12 |
+| Effective optimizer batch | 32 | 48 |
+| Updates per epoch | 336 | 224 |
+| Total updates, ten epochs | 3,360 | 2,240 |
+| ScheduleFree warmup updates | 168 | 112 |
+| Eval/save interval | 840 | 560 |
+| Final partial optimizer batch each epoch | 30 records | 46 records |
+
+All other training behavior is preserved:rank64/alpha32,rsLoRA,EVA,LR1e-4,
+ScheduleFreeAdamW,dropout0.05,bf16,gradient checkpointing,length-grouped sampling,
+seeds424,greedy evaluation and case-insensitive scoring. Eval/save still occurs
+every2.5 epochs, with final evaluation enabled. Generation cap3329,input limit19200
+and target limit5500 are unchanged. The V7 schema/constraint artifact is unchanged;
+the input-only prompt injects no historical uppercase instructions, and canonical
+target processing preserves R31 printed casing. Cache identity includes the new
+dataset hashes. MLflow tags identify the casing policy and750-record extension.
+
+The installed Trainer's final partial-accumulation flush was checked when computing
+the schedules. Full `inspect-dataset` readback verifies all10,810 records, source
+file SHA-256 values and target schemas:18.41s,587 records/s. RunPod strict config,
+prompt and task-constraint validation also passes. Regression tests compare both
+new profiles against R30 with only the deliberate data/identity/schedule/tag
+differences and check printed-case canonicalization: **42 tests passed in20.48s**.
+
+No dataset, runtime implementation, existing config, training job or pod state
+was changed. No GPU benchmark was run:hardware/batching/model settings are unchanged.
+When deploying RunPod, continue using pod-local code/venv/caches and persistent
+`/workspace` outputs; the old R30 launch script still points to its historical run
+and must not be used to launch R31 unchanged.
