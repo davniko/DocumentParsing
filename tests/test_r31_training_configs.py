@@ -92,3 +92,13 @@ def test_r31_files_constraints_and_source_case_contract(hardware):
     assert c.dataset.fields.input_sha256 is None
     assert c.dataset.fields.input_text == "positionedText"
     assert not c.evaluation.case_sensitive  # Same scoring as R30, not uppercase targets.
+
+
+def test_r31_offline_pod_deployment_only_changes_storage_and_model_access():
+    expected = config('r31', 'runpod').model_dump(mode='json')
+    expected['run']['output_dir'] = '/workspace/DocumentParsing/artifacts/kie-training'
+    expected['model']['token_env'] = None
+    expected['model']['local_files_only'] = True
+    deployed = load_training_config(ROOT / 'configs/training/deployment/r31_runpod_offline.yaml')
+    assert deployed.model_dump(mode='json') == expected
+    assert not Path(deployed.dataset.preprocessing.cache_dir).is_absolute()

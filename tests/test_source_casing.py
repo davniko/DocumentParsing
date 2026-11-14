@@ -26,6 +26,19 @@ def test_turkish_combining_dot_preserves_exact_printed_casing():
     )
 
 
+def test_fragmented_combining_dot_words_remain_idempotent():
+    value = "Deposito 14, Limani̇şletme Si̇tesi̇, Örnekdefter Sokak 8, Beyomu İlçesi̇, 34425, Turkey Istanbul"
+    scope = PrintedCaseIndex("Deposito 14, Limani̇şletme Si̇tesi̇,\nÖrnekdefter Sokak 8, Beyomu İlçesi̇, 34425, Turkey\nPOSTAL CODE: Istanbul")
+    for supplied in (value, value.upper()):
+        assert recover_case(supplied, scope, owned=scope)['value'] == value
+
+
+def test_combining_marks_do_not_hide_conflicting_word_case():
+    value = "Maki̇na, 14"
+    scope = PrintedCaseIndex("Maki̇na\nMAKİNA\nPOSTAL: 14")
+    assert 'unresolved' in recover_case(value, scope, owned=scope)
+
+
 def test_multiple_printed_cases_require_review_not_first_match():
     result = recover_case("ACME LTD", PrintedCaseIndex("Acme Ltd\nACME LTD"))
     assert "unresolved" in result

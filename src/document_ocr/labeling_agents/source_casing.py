@@ -25,6 +25,28 @@ def character_clusters(text):
         yield start, len(text)
 
 
+def case_tokens(text):
+    r"""Word/separator spans, keeping combining marks with their base letter.
+
+    Python's ``\w`` excludes combining marks: splitting a printed Turkish i-dot
+    at that mark loses the word's case evidence. Keep the common ASCII regex
+    path and use the same character clusters as the literal index otherwise.
+    """
+    if text.isascii():
+        for match in re.finditer(r"\w+|\W+", text):
+            yield match.start(), match.end(), match[0][0].isalnum() or match[0][0] == "_"
+        return
+    first, previous, stop = 0, None, 0
+    for start, end in character_clusters(text):
+        word = text[start].isalnum() or text[start] == "_"
+        if previous is not None and word != previous:
+            yield first, start, previous
+            first = start
+        previous, stop = word, end
+    if previous is not None:
+        yield first, stop, previous
+
+
 def selected_fields(target: dict) -> Iterator[tuple[str, str]]:
     for role, value in target.get("parties", {}).items():
         entries = enumerate(value) if isinstance(value, list) else [(None, value)]
@@ -125,21 +147,21 @@ class PrintedCaseIndex:
         evidence for this occurrence. Disagreeing contexts remain unresolved;
         neither the first occurrence nor the most common spelling wins.
         """
-        words = list(re.finditer(r"\w+", value))
-        current = next(i for i, word in enumerate(words) if word.span() == span)
+        words = [(a, b) for a, b, word in case_tokens(value) if word]
+        current = next(i for i, word in enumerate(words) if word == span)
         possibilities = None
         for left in range(current, -1, -1):
-            a, b = words[left].start(), words[current].end()
+            a, b = words[left][0], words[current][1]
             if not self.variants(value[a:b], word_edges=False):
                 break
             right = current
             while right + 1 < len(words) and self.variants(
-                value[a : words[right + 1].end()], word_edges=False
+                value[a : words[right + 1][1]], word_edges=False
             ):
                 right += 1
             if left == current == right:
                 continue
-            b = words[right].end()
+            b = words[right][1]
             cases = set()
             prefix = case_key("".join(value[a : span[0]].split()))
             token = value[span[0] : span[1]]
@@ -171,8 +193,8 @@ def recover_case(value: str, index: PrintedCaseIndex, *, owned: PrintedCaseIndex
         if len(variants) > 1:
             return {"unresolved": [{"text": value, "variants": list(variants)}], "method": method}
     output, unresolved, methods = [], [], set()
-    for match in re.finditer(r"\w+|\W+", value):
-        token = match[0]
+    for start, stop, _ in case_tokens(value):
+        token = value[start:stop]
         if not token or token.isspace() or token.lower() == token.upper():
             output.append(token)
             continue
@@ -183,10 +205,10 @@ def recover_case(value: str, index: PrintedCaseIndex, *, owned: PrintedCaseIndex
             variants = index.variants(token, word_edges=True)
             method = "input_token_consensus"
         if len(variants) != 1:
-            contexts = owned.contextual_variants(value, match.span()) if owned is not None else None
+            contexts = owned.contextual_variants(value, (start, stop)) if owned is not None else None
             method = "owned_context_consensus"
             if contexts is None and not found_owned:
-                contexts = index.contextual_variants(value, match.span())
+                contexts = index.contextual_variants(value, (start, stop))
                 method = "input_context_consensus"
             if contexts is not None:
                 variants = contexts

@@ -40,7 +40,7 @@ dataset:
   splits:
     train:
     - path: data/curated/mpci-bl-r31-paddle-centroids-v1/synthetic-train.jsonl
-      sha256: 8230405e94861635ce97cf12858b7c54257250abd62c5f668fc296abb8f6b12a
+      sha256: d236d2db2902a4a97623534860daee499d28ea5cd82ea89741fabadfa9e5ef80
       records: 10150
     - path: data/curated/mpci-bl-r31-paddle-centroids-v1/real-train.jsonl
       sha256: e7334358c08b11c99b0672f1ab9cd7fcd5825364522ba759d3c5ef42d8361762
@@ -215,7 +215,7 @@ logging:
       training_records: '10750'
       target_casing: printed-party-and-goods-v1
       boundary_extension_records: '750'
-      dataset_manifest_sha256: 89eb813d651f81b1842545267d20eb2c113bd17cb84d21297432dc3abf40f202
+      dataset_manifest_sha256: 16a34547a34a9b2c2bed317c2a6a97ef5fc309478dfcc0f7ad7cedcc14ac26ed
   structured_log: logs/events.jsonl
   disable_tqdm: false
   log_level: info

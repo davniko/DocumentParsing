@@ -4948,3 +4948,279 @@ are refreshed; counts/schedules/settings are unchanged. Targeted replay, boundar
 coordinate, unrelated-change rejection, config and publication tests pass.
 Full recertification also passes all750 exact and active-catalog replays and the
 explicit40-record amendment chain (150.96s). The new cohort's coverage is unchanged.
+
+## 37. R31 final boundary and printed-case readiness audit — 2026-11-09
+
+This is a direct main-agent audit of the current 10,750 training records and60
+validation records, not an LLM review sweep. It re-examines actual rendered
+boundaries and independently re-reads input/target evidence before training.
+The evidence is in [boundary-audit.json](analysis/r31-final-readiness-20261109/boundary-audit.json),
+[casing-audit.json](analysis/r31-final-readiness-20261109/casing-audit.json) and the
+[manual review closure](analysis/r31-final-readiness-20261109/manual-review.json).
+
+### Actual difficult-boundary coverage
+
+The750 new records still contain442 documents with a name continuation sharing
+the address line,207 with a complete name sharing that line, and101 easier or
+not-confidently-classified controls. Thus649 documents demonstrate the targeted
+difficulty after rendering. They span33 difficult parents out of40 used parents.
+
+| Screened synthetic coverage | Previous9,400 | Current10,150 |
+|---|---:|---:|
+| Documents with any shared name/address boundary | 689 | 1,338 |
+| Documents with continuation-sharing specifically | 110 | 552 |
+| Continuation-sharing role occurrences | 141 | 940 |
+| Parents supplying continuation-sharing | 6 | 19 |
+| Shared-boundary role occurrences / paired roles | 991/29,753 (3.33%) | 2,130/32,554 (6.54%) |
+| Continuation role occurrences / paired roles | 141/29,753 (0.47%) | 940/32,554 (2.89%) |
+
+These are screened coverage figures, not perfect population estimates. The old
+cohort uses the earlier conservative screen and reviewed false-positive exclusions;
+the new cohort uses complete owned-field readback. The real600 screen has70/1,917
+shared roles (3.65%) and42/1,917 continuations (2.19%); validation has14/189 (7.41%)
+and13/189 (6.88%). Validation remains a small and unusually boundary-heavy set.
+
+The750 supply799 continuation roles and340 complete-name shared roles. Repeated
+consignee/notify parties mean these are **not1,139 independent shipments**: there
+are757 distinct document/name/address/shared-line combinations. Across all2,801
+paired roles,1,571 are separate-line controls and91 do not receive confident
+boundary classification. Those91 are not malformed targets; no difficult-example
+credit is taken for them.
+
+The1,139 shared roles include546 whitespace-only junctions,434 punctuation plus
+whitespace,133 punctuation without whitespace and26 completely concatenated
+junctions. Coarse ending groups include625 legal/business suffixes,195 ordinary
+business words,142 parenthesized qualifiers and177 other endings, including
+personal names. Continuation roles are split417 mixed-case /382 uppercase, and
+whole-name shared roles206 mixed-case /134 uppercase. Shipper, consignee, notify,
+delivery-agent and forwarding-agent roles are represented, though not equally:
+the new continuation cases predominantly cover consignee/notify and delivery agent.
+
+Direct readback covered examples from all33 difficult parents, including:
+
+```text
+Al Bahra Paints And
+Chemicals Fze, Storage Yard 5, Main Industrial Road
+```
+
+Name:`Al Bahra Paints And Chemicals Fze`; address starts
+`Storage Yard 5, Main Industrial Road`. This is not merely learning where a
+physical line ends.
+
+```text
+Al Ittihad Cargo & Distribution
+Est.Al Safa 3, Unit 22
+```
+
+Name ends`Est.`; address starts`Al Safa 3, Unit 22`. Other inspected patterns include
+`Llc P.O.` following a company-name line,`AGENCIES22, AL FAHIDI STREET`, a personal
+name immediately before`MEAT MARKET ROW`, and parenthesized company/partner endings.
+The exact record IDs, full fields, junctions and input lines are in the audit.
+
+The old AGENCY amendment remains intact. AGENCY ends52/799 (6.5%) new continuation
+roles, and88/940 (9.4%) combined old/new continuation roles. The new cohort also
+retains193 multi-container documents,363 multi-package-row documents,132 thermal,
+65 DG,22 multi-DG,47 package categories and635 distinct six-digit HS prefixes.
+
+One residual distribution gap remains: only64/1,139 (5.6%) new shared roles start
+their address numerically. With the old cohort this is183/2,130 (8.6%), versus35/70
+real shared roles (50%) and8/14 validation roles (57%). Word-led addresses such as
+Warehouse, Plot, Industrial Zone and street names dominate synthetic difficult
+boundaries. Numeric-led coverage has increased in absolute count, but this is not
+a matched real-world mixture. It is a useful stratification for the next model
+evaluation, not a label inconsistency or a reason to rewrite correct examples.
+
+### Printed casing and target integrity
+
+The audit streams all10,810 records and81,151 selected fields: party names,
+address lines and goods descriptions. It validates schema/canonical equality,
+unique IDs, allthree text views against measured page rectangles, synthetic
+text digests, and the explicit amendment chain. For the10,060 baseline records
+it verifies case-only target changes and unchanged pages relative to R30, after
+unwinding the documented40 suffix edits and two description corrections.
+
+Case is recovered anew from an uppercase copy of each target, using the exact
+owned occurrence and input context, and compared with the stored target. The
+check is therefore not merely accepting any already-mixed-case value. Literal
+checks and targeted manual readback supplement that same policy implementation.
+Repeated names/products printed in different cases are resolved by ownership,
+not by majority case or the first occurrence. Ten real and501 synthetic field
+occurrences have multiple printed-case variants; reviewed examples include
+`Coal Tar Pitch` versus an uppercase repeat and mixed-case companies versus their
+uppercase invoice occurrences.
+
+Uppercase remains correct where the input is uppercase. Among synthetic fields,
+16,554/33,474 names and16,273/32,600 addresses are mixed-case. Descriptions remain
+mostly source-uppercase:9,450/10,133. No selected target contains a physical
+newline or surrounding whitespace. Physical lines are joined under the existing
+policy; countries, category enums and other normalized fields were not altered.
+
+### Confirmed corrections and retained outliers
+
+1. One fragmented Turkish address containing combining-dot letters exposed a
+   case-recovery utility defect, not an incorrect stored target. Python word
+   matching split combining marks from their base letters. Word-token/context
+   recovery now uses the same character clusters as literal indexing, retaining
+   the ASCII fast path. Regression tests cover idempotent recovery and genuine
+   conflicting-case rejection. The existing address target was already correct.
+2. Two older synthetic goods descriptions contained generation commentary:
+   `FICTIONAL PRODUCER` and a fictional-brand/protected-marks disclaimer. Removed
+   only the commentary, retaining producer code and commercial product facts.
+   Candidates, lexical/native wording receipts, rendered inputs, targets and
+   checksums were updated together with immutable before/after evidence. No
+   template-specific text cleaner or new LLM rule was added: the current review
+   prompt already excludes drafting commentary.
+3. Normal measured reflow was rerun for both repairs. One product block simply
+   shrank; in the other document34 dependent bound blocks translated upward by
+   21.4643 pixels. Their text, horizontal positions, dimensions and other targets
+   did not change. Geometry/conservation/privacy/relation checks passed. A strict
+   amendment guard rejects unrelated text changes and horizontal movement.
+4. Twelve repetition-screen candidates are retained after review: real printed
+   repetitions, repeated product headings/items, package repetitions and numeric
+   dimensions such as`600 MM X 600 MM`. They are not casing migration failures.
+   The conspicuous repeated real consignee-name fragment is already present in
+   the source privacy proof, not introduced by R31. Literal source evidence is
+   preserved rather than deduplicated automatically.
+
+The aggregate amendment is pinned at
+`artifacts/synthesis-campaigns/r31-final-readiness-20261109/receipt.json`.
+Both rank64 config file hashes and manifest tags now identify the corrected R31
+aggregate. Counts, batching, schedules, hyperparameters and evaluation remain
+unchanged; real/validation files and all750 new records are unchanged.
+
+### Validation and measured impact
+
+Final full-data readback reports **zero casing mismatches**, zero target newlines
+or surrounding whitespace, and1,901,651 valid coordinate-bearing regions across
+all10,810 records. The twelve automated outlier flags are closed by the pinned
+manual dispositions above. The full casing audit took229.68s/612.5MiB peak RSS.
+Fresh exact and active-catalog replay passes all750 new documents, including the
+explicit historical amendment chain:155.35s/358.8MiB. No unresolved training blocker
+was found within this audit's scope; R31 is ready for the configured training run.
+
+Targeted casing, boundary, scoped-repair, catalog/reflow, suffix-preservation,
+publication and training-config suites: **138 passed in25.93s**. Both repairs use
+the normal catalog renderer; negative tests reject edits outside the approved
+scope. Training `inspect-dataset` validates all10,810 records and current pins in
+19.09s (566 records/s), and the RunPod strict config check passes. Target lengths
+were remeasured in17.56s: maximum training3182 and validation1356; none exceeds
+the3329 generation cap or5500 target-training limit.
+
+The Unicode repair microbenchmark (8,000 field recoveries, median of seven)
+changed31.10ms to36.55ms:0.68 microseconds additional per call, with peak RSS
+15.4MiB to15.2MiB. This is a negligible absolute preprocessing cost, not a claim
+of faster recovery. There is no new provider call, training/inference hot-path
+dependency or runtime setting. This audit used zero paid LLM calls and no
+subagents; training has not been launched.
+
+## 38. R31 completed RunPod run: source casing and boundary extension
+
+Date:2026-11-09. Detailed analysis and reproducible evidence:
+[R31 results report](analysis/r31-training-results-20261109/REPORT.md),
+[summary](analysis/r31-training-results-20261109/summary.json),
+[paired copying diagnostics](analysis/r31-training-results-20261109/diagnostics.json).
+
+**The selected best and terminal checkpoints are the same:2240, epoch10.**
+This is the preferred R31 checkpoint overall;1680 remains a useful alternative
+with slightly better relations/categories/schema validity. R31 improves text
+copying and overall field extraction over the R30 rank64 best, but does not
+resolve the difficult name/address boundaries or dominate all earlier metrics.
+
+### Complete retrieval and exact verification
+
+Downloaded all74 run files (1,750,912,747bytes): all four checkpoints including
+optimizer/scheduler/RNG state, selected adapter/tokenizer, all evaluation outputs,
+trainer logs/history, configs, environment and EVA evidence. Every file matches
+a fresh remote SHA-256 inventory; all72 completed-manifest entries match. All504
+exported adapter tensors equal2240. The final selected prediction export is
+byte-identical to2240's training-time prediction archive. All14 scheduled
+evaluations across R31 and both R30 runs reproduce their native quality metrics
+within1e-12, using their original references.
+
+Consistent remote MLflow snapshot and artifact store retained under
+`artifacts/kie-training/runpod-downloads/20261109-r31-complete/`. Local tracking
+DB was backed up, then328,417 metric rows and312 parameters imported and checked
+exactly, preserving timestamps/steps/source tags/status. All62 previous run rows
+unchanged. Full checkpoint artifacts are attached under `training-run/`.
+[Local MLflow run](http://127.0.0.1:5000/#/experiments/3/runs/69d3290934254d329910bf99ab334451).
+No remote files deleted or pod stopped; no dataset/model/prediction edits, new
+training/inference, paid LLM calls or subagents.
+
+### Progression and comparisons
+
+|Epoch/step|Field F1|Field accuracy|Relation F1|Category F1|JSON /60|Schema /60|
+|---|---:|---:|---:|---:|---:|---:|
+|2.5/560|0.879330|0.826102|0.873913|0.890815|56|46|
+|5/1120|0.892308|0.848431|0.918681|0.887719|58|53|
+|7.5/1680|0.903758|0.869795|0.935010|0.938023|58|54|
+|**10/2240**|**0.906939**|**0.873378**|**0.933054**|**0.934673**|**59**|**53**|
+
+Same current gold, case-insensitive field/fact metrics:
+
+|Checkpoint|Field F1|Relation F1|Category F1|JSON /60|Schema /60|
+|---|---:|---:|---:|---:|---:|
+|R30 r64 best1044|0.902568|0.948936|0.912106|58|55|
+|R30 r64 terminal2090|0.895197|0.889344|0.913793|58|54|
+|R30 r96 best1566|0.910305|0.937500|0.925865|60|53|
+|R30 r96 terminal2090|0.903769|0.937500|0.931092|58|51|
+|R31 best/terminal2240|0.906939|0.933054|0.934673|59|53|
+
+All60 validation inputs are identical. R31 versus R30rank96 gold differs only in
+case under the metric comparison; R30rank64 has two previously reviewed party
+boundary amendments, controlled above. Native R30rank64 best field F1 was0.902204.
+Canonical whole-document exact intentionally remains case-sensitive even when
+field scoring is not; the added casefolded, schema-valid exact diagnostic is6/60
+for all three selected models, avoiding a false apparent R31 gain from new casing.
+
+On57 shared-parseable documents, rank64-best→R31 field F1 improves
+0.910615→0.914520, relations decrease0.948498→0.940928. On59 shared-parseable
+documents, rank96-best→R31 field F1 improves0.910554→0.913426 and relations are
+equal at0.936975. R31's one malformed JSON materially affects its raw comparison
+with rank96. Deleting only its documented extra bracket yields diagnostic field
+F10.912776/relationF10.937500, but **is not an official model score or deployment
+change**, and leaves semantic contact/address mistakes. All outputs reached EOS;
+terminal maximum1301 tokens is well below3329. Bootstrap intervals span zero.
+
+### What improved—and what did not
+
+- Literal correct values: party names164→168/197, descriptions40→44/60, addresses
+  **141→141/189** versus rank64 best. Rank96 has167/43/144 respectively.
+- Among64 literal fields with lowercase in the printed target, case-insensitive
+  correctness improves39(rank64)/38(rank96)→**47**. Concrete wins include
+  `Pölkky Oy`, `Maher Mikhail Wahba Abd Elmaseh`, `Ontex Lumber Ltd.`,
+  `Toronto,Ontario`, `Ismail Wahby`, and the complete
+  `ADL Airthroughbonded Acquisition Distribution Layer` description.
+- Among382 literal fields without lowercase, R31 and rank64 both get306 right;
+  rank96 gets316. This supports a copying benefit but not universal superiority.
+- Same-line party boundaries **do not improve**: both fields correct5/14 roles
+  in11 documents, versus8/14(rank64) and6/14(rank96). Separate-line roles improve
+  119→126/167 versus rank64, matching rank96. MATERIALS and PRODUCTION still enter
+  addresses instead of completing company names; branch continuations and
+  `EXPORT ADDRESS:` remain difficult. Conversely, address-owned `GIZA PRODUCTION
+  POW` sometimes enters the name. Need positive and counterexample supervision,
+  not only more shared-line occurrences. The known numeric-address-lead coverage
+  gap remains relevant; it is not proven causal by this single run.
+- Relations recover the same223/238 facts as rank64 best but emit eight extra
+  false facts. Unsupported allocations, VIN/non-ID-as-container, truncated IDs
+  and mixed-package arithmetic remain. All three8–10-container validation cases
+  now pass relation scoring, a concrete improvement on the earlier long cases.
+- Package-category F10.8000→0.9032 is partly fewer repeated rows, not a solved
+  multi-row case: `5d6b477c` shrinks17→5 predicted package rows; correct is2.
+- Phone F1 declines0.8976→0.8640, HS0.9412→0.9231 and seals0.9407→0.9160.
+  Countries improve modestly. All six temperature values/units remain correct;
+  the sole DG's UN/hazard are correct but PG is omitted. Validation support is
+  too small to characterize DG/thermal subcategories broadly.
+
+R31 training takes7h00m34s (3.3% longer than R30rank64 for7.5% more documents);
+throughput4.260 versus4.094 examples/s. EVA242 forwards/784.68s versus239/771.74s.
+Training-source pins and dependency versions match. No storage bottleneck is
+indicated by these receipts. The intervention combines source casing,750new
+records, minor reviewed legacy fixes, more updates and a changed EVA sample;
+causality cannot be assigned to one component.
+
+**Next interpretation:** keep the source-casing direction; use2240 for the R31
+comparison; retain older selected checkpoints. Boundary distinctions, missing-
+allocation negatives, strict identifier copying and package aggregation remain
+separate priorities. Do not call the new boundary cohort a demonstrated success,
+or the overall result a rank64/rank96 capacity conclusion. No follow-up training,
+dataset modifications or publication were performed by this audit.
